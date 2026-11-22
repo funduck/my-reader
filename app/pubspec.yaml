@@ -1,0 +1,13 @@
+name: my_reader_workspace
+description: My reader app monorepo (pub workspace root).
+publish_to: none
+environment:
+  sdk: ^3.14.0
+workspace:
+  - app
+  - packages/core
+  - packages/core_testing
+  - packages/reader_api
+  - packages/storage_drift
+dev_dependencies:
+  very_good_analysis: ^11.0.0
