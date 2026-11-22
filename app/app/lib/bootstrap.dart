@@ -13,6 +13,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:storage_drift/storage_drift.dart';
 
 import 'app.dart';
+import 'logging.dart';
 
 /// Overrides of the port providers: the only place where concrete
 /// implementations are chosen (docs/Architecture-app.md, section 8).
@@ -80,6 +81,7 @@ Future<Directory> packsDirectory() async {
 Widget bootstrap({List<Override>? overrides}) {
   return ProviderScope(
     overrides: overrides ?? buildOverrides(),
+    observers: const [LoggingProviderObserver()],
     child: const MyReaderApp(),
   );
 }

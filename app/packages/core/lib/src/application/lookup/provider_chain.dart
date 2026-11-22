@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:logging/logging.dart';
 import 'package:meta/meta.dart';
 
 import '../../domain/lookup/ids.dart';
@@ -119,6 +120,8 @@ class ProviderChain {
   final List<LookupProvider> _providers;
   final ProfileRepository _profiles;
 
+  static final Logger _log = Logger('ProviderChain');
+
   /// Looks up [query], in the order from the profile.
   ///
   /// With [only] just that provider is called, with no fallback (the user
@@ -150,11 +153,19 @@ class ProviderChain {
       cancel?.throwIfCancelled();
       candidates = _ordered(profile.providerOrder, query);
     }
+    _log.fine(
+      'Lookup "${query.text}" (${query.mode.name}) via '
+      '${candidates.map((p) => p.id.value).join(', ')}',
+    );
     final attempts = <ProviderAttempt>[];
     for (final provider in candidates) {
       final result = await _tryOne(provider, query, cancel, attempts);
-      if (result != null) return ChainSuccess(result, List.of(attempts));
+      if (result != null) {
+        _log.fine('"${query.text}" answered by ${provider.id.value}');
+        return ChainSuccess(result, List.of(attempts));
+      }
     }
+    _log.info('No provider answered "${query.text}": $attempts');
     return ChainFailure(attempts);
   }
 
@@ -195,8 +206,10 @@ class ProviderChain {
       if (result.senses.isNotEmpty) return result;
       failure = AttemptFailure.empty;
     } on TimeoutException {
+      _log.warning('${provider.id.value} timed out after $timeout');
       failure = AttemptFailure.timedOut;
-    } on ProviderUnavailable {
+    } on ProviderUnavailable catch (e) {
+      _log.warning('${provider.id.value} unavailable', e);
       failure = AttemptFailure.unavailable;
     } on LookupNotFound {
       failure = AttemptFailure.notFound;

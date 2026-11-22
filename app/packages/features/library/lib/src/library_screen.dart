@@ -3,9 +3,12 @@ import 'dart:io';
 import 'package:core/application.dart';
 import 'package:core/domain_books.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:logging/logging.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'providers.dart';
+
+final Logger _log = Logger('LibraryScreen');
 
 /// The library: imported books with title, author and reading progress, and
 /// a button that imports a new one.
@@ -31,14 +34,18 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     String message;
     try {
       final path = await picker();
-      if (path == null) return;
+      if (path == null) {
+        _log.fine('Import cancelled');
+        return;
+      }
       message = switch (await importBook(path)) {
         BookImported(:final book) => 'Added: ${book.metadata.title}',
         BookAlreadyImported(:final book) =>
           'Already in the library: ${book.metadata.title}',
         BookUnsupported() => 'This file is not a supported book.',
       };
-    } on FileSystemException catch (e) {
+    } on FileSystemException catch (e, s) {
+      _log.warning('Import failed', e, s);
       message = 'Could not read the file: ${e.message}';
     } finally {
       if (mounted) setState(() => _importing = false);

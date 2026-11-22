@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:logging/logging.dart';
+
 import '../domain/books/book.dart';
 import '../domain/books/ids.dart';
 import '../ports/book_format_adapter.dart';
@@ -75,23 +77,33 @@ class ImportBook {
   /// Content hash of a file; also the name of the stored copy.
   final FileHasher hash;
 
+  static final Logger _log = Logger('ImportBook');
+
   /// Imports the file at the absolute [path].
   ///
   /// Throws [FileSystemException] if the file cannot be read or copied.
   Future<ImportOutcome> call(String path) async {
+    _log.info('Importing $path');
     final adapter = await _adapterFor(path);
-    if (adapter == null) return BookUnsupported(path);
+    if (adapter == null) {
+      _log.warning('No format adapter can open $path');
+      return BookUnsupported(path);
+    }
 
     final BookMetadata metadata;
     try {
       metadata = await adapter.readMetadata(path);
-    } on FormatException {
+    } on FormatException catch (e, s) {
+      _log.warning('Broken metadata in $path', e, s);
       return BookUnsupported(path);
     }
 
     final contentHash = await hash(path);
     final existing = await books.findByContentHash(contentHash);
-    if (existing != null) return BookAlreadyImported(existing);
+    if (existing != null) {
+      _log.info('Already imported as ${existing.id.value}');
+      return BookAlreadyImported(existing);
+    }
 
     final format = adapter.formats.first;
     await Directory(directory).create(recursive: true);
@@ -111,10 +123,14 @@ class ImportBook {
     );
     try {
       await books.save(book);
-    } on Object {
+    } on Object catch (e, s) {
+      _log.severe('Cannot save book ${book.id.value}', e, s);
       await File(stored).delete();
       rethrow;
     }
+    _log.info(
+      'Imported ${book.id.value} "${book.metadata.title}" as ${format.name}',
+    );
     return BookImported(book);
   }
 
@@ -122,7 +138,8 @@ class ImportBook {
     for (final adapter in adapters) {
       try {
         if (await adapter.canOpen(path)) return adapter;
-      } on FormatException {
+      } on FormatException catch (e) {
+        _log.fine('${adapter.runtimeType} cannot open $path: $e');
         continue;
       }
     }

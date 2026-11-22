@@ -3,9 +3,12 @@ import 'dart:async';
 import 'package:core/domain_lookup.dart';
 import 'package:features_common/features_common.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:logging/logging.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'packs_controller.dart';
+
+final Logger _log = Logger('SettingsScreen');
 
 /// Address of the service used when none is configured.
 const defaultServiceUrl = 'http://localhost:8080';
@@ -99,7 +102,8 @@ class _ServiceUrlFieldState extends ConsumerState<_ServiceUrlField> {
         ref,
         (p) => p.copyWith(serviceUrl: () => text.isEmpty ? null : text),
       );
-    } on Exception catch (e) {
+    } on Exception catch (e, s) {
+      _log.warning('Cannot save the service address', e, s);
       if (mounted) setState(() => _error = 'Cannot save: $e');
     }
   }

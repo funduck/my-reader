@@ -4,6 +4,9 @@ import 'package:core/ports.dart';
 import 'package:features_common/features_common.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:logging/logging.dart';
+
+final Logger _log = Logger('PacksController');
 
 /// State of one pack in the list.
 enum PackStatus {
@@ -149,7 +152,8 @@ class PacksController extends Notifier<PacksState> {
       state = state.copyWith(
         installed: {for (final p in installed) p.id: p.version},
       );
-    } on Exception catch (e) {
+    } on Exception catch (e, s) {
+      _log.warning('Cannot read installed packs', e, s);
       if (!ref.mounted) return;
       state = state.copyWith(manifestError: () => 'Cannot read packs: $e');
     }
@@ -158,6 +162,7 @@ class PacksController extends Notifier<PacksState> {
       if (!ref.mounted) return;
       state = state.copyWith(manifest: manifest, manifestError: () => null);
     } on Exception catch (e) {
+      _log.warning('Service is not reachable', e);
       if (!ref.mounted) return;
       state = state.copyWith(
         manifest: const [],
@@ -185,7 +190,8 @@ class PacksController extends Notifier<PacksState> {
         installed: {...state.installed, pack.id: pack.version},
         progress: {...state.progress}..remove(id),
       );
-    } on Exception catch (e) {
+    } on Exception catch (e, s) {
+      _log.warning('Download of $id failed', e, s);
       if (!ref.mounted) return;
       state = state.copyWith(
         progress: {...state.progress}..remove(id),

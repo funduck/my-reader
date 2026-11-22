@@ -5,12 +5,15 @@ import 'dart:io';
 import 'package:core/ports.dart';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
+import 'package:logging/logging.dart';
 import 'package:path/path.dart' as p;
 
 import 'pack_exceptions.dart';
 
 /// Name of the file with installed versions, stored next to the packs.
 const packsIndexName = 'packs.json';
+
+final Logger _log = Logger('HttpPackStore');
 
 /// [PackStore] that downloads packs from the service over HTTP.
 ///
@@ -62,6 +65,7 @@ class HttpPackStore implements PackStore {
   ];
 
   Future<List<_Listed>> _fetchManifest() async {
+    _log.fine('GET ${_resolve('manifest.json')}');
     final response = await _guard(
       () => _client.get(_resolve('manifest.json')).timeout(timeout),
     );
@@ -72,7 +76,8 @@ class HttpPackStore implements PackStore {
       return [
         for (final raw in packs) _parseEntry(raw! as Map<String, Object?>),
       ];
-    } on Object catch (e) {
+    } on Object catch (e, s) {
+      _log.warning('Bad manifest.json', e, s);
       throw PackManifestException('bad manifest.json: $e');
     }
   }
@@ -114,6 +119,10 @@ class HttpPackStore implements PackStore {
     final listed = (await _fetchManifest()).where((e) => e.entry.id == id);
     if (listed.isEmpty) throw PackNotFoundException(id);
     final entry = listed.first.entry;
+    _log.info(
+      'Downloading $id ${entry.version} (${entry.sizeBytes} bytes) '
+      'from ${_resolve(listed.first.path)}',
+    );
     await directory.create(recursive: true);
     final part = File(p.join(directory.path, '$id.sqlite.part'));
     try {
@@ -124,6 +133,7 @@ class HttpPackStore implements PackStore {
     }
     await _updateIndex((index) => index[id] = entry.version);
     onProgress(1);
+    _log.info('Installed $id ${entry.version}');
     return InstalledPack(id: id, version: entry.version);
   }
 
@@ -162,6 +172,7 @@ class HttpPackStore implements PackStore {
     }
     final actual = digestSink.value.toString();
     if (actual != entry.sha256) {
+      _log.warning('Hash mismatch for ${entry.id}');
       throw PackHashMismatchException(
         id: entry.id,
         expected: entry.sha256,
@@ -208,6 +219,7 @@ class HttpPackStore implements PackStore {
 
   void _checkStatus(int status, String what) {
     if (status != 200) {
+      _log.warning('HTTP $status for $what');
       throw PackNetworkException('HTTP $status for $what', statusCode: status);
     }
   }
@@ -216,10 +228,13 @@ class HttpPackStore implements PackStore {
     try {
       return await body();
     } on http.ClientException catch (e) {
+      _log.warning('Network error', e);
       throw PackNetworkException('network error: ${e.message}', cause: e);
     } on SocketException catch (e) {
+      _log.warning('Network error', e);
       throw PackNetworkException('network error: ${e.message}', cause: e);
     } on TimeoutException catch (e) {
+      _log.warning('Timeout after $timeout', e);
       throw PackNetworkException('timeout', cause: e);
     }
   }

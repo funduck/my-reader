@@ -1,5 +1,6 @@
 import 'package:features_library/features_library.dart';
 import 'package:features_settings/features_settings.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -36,6 +37,8 @@ abstract final class Routes {
 GoRouter createRouter({String initialLocation = Routes.library}) {
   return GoRouter(
     initialLocation: initialLocation,
+    // Navigation goes to the `GoRouter` logger (see logging.dart).
+    debugLogDiagnostics: kDebugMode,
     routes: [
       GoRoute(path: '/', redirect: (_, _) => Routes.library),
       GoRoute(
