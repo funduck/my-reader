@@ -19,3 +19,9 @@ dev_dependencies:
   test: ^1.25.0
   very_good_analysis: ^11.0.0
   yaml: ^3.1.0
+# package:sqlite3 links the OS libsqlite3 instead of downloading a prebuilt one
+# from github.com (blocked in the agent sandbox). See docs/tasks/README.md.
+hooks:
+  user_defines:
+    sqlite3:
+      source: system
