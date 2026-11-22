@@ -1,0 +1,14 @@
+name: lookup_wiktionary
+description: Offline en-en LookupProvider over the Wiktionary pack.
+publish_to: none
+version: 0.1.0
+resolution: workspace
+environment:
+  sdk: ^3.14.0
+dependencies:
+  core: any
+  sqlite3: ^3.0.0
+dev_dependencies:
+  core_testing: any
+  path: ^1.9.0
+  test: ^1.25.0
