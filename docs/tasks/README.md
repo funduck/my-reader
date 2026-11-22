@@ -83,6 +83,8 @@
 - `UserProfile.providerOrder` пустой — значит порядок регистрации провайдеров.
 - Порты (`package:core/ports.dart`): `LookupProvider.lookup` при неудаче бросает `ProviderUnavailable` или `LookupNotFound` (sealed `LookupFailure`), цепочка идёт к следующему провайдеру; отмена — `CancelledException` через `CancelToken`. `BookFormatAdapter` принимает абсолютный путь `String path`, на битый файл бросает `FormatException`. `TextAnalyzer` и `LevelDictionary` синхронные, офсеты — UTF-16, полуинтервал.
 
+- `reader_api` (T-015): `ReaderEngine` (`buildView`, `load(book, {at})`, `goTo`, `applySettings`, `highlight(List<Locator>)` заменяет прежний набор, `events` — broadcast, `dispose` один раз). `load` не закрывает `OpenedBook`. `ReaderSettings`: `fontFamily` (null — шрифт движка), `fontSize` = 18, `theme` (`ReaderTheme.light/dark`), `horizontalPadding` = 16; расширять только аддитивно.
+
 ## Волны
 
 Задачи одной волны можно запускать параллельно: их зависимости закрыты предыдущими волнами. Номер волны — самый ранний старт при неограниченном числе агентов.
