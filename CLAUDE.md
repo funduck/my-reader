@@ -19,6 +19,7 @@ Docs are in Russian. Read only what your task needs.
 | docs/tasks/README.md | How agents and the orchestrator work, accepted tech decisions, task waves |
 | docs/tasks/T-*.md | One task each: status, dependencies, allowed paths ("Где"), what to read, done criteria |
 | docs/tasks/U-*.md | Human checkpoints on the Mac |
+| docs/backlog/B-*.md | Open questions and research tasks, not scheduled yet |
 | docs/Liseur-fork-plan.md | Assessment of forking chmouel/liseur (Android, Kotlin) as an alternative base |
 | docs/References.md | Similar products, for ideas only |
 
