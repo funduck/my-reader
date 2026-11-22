@@ -1,0 +1,14 @@
+name: packs_http
+description: PackStore over HTTP, downloads data packs from the service.
+publish_to: none
+version: 0.1.0
+resolution: workspace
+environment:
+  sdk: ^3.14.0
+dependencies:
+  core: any
+  crypto: ^3.0.0
+  http: ^1.2.0
+  path: ^1.9.0
+dev_dependencies:
+  test: ^1.25.0
