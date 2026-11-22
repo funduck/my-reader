@@ -31,6 +31,5 @@ Docs are in Russian. Read only what your task needs.
 - Change only the paths listed under "Где". If you need more, stop and report.
 - Tests are required. While working, run `app/scripts/check.sh --package <dir>` for your package. Before handing off, run the full `app/scripts/check.sh` (app) or `uv run pytest` in `service/`.
 - A task is done only when `dart format`, `dart analyze --fatal-infos` and the tests are all green. Don't silence lints with `// ignore:` or by editing `app/analysis_options.yaml`. If a rule is wrong for the project, stop and report.
-- Hooks in `.claude/settings.json` enforce this. After every `.dart` edit they format the file and analyze it. Before you stop, they run `app/scripts/check.sh` if any `.dart` file under `app/` changed. Fix what they report, don't work around it.
 - Don't re-decide what `docs/tasks/README.md` already fixes under "Принятые решения".
 - `app/README.md` and `service/README.md` (once they exist) describe how to build and run each part.
