@@ -84,7 +84,12 @@ void main() {
     );
   });
 
-  Widget app({Locator? locator, BookId bookId = id, Key? key}) => ProviderScope(
+  Widget app({
+    Locator? locator,
+    BookId bookId = id,
+    Key? key,
+    void Function(Locator)? onOpenCheatSheet,
+  }) => ProviderScope(
     overrides: [
       bookRepositoryProvider.overrideWithValue(books),
       progressRepositoryProvider.overrideWithValue(progress),
@@ -101,7 +106,12 @@ void main() {
       }),
     ],
     child: MaterialApp(
-      home: ReaderScreen(key: key, bookId: bookId, locator: locator),
+      home: ReaderScreen(
+        key: key,
+        bookId: bookId,
+        locator: locator,
+        onOpenCheatSheet: onOpenCheatSheet,
+      ),
     ),
   );
 
@@ -115,6 +125,28 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     await tester.pump();
   }
+
+  testWidgets('the warm-up button passes the current position', (tester) async {
+    final opened = <Locator>[];
+    await tester.pumpWidget(app(onOpenCheatSheet: opened.add));
+    await tester.pump();
+    await tester.pump();
+    // Nothing reported yet: the start of the book.
+    await tester.tap(find.byTooltip('Разминка'));
+    expect(opened.single.chapter.index, 0);
+    expect(opened.single.progression, 0);
+    engines.single.emit(PositionChanged(at(2, 0.5)));
+    await tester.pump();
+    await tester.tap(find.byTooltip('Разминка'));
+    expect(opened.last, at(2, 0.5));
+    await close(tester);
+  });
+
+  testWidgets('no warm-up button without a callback', (tester) async {
+    await open(tester);
+    expect(find.byTooltip('Разминка'), findsNothing);
+    await close(tester);
+  });
 
   testWidgets('shows the engine view and the title', (tester) async {
     await open(tester);

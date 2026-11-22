@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:core/domain_books.dart';
+import 'package:features_cheatsheet/features_cheatsheet.dart';
 import 'package:features_history/features_history.dart';
 import 'package:features_library/features_library.dart';
 import 'package:features_reader/features_reader.dart';
@@ -6,8 +9,7 @@ import 'package:features_settings/features_settings.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
-import 'screens/placeholder_screen.dart';
+import 'package:lookup_sheet/lookup_sheet.dart';
 
 /// Route paths of the app.
 abstract final class Routes {
@@ -52,13 +54,19 @@ GoRouter createRouter({String initialLocation = Routes.library}) {
       ),
       GoRoute(
         path: Routes.reader,
-        builder: (_, state) {
+        builder: (context, state) {
           final bookId = BookId(state.pathParameters['bookId']!);
           final param = state.uri.queryParameters['locator'];
           return ReaderScreen(
             key: ValueKey('${bookId.value}|$param'),
             bookId: bookId,
             locator: parseLocatorParam(param),
+            onOpenCheatSheet: (at) => context.push(
+              Uri(
+                path: Routes.cheatsheetFor(bookId.value),
+                queryParameters: {'locator': encodeLocatorParam(at)},
+              ).toString(),
+            ),
           );
         },
       ),
@@ -66,10 +74,25 @@ GoRouter createRouter({String initialLocation = Routes.library}) {
       GoRoute(path: Routes.history, builder: (_, _) => const HistoryScreen()),
       GoRoute(
         path: Routes.cheatsheet,
-        builder: (_, state) => PlaceholderScreen(
-          title: 'Cheat sheet',
-          details: ['bookId: ${state.pathParameters['bookId']}'],
-        ),
+        builder: (context, state) {
+          final bookId = BookId(state.pathParameters['bookId']!);
+          final param = state.uri.queryParameters['locator'];
+          return CheatSheetScreen(
+            key: ValueKey('${bookId.value}|$param'),
+            bookId: bookId,
+            from: parseLocatorParam(param),
+            onWordTap: (sheetContext, query) => unawaited(
+              showLookupSheet(
+                sheetContext,
+                query,
+                onOpenSettings: () => context.go(Routes.settings),
+              ),
+            ),
+            onRead: () => context.canPop()
+                ? context.pop()
+                : context.go(Routes.readerAt(bookId.value)),
+          );
+        },
       ),
     ],
   );
