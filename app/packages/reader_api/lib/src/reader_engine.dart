@@ -18,9 +18,12 @@ abstract interface class ReaderEngine {
 
   /// Shows [book], starting at [at] or at the beginning when `null`.
   ///
+  /// [bookId] is the id of [book] in the library; the engine puts it into
+  /// every [Locator] it reports, because an [OpenedBook] does not know it.
+  ///
   /// The engine does not close [book]; the caller owns it and closes it after
   /// [dispose].
-  Future<void> load(OpenedBook book, {Locator? at});
+  Future<void> load(OpenedBook book, {required BookId bookId, Locator? at});
 
   /// Scrolls to [locator]. A locator the engine cannot resolve falls back to
   /// the nearest known position, using its `TextQuote` when present.

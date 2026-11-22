@@ -6,8 +6,22 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:reader_api/reader_api.dart';
 
+import 'position.dart';
 import 'reader_style.dart';
 import 'reader_view.dart';
+import 'throttle.dart';
+
+/// How often [PositionChanged] may be emitted.
+const Duration positionInterval = Duration(milliseconds: 500);
+
+/// What the list view tells the engine about itself; implemented by the view.
+@internal
+abstract interface class ViewportBridge {
+  /// The first block that is at least partly on screen and the offset of the
+  /// first visible character in it; `null` while nothing is laid out.
+  /// `lineEnd` is the end of that line in the block text, when known.
+  ({BlockPosition position, int? lineEnd})? firstVisible();
+}
 
 /// A chapter shown by the engine and where its list starts.
 @immutable
@@ -17,8 +31,10 @@ final class ChapterState {
     required this.ref,
     required this.document,
     required this.startBlock,
+    required this.text,
     required this.generation,
     required this.isLast,
+    this.startOffset = 0,
   });
 
   /// The chapter, or `null` for a book without chapters.
@@ -29,6 +45,12 @@ final class ChapterState {
 
   /// Index into [ContentDocument.blocks] of the block at the top on open.
   final int startBlock;
+
+  /// Offset in the text of block [startBlock] of the first visible character.
+  final int startOffset;
+
+  /// The text of the chapter, for position conversions.
+  final ChapterText text;
 
   /// Whether there is no chapter after this one.
   final bool isLast;
@@ -43,8 +65,13 @@ final class ChapterState {
 ///
 /// List layout: item `0` is the "previous chapter" control, items `1..n` are
 /// the `n` blocks (block `i` is item `i + 1`), item `n + 1` is the "next
-/// chapter" control. Position tracking, `Locator` conversion, tap and
-/// selection events are built on this layout by later tasks (T-017, T-018).
+/// chapter" control. Tap and selection events are built on this layout by a
+/// later task (T-018).
+///
+/// Position: a block index plus a character offset in the block text. The
+/// view reports the first visible block and line; the engine turns that into
+/// a [Locator] (see `position.dart` for the `engineHint` format) and emits
+/// [PositionChanged] at most once per [positionInterval].
 class SimpleReaderEngine implements ReaderEngine {
   /// Creates an engine with default [ReaderSettings].
   new();
@@ -55,7 +82,14 @@ class SimpleReaderEngine implements ReaderEngine {
     ReaderStyle.fromSettings(const ReaderSettings()),
   );
   final _failure = ValueNotifier<bool>(false);
+  late final Throttle _throttle = Throttle(
+    interval: positionInterval,
+    action: _reportPosition,
+  );
   OpenedBook? _book;
+  BookId? _bookId;
+  ViewportBridge? _bridge;
+  Locator? _lastReported;
   List<Locator> _highlights = const [];
   int _generation = 0;
   bool _disposed = false;
@@ -83,14 +117,65 @@ class SimpleReaderEngine implements ReaderEngine {
   Widget buildView(BuildContext context) => ReaderView(engine: this);
 
   @override
-  Future<void> load(OpenedBook book, {Locator? at}) async {
+  Future<void> load(
+    OpenedBook book, {
+    required BookId bookId,
+    Locator? at,
+  }) async {
     _book = book;
-    await _show(at?.chapter.index ?? 0, progression: at?.progression ?? 0);
+    _bookId = bookId;
+    await _show(at?.chapter.index ?? 0, locator: at);
   }
 
   @override
   Future<void> goTo(Locator locator) =>
-      _show(locator.chapter.index, progression: locator.progression);
+      _show(locator.chapter.index, locator: locator);
+
+  /// The reading position now, without waiting for the next
+  /// [PositionChanged]; `null` until a chapter is on screen.
+  Locator? currentLocator() {
+    final chapter = _chapter.value;
+    final ref = chapter?.ref;
+    final bookId = _bookId;
+    final visible = _bridge?.firstVisible();
+    if (chapter == null || ref == null || bookId == null || visible == null) {
+      return null;
+    }
+    final text = chapter.text;
+    final (:position, :lineEnd) = visible;
+    return Locator(
+      book: bookId,
+      chapter: ref,
+      progression: text.progressionOf(position),
+      quote: text.quoteAt(position, lineEnd: lineEnd),
+      engineHint: encodeHint(ref.index, position),
+    );
+  }
+
+  /// Called by the view when it attaches. Returns the function to call when
+  /// the view goes away; it does nothing if another view attached meanwhile.
+  @internal
+  VoidCallback attachView(ViewportBridge bridge) {
+    _bridge = bridge;
+    return () {
+      if (identical(_bridge, bridge)) _bridge = null;
+    };
+  }
+
+  /// Called by the view whenever the visible part of the list may have
+  /// changed.
+  @internal
+  void positionTouched() {
+    if (!_disposed) _throttle.poke();
+  }
+
+  bool _reportPosition() {
+    final locator = currentLocator();
+    if (locator == null || locator == _lastReported) return false;
+    _lastReported = locator;
+    _emit(PositionChanged(locator));
+    return true;
+  }
 
   @override
   void applySettings(ReaderSettings settings) {
@@ -111,7 +196,7 @@ class SimpleReaderEngine implements ReaderEngine {
     final current = _chapter.value?.ref;
     if (current == null) return;
     final done = current;
-    if (await _switchTo(current.index + 1, progression: 0)) {
+    if (await _switchTo(current.index + 1)) {
       _emit(ChapterFinished(done));
     }
   }
@@ -124,7 +209,7 @@ class SimpleReaderEngine implements ReaderEngine {
     await _switchTo(current.index - 1, progression: 1);
   }
 
-  Future<bool> _switchTo(int index, {required double progression}) async {
+  Future<bool> _switchTo(int index, {double progression = 0}) async {
     try {
       await _show(index, progression: progression);
       _failure.value = false;
@@ -135,7 +220,13 @@ class SimpleReaderEngine implements ReaderEngine {
     return false;
   }
 
-  Future<void> _show(int index, {required double progression}) async {
+  /// Shows chapter [index]; the place in it comes from [locator] if given,
+  /// else from [progression].
+  Future<void> _show(
+    int index, {
+    Locator? locator,
+    double progression = 0,
+  }) async {
     final book = _book;
     if (book == null) throw StateError('load() has not been called');
     final spine = book.spine;
@@ -143,6 +234,7 @@ class SimpleReaderEngine implements ReaderEngine {
       _chapter.value = ChapterState(
         ref: null,
         document: const ContentDocument([]),
+        text: ChapterText.of(const ContentDocument([])),
         startBlock: 0,
         generation: ++_generation,
         isLast: true,
@@ -155,13 +247,18 @@ class SimpleReaderEngine implements ReaderEngine {
         ? current!.document
         : await book.chapter(ref);
     if (_disposed) return;
-    final count = document.blocks.length;
+    final text = current?.ref == ref && identical(current?.document, document)
+        ? current!.text
+        : ChapterText.of(document);
+    final start = locator == null
+        ? text.fromProgression(progression)
+        : resolveLocator(locator: locator, chapter: ref.index, text: text);
     _chapter.value = ChapterState(
       ref: ref,
       document: document,
-      startBlock: count == 0
-          ? 0
-          : (progression * count).floor().clamp(0, count - 1),
+      text: text,
+      startBlock: start.block,
+      startOffset: start.offset,
       generation: ++_generation,
       isLast: ref.index >= spine.length - 1,
     );
@@ -175,6 +272,8 @@ class SimpleReaderEngine implements ReaderEngine {
   Future<void> dispose() async {
     if (_disposed) return;
     _disposed = true;
+    _throttle.dispose();
+    _bridge = null;
     _chapter.dispose();
     _settings.dispose();
     _failure.dispose();
