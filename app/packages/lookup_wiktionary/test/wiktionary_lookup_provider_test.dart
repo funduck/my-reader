@@ -1,7 +1,10 @@
+import 'dart:io';
+
 import 'package:core/domain_lookup.dart';
 import 'package:core/ports.dart';
 import 'package:core_testing/core_testing.dart';
 import 'package:lookup_wiktionary/lookup_wiktionary.dart';
+import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
 /// The mini pack built for T-030; shared with the service tests.
@@ -51,11 +54,23 @@ void main() {
     });
 
     test('a sense without examples has an empty list', () async {
-      final result = await _provider().lookup(_q('go'));
+      final dir = Directory.systemTemp.createTempSync('wikt');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final copy = File('${dir.path}/en-en.sqlite');
+      File(_miniPack).copySync(copy.path);
+      sqlite3.open(copy.path)
+        ..execute('DELETE FROM examples WHERE sense_id = 2')
+        ..close();
+      final provider = WiktionaryLookupProvider(
+        packStore: _PathPackStore(copy.path),
+      );
+      addTearDown(provider.close);
+      final result = await provider.lookup(_q('go'));
       final sense = result.senses.firstWhere(
         (s) => s.text == 'To leave a place.',
       );
       expect(sense.examples, isEmpty);
+      expect(result.senses.first.examples, ['I go to work by bus.']);
     });
 
     test('normalizes case, apostrophes, whitespace', () async {

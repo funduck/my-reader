@@ -17,7 +17,7 @@ typedef LemmaCandidates = List<String> Function(String text);
 /// without it the query text is tried as is. Lemma candidates are tried first,
 /// then the normalized query text.
 class WiktionaryLookupProvider implements LookupProvider {
-  /// Creates a provider reading pack [packId] from [packStore].
+  /// Creates a provider reading the pack named by `packId` from `packStore`.
   new({required this._packStore, this.lemmas, this._packId = defaultPackId});
 
   /// Pack id of the Wiktionary en-en pack.
