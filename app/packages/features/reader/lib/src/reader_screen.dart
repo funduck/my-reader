@@ -23,13 +23,22 @@ const Duration saveDebounce = Duration(seconds: 1);
 /// app goes to the background and when the screen is closed.
 class ReaderScreen extends ConsumerStatefulWidget {
   /// Creates the screen for [bookId]; [locator] opens it at that place.
-  const new({required this.bookId, this.locator, super.key});
+  const new({
+    required this.bookId,
+    this.locator,
+    this.onOpenCheatSheet,
+    super.key,
+  });
 
   /// The book to read.
   final BookId bookId;
 
   /// Where to open the book; `null` resumes from the saved position.
   final Locator? locator;
+
+  /// Called by the "Разминка" button with the current position; without it
+  /// the button is not shown.
+  final void Function(Locator at)? onOpenCheatSheet;
 
   @override
   ConsumerState<ReaderScreen> createState() => _ReaderScreenState();
@@ -48,6 +57,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   StreamSubscription<ReaderEvent>? _events;
   Timer? _debounce;
   Locator? _pending;
+
+  /// The last known position: reported by the engine, else where it opened.
+  Locator? _current;
 
   @override
   void initState() {
@@ -85,6 +97,16 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     final engine = _factory();
     _opened = opened;
     _engine = engine;
+    _current =
+        widget.locator ??
+        outcome.resumeAt ??
+        (opened.spine.isEmpty
+            ? null
+            : Locator(
+                book: widget.bookId,
+                chapter: opened.spine.first,
+                progression: 0,
+              ));
     _events = engine.events.listen(_onEvent);
     await engine.load(
       opened,
@@ -112,6 +134,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
       case PositionChanged():
         break;
     }
+    _current = event.locator;
     _pending = event.locator;
     _debounce?.cancel();
     _debounce = Timer(saveDebounce, _flush);
@@ -184,6 +207,14 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     }
   }
 
+  void _openCheatSheet() {
+    final at = _current;
+    if (at != null) {
+      _flush();
+      widget.onOpenCheatSheet?.call(at);
+    }
+  }
+
   Future<void> _goTo(TocEntry entry) async {
     final engine = _engine;
     if (engine == null) return;
@@ -214,7 +245,17 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
       );
     }
     return Scaffold(
-      appBar: AppBar(title: Text(book.metadata.title)),
+      appBar: AppBar(
+        title: Text(book.metadata.title),
+        actions: [
+          if (widget.onOpenCheatSheet != null)
+            IconButton(
+              icon: const Icon(Icons.lightbulb_outline),
+              tooltip: 'Разминка',
+              onPressed: _openCheatSheet,
+            ),
+        ],
+      ),
       drawer: _TocDrawer(
         toc: _opened?.toc ?? const [],
         onSelect: (entry) {
