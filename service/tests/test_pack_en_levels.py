@@ -10,10 +10,12 @@ import pytest
 from build.pack_en_levels import (
     LevelsError,
     build_pack,
+    build_rows,
     merge_cefr,
     parse_cefr_csv,
 )
 from build.schema import DDL_EN_LEVELS, SCHEMA_VERSION
+from build.zipf_thresholds import estimate_cefr
 
 CEFR_DIR = Path(__file__).resolve().parent.parent / "fixtures" / "cefr"
 CEFRJ = CEFR_DIR / "cefrj-sample.csv"
@@ -97,15 +99,44 @@ def test_frequent_words_outside_cefr(pack: sqlite3.Connection) -> None:
     got = row(pack, "internet", "any")
     assert got is not None
     cefr, zipf, estimated = got
-    assert cefr is None
-    assert estimated == 0
+    assert estimated == 1
+    assert zipf is not None and cefr == estimate_cefr(zipf)
     assert zipf is not None and 4.5 <= zipf <= 6.5
     # слово из CEFR не дублируется строкой any (кроме явной пустой pos у batter)
     assert row(pack, "dog", "any") is None
     # токены без букв отброшены
     assert pack.execute("SELECT COUNT(*) FROM levels WHERE lemma = '1'").fetchone() == (0,)
-    n_extra = pack.execute("SELECT COUNT(*) FROM levels WHERE cefr IS NULL").fetchone()[0]
+    n_extra = pack.execute("SELECT COUNT(*) FROM levels WHERE estimated = 1").fetchone()[0]
     assert 0 < n_extra <= EXTRA
+
+
+def test_estimated_flag_separates_sources(pack: sqlite3.Connection) -> None:
+    # слова из CEFR-списков: estimated = 0, уровень есть всегда
+    assert pack.execute(
+        "SELECT COUNT(*) FROM levels WHERE estimated = 0 AND cefr IS NULL"
+    ).fetchone() == (0,)
+    # у всех оценённых строк уровень совпадает с порогами
+    for cefr, zipf in pack.execute("SELECT cefr, zipf FROM levels WHERE estimated = 1"):
+        assert zipf is not None
+        assert cefr == estimate_cefr(zipf)
+    # настоящий CEFR не перезаписывается оценкой
+    got = row(pack, "ephemeral", "adj")
+    assert got[0] == "c2" and got[2] == 0
+
+
+def test_null_zipf_stays_without_level() -> None:
+    rows = build_rows(
+        {("dog", "noun"): "a1"},
+        extra_words=3,
+        zipf=lambda w: None if w == "ghost" else 5.5 if w == "cat" else 1.0,
+        frequent=lambda _n: ["cat", "ghost", "dog"],
+    )
+    by_lemma = {(r.lemma, r.pos): r for r in rows}
+    assert by_lemma[("dog", "noun")].estimated is False
+    assert by_lemma[("cat", "any")].cefr == "a1"
+    assert by_lemma[("cat", "any")].estimated is True
+    assert by_lemma[("ghost", "any")].cefr is None
+    assert by_lemma[("ghost", "any")].estimated is False
 
 
 def test_only_valid_values(pack: sqlite3.Connection) -> None:

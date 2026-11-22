@@ -70,7 +70,17 @@ uv run python -m build.pack_en_levels build   # data/cefr/ -> data/packs/en-leve
 - Заголовок со `/` (`color/colour`, `a.m./A.M./am/AM`) — отдельные леммы на каждый вариант, после нормализации дубли схлопываются.
 - `pos` источников приводится к схеме: `adjective` -> `adj`, `modal auxiliary` и `be/do/have-verb` -> `verb`, `infinitive-to` -> `particle`, пустая -> `any`; опечатка `vern` -> `verb`.
 - Одна пара (лемма, pos) в нескольких строках или в обоих списках — минимальный уровень.
-- `zipf` — для всех лемм; `NULL`, если слова нет в wordfreq. Сверх CEFR добавляются топ-50 000 слов wordfreq (`pos = any`, `cefr = NULL`, `estimated = 0`). Оценка уровня по Zipf — отдельная задача (T-035).
+- `zipf` — для всех лемм; `NULL`, если слова нет в wordfreq. Сверх CEFR добавляются топ-50 000 слов wordfreq (`pos = any`): уровень — оценка по порогам Zipf, `estimated = 1`; без Zipf — `cefr = NULL`. Слова из CEFR-списков — `estimated = 0`.
+
+### Пороги Zipf -> CEFR
+
+Пороги — константа `ZIPF_THRESHOLDS` в `build/zipf_thresholds.py`, описание метода и числа — в [../docs/Data-sources.md](../docs/Data-sources.md), раздел 4. Пересчёт и точность на отложенной выборке (зерно 35, 80/20):
+
+```sh
+uv run python -m build.pack_en_levels fit --examples 20 --cefrj data/cefr/cefrj-vocabulary-profile-1.5.csv --octanove data/cefr/octanove-vocabulary-profile-c1c2-1.0.csv
+```
+
+Команда печатает подобранные пороги, пороги из конфига и 20 примеров оценённых слов. Если подобранные пороги расходятся с конфигом (другие данные, другая версия wordfreq), обновите константу и таблицу в документации, затем пересоберите пакет (`build`).
 
 ## Пакет en-forms
 
