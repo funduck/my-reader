@@ -1,3 +1,5 @@
 # My reader
 
-docs/Requirements.md describes the requirements for a mobile reader application designed to help users learn a foreign language while reading.
+@docs/Requirements.md describes the requirements of the application.
+
+@docs/Architecture.md describes the high-level architecture of the application.
