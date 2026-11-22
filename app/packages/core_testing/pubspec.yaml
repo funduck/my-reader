@@ -1,0 +1,11 @@
+name: core_testing
+description: Fakes of core ports and contract tests for adapters.
+publish_to: none
+version: 0.1.0
+resolution: workspace
+environment:
+  sdk: ^3.14.0
+dependencies:
+  core: any
+dev_dependencies:
+  test: ^1.25.0
