@@ -87,6 +87,8 @@
 
 - `text_en` (T-042): токен — буквы и цифры, хотя бы одна буква. Апостроф между буквами внутри токена (`don't`, `James's` — один токен), дефис между буквами и цифрами тоже (`well-known`). Точки в токены не входят (`Mr.` → `Mr`). Временная лемма — lowercase плюс `’`/`ʼ` → `'`.
 
+- `packs_http` (T-040): `HttpPackStore({baseUri, directory, client?, timeout})`. Файлы `<dir>/<id>.sqlite` и `<dir>/packs.json` (`{"packs": {id: version}}`). Ошибки — sealed `PackException`: `PackNetworkException`, `PackHashMismatchException`, `PackManifestException`, `PackNotFoundException`. Докачки и отмены нет.
+
 ## Волны
 
 Задачи одной волны можно запускать параллельно: их зависимости закрыты предыдущими волнами. Номер волны — самый ранний старт при неограниченном числе агентов.
