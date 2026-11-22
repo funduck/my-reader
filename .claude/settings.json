@@ -1,0 +1,29 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/dart-post-edit.sh\"",
+            "timeout": 60,
+            "statusMessage": "dart format + analyze"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/dart-stop-check.sh\"",
+            "timeout": 600,
+            "statusMessage": "Running app checks"
+          }
+        ]
+      }
+    ]
+  }
+}
