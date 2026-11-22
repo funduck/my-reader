@@ -86,6 +86,34 @@ void main() {
       expect(term.status, TermStatus.learning);
       expect(out.term, term);
       expect(out.level, CefrLevel.a2);
+      expect(out.wordLevel, const WordLevel(CefrLevel.a2));
+    });
+
+    test('the level is asked by the lemma, not the surface form', () async {
+      final a = ScriptedProvider('a', answer: result('a'));
+      await selection([a])(text: '  Runs ');
+      expect(levels.asked, ['run']);
+    });
+
+    test('an estimated level is flagged in the outcome', () async {
+      levels = MapLevels({'run': CefrLevel.b2}, {'run'});
+      final a = ScriptedProvider('a', answer: result('a'));
+      final out = await selection([a])(text: 'run');
+      expect(out.wordLevel, const WordLevel(CefrLevel.b2, estimated: true));
+      expect(out.level, CefrLevel.b2);
+    });
+
+    test('an unknown word gives an unknown level', () async {
+      final a = ScriptedProvider('a', answer: result('a'));
+      final out = await selection([a])(text: 'Give up');
+      expect(out.level, CefrLevel.unknown);
+      expect(levels.asked, ['give up']);
+    });
+
+    test('the level is returned also when no provider answered', () async {
+      final a = ScriptedProvider('a', failure: const LookupNotFound());
+      final out = await selection([a])(text: 'run') as LookupUnanswered;
+      expect(out.wordLevel, const WordLevel(CefrLevel.a2));
     });
 
     test('repeat lookup updates the same term, keeps status', () async {
