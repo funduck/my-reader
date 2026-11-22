@@ -235,7 +235,7 @@ lookup_sheet ◀── LookupResult + CefrLevel + TermStatus
 ```dart
 abstract interface class ReaderEngine {
   Widget buildView(BuildContext context);
-  Future<void> load(OpenedBook book, {Locator? at});
+  Future<void> load(OpenedBook book, {required BookId bookId, Locator? at});
   Future<void> goTo(Locator locator);
   void applySettings(ReaderSettings settings);   // шрифт, размер, тема, отступы (R-3)
   void highlight(List<Locator> ranges);          // подсветка запрошенных слов
