@@ -12,6 +12,7 @@ import 'package:packs_http/packs_http.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:reader_simple/reader_simple.dart';
 import 'package:storage_drift/storage_drift.dart';
+import 'package:text_en/text_en.dart';
 
 import 'app.dart';
 import 'logging.dart';
@@ -45,7 +46,10 @@ Future<List<Override>> buildDeviceOverrides() async {
     termRepositoryProvider.overrideWithValue(database.termRepository),
     bookFormatsProvider.overrideWithValue(const [EpubFormatAdapter()]),
     booksDirectoryProvider.overrideWithValue('${support.path}/books'),
-    readerEngineFactoryProvider.overrideWithValue(SimpleReaderEngine.new),
+    // Sentence bounds need no lemmatizer; T-047 wires the pack-backed one.
+    readerEngineFactoryProvider.overrideWithValue(
+      () => SimpleReaderEngine(analyzer: const EnglishTextAnalyzer()),
+    ),
   ];
 }
 

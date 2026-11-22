@@ -23,6 +23,7 @@ dependencies:
   path_provider: ^2.1.0
   reader_simple: any
   storage_drift: any
+  text_en: any
 dev_dependencies:
   core_testing: any
   flutter_test:
