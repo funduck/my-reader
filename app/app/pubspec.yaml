@@ -32,6 +32,7 @@ dev_dependencies:
   core_testing: any
   flutter_test:
     sdk: flutter
+  http: ^1.2.0
   integration_test:
     sdk: flutter
   reader_api: any
