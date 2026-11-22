@@ -1,0 +1,41 @@
+#0
+  H2 "CHAPTER I.\nDown the Rabbit-Hole"
+#1
+  P "“Curiouser and curiouser!” — Alice"
+#2
+  P "Alice was beginning to get very tired of sitting by her sister on the bank, and of having nothing to do: once or twice she had peeped into the book her sister was reading, but it had no pictures or conversations in it, “and what is the use of a book,” thought Alice “without pictures or conversations?”" A<OEBPS/text/ch1.xhtml#fn1>["[1]"]
+#3
+  P "So she was considering in her own mind (as well as she could, for the hot day made her feel very sleepy and stupid), whether the pleasure of making a " I["daisy-chain"] " would be worth the trouble of getting up and picking the daisies, when suddenly a " B["White Rabbit"] " with pink eyes ran close by her."
+#4
+  P "There was nothing so " I["very"] " remarkable in that; nor did Alice think it so " B["very much"] " out of the way to hear the Rabbit say to itself, “Oh dear! Oh dear! I shall be late!” (when she thought it over afterwards, it occurred to her that she ought to have wondered at this, but at the time it all seemed quite natural)."
+#5
+  IMG OEBPS/images/rabbit.jpg alt="The White Rabbit"
+#6
+  P "The rabbit-hole went straight on like a tunnel for some way,\nand then dipped suddenly down,\n\nso suddenly that Alice had not a moment to think about stopping herself."
+#7
+  QUOTE
+    P "“Well!” thought Alice to herself, “after such a fall as this, I shall think nothing of tumbling down stairs!”"
+    P "—" A<http://www.gutenberg.org/ebooks/11>["Project Gutenberg"]
+#8
+  P "She took down a jar from one of the shelves as she passed; it was labelled:"
+#9
+  UL
+    - "ORANGE MARMALADE"
+    - I["empty"] ", alas!"
+    - "not even a crumb"
+#10
+  P "Things to do:"
+#11
+  OL
+    - "Fall.\nKeep falling."
+    - "Land on a heap of sticks."
+#12
+  P "Down, down, down. Would the fall " I["never"] " come to an end? " A<OEBPS/text/ch02.xhtml#sec2>["Next"] " • " A<OEBPS/notes/n.xhtml>["Notes"]
+#13
+  P A<OEBPS/text/ch1.xhtml#fnref1>["1."] " Not the " I["Wonderland"] " of the stage—the book."
+ANCHORS
+  chap01 -> 0
+  fn1 -> 13
+  fnref1 -> 2
+  img1 -> 5
+  pgepubid00003 -> 0
