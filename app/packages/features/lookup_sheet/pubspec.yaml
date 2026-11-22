@@ -1,0 +1,17 @@
+name: lookup_sheet
+description: Bottom sheet with the translation or definition of a selected word.
+publish_to: none
+version: 0.1.0
+resolution: workspace
+environment:
+  sdk: ^3.14.0
+dependencies:
+  core: any
+  features_common: any
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^3.5.0
+  material_ui: ^1.1.0
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
