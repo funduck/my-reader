@@ -8,6 +8,7 @@ environment:
 dependencies:
   core: any
   features_common: any
+  file_selector: ^1.0.3
   flutter:
     sdk: flutter
   flutter_riverpod: ^3.5.0

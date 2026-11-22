@@ -14,6 +14,7 @@ import 'package:go_router/go_router.dart';
 import 'package:levels_cefr/levels_cefr.dart';
 import 'package:logging/logging.dart';
 import 'package:lookup_sheet/lookup_sheet.dart';
+import 'package:lookup_stardict/lookup_stardict.dart';
 import 'package:lookup_wiktionary/lookup_wiktionary.dart'
     show WiktionaryLookupProvider;
 import 'package:material_ui/material_ui.dart';
@@ -49,6 +50,9 @@ Future<List<Override>> buildDeviceOverrides() async {
   await support.create(recursive: true);
   final database = openDatabase('${support.path}/my_reader.sqlite');
   final packsDirPath = '${support.path}/packs';
+  final dictionaries = await StarDictDictionaries.open(
+    StarDictLibrary(directory: '${support.path}/dictionaries'),
+  );
   return [
     bookRepositoryProvider.overrideWithValue(database.bookRepository),
     progressRepositoryProvider.overrideWithValue(database.progressRepository),
@@ -57,7 +61,7 @@ Future<List<Override>> buildDeviceOverrides() async {
     termRepositoryProvider.overrideWithValue(database.termRepository),
     bookFormatsProvider.overrideWithValue(const [EpubFormatAdapter()]),
     booksDirectoryProvider.overrideWithValue('${support.path}/books'),
-    ...buildLookupOverrides(packsDirPath),
+    ...buildLookupOverrides(packsDirPath, dictionaries: dictionaries),
     // The engine needs only sentence bounds and lemmas from the analyzer.
     readerEngineFactoryProvider.overrideWith(
       (ref) =>
@@ -73,30 +77,113 @@ Future<List<Override>> buildDeviceOverrides() async {
 /// soon as they appear there. Separate from [buildDeviceOverrides] so that a
 /// test can wire the same chain without `path_provider`; it can also pass its
 /// own dictionary [providers] instead of the pack-backed ones.
+///
+/// With [dictionaries] the user's StarDict dictionaries are added to the
+/// providers and `dictionaryLibraryProvider` is wired to it.
 List<Override> buildLookupOverrides(
   String packsDirPath, {
   List<LookupProvider> Function(Ref ref)? providers,
+  StarDictDictionaries? dictionaries,
 }) => [
   textAnalyzerProvider.overrideWithValue(
     EnglishTextAnalyzer(lemmatizer: PackFormsLemmatizer(packsDirPath)),
   ),
   levelDictionaryProvider.overrideWithValue(PackLevelDictionary(packsDirPath)),
-  lookupProvidersProvider.overrideWith(providers ?? _buildLookupProviders),
+  lookupProvidersProvider.overrideWith(
+    providers ?? (ref) => _buildLookupProviders(ref, dictionaries),
+  ),
+  if (dictionaries != null)
+    dictionaryLibraryProvider.overrideWithValue(dictionaries),
   lookupPresenterProvider.overrideWith(_buildLookupPresenter),
 ];
 
-/// Dictionary providers over the installed packs: `en-en` Wiktionary.
+/// Dictionary providers: `en-en` Wiktionary over the installed packs, then
+/// the user's StarDict dictionaries.
 ///
 /// The lemma hook uses the analyzer of the app, so inflected forms find their
-/// headword.
-List<LookupProvider> _buildLookupProviders(Ref ref) {
+/// headword. The list is rebuilt when [dictionaries] reports an import or a
+/// removal; the old providers are closed then.
+List<LookupProvider> _buildLookupProviders(
+  Ref ref,
+  StarDictDictionaries? dictionaries,
+) {
   final analyzer = ref.watch(textAnalyzerProvider);
   final provider = WiktionaryLookupProvider(
     packStore: ref.watch(packStoreProvider),
     lemmas: (text) => [analyzer.lemma(text)],
   );
   ref.onDispose(provider.close);
-  return [provider];
+  if (dictionaries == null) return [provider];
+  void changed() => ref.invalidateSelf();
+  dictionaries.revision.addListener(changed);
+  final imported = dictionaries.createProviders();
+  ref.onDispose(() {
+    dictionaries.revision.removeListener(changed);
+    for (final p in imported) {
+      p.close();
+    }
+  });
+  return [provider, ...imported];
+}
+
+/// [DictionaryLibrary] over a [StarDictLibrary].
+///
+/// `StarDictLibrary` has no change stream, so this class keeps the list of
+/// dictionaries and bumps [revision] after every import and removal; the
+/// lookup providers are rebuilt on it. A provider is closed before its
+/// dictionary is removed.
+class StarDictDictionaries implements DictionaryLibrary {
+  new _(this._library, this._dictionaries);
+
+  /// Opens the library and reads its dictionaries.
+  static Future<StarDictDictionaries> open(StarDictLibrary library) async =>
+      StarDictDictionaries._(library, await library.list());
+
+  final StarDictLibrary _library;
+  List<StarDictDictionary> _dictionaries;
+  Map<String, StarDictLookupProvider> _live = {};
+
+  /// Grows by one after every import and removal.
+  final ValueNotifier<int> revision = ValueNotifier<int>(0);
+
+  /// Builds a provider for every dictionary; the caller closes them.
+  List<StarDictLookupProvider> createProviders() {
+    final providers = {
+      for (final d in _dictionaries) d.id: _library.providerFor(d),
+    };
+    _live = providers;
+    return providers.values.toList();
+  }
+
+  ImportedDictionary _describe(StarDictDictionary d) => ImportedDictionary(
+    id: d.id,
+    name: d.name,
+    mode: d.mode,
+    wordCount: d.wordCount,
+    providerId: d.providerId,
+  );
+
+  @override
+  Future<List<ImportedDictionary>> list() async => [
+    for (final d in await _library.list()) _describe(d),
+  ];
+
+  @override
+  Future<ImportedDictionary> import(List<String> files, LookupMode mode) async {
+    final dictionary = await _library.import(files, mode: mode);
+    _dictionaries = await _library.list();
+    revision.value++;
+    return _describe(dictionary);
+  }
+
+  @override
+  Future<bool> remove(String id) async {
+    _live.remove(id)?.close();
+    final existed = await _library.remove(id);
+    _dictionaries = await _library.list();
+    revision.value++;
+    return existed;
+  }
 }
 
 /// Opens the lookup sheet for a word the reader reports; the direction is the

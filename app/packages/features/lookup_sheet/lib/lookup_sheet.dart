@@ -7,3 +7,4 @@ library;
 
 export 'src/lookup_providers.dart';
 export 'src/lookup_sheet.dart';
+export 'src/simple_html.dart' show SimpleHtml, looksLikeHtml, parseSimpleHtml;

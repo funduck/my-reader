@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 import 'package:material_ui/material_ui.dart';
 
+import 'dictionaries_section.dart';
 import 'packs_controller.dart';
 
 final Logger _log = Logger('SettingsScreen');
@@ -54,6 +55,10 @@ class SettingsScreen extends ConsumerWidget {
             _ScopeSetting(profile: p),
             const SizedBox(height: 24),
             const PacksSection(),
+            const SizedBox(height: 24),
+            const DictionariesSection(),
+            const SizedBox(height: 24),
+            ProviderOrderSection(order: p.providerOrder),
           ],
         ),
       ),

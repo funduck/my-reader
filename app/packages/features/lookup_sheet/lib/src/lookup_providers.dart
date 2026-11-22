@@ -24,17 +24,26 @@ final Provider<LookupSelection> lookupSelectionProvider =
       );
     });
 
-/// Outcome of looking up a [LookupQuery]; one run per query while the sheet is
-/// open. Disposing the provider cancels the running lookup.
-final FutureProviderFamily<LookupOutcome, LookupQuery> lookupOutcomeProvider =
-    FutureProvider.autoDispose.family<LookupOutcome, LookupQuery>((ref, query) {
+/// A lookup to run: the `query` and, when the user picked one, the only
+/// `provider` to ask (`null` means the chain in the profile order).
+typedef LookupRequest = ({LookupQuery query, ProviderId? provider});
+
+/// Outcome of a [LookupRequest]; one run per request while the sheet is open.
+/// Disposing the provider cancels the running lookup.
+final FutureProviderFamily<LookupOutcome, LookupRequest> lookupOutcomeProvider =
+    FutureProvider.autoDispose.family<LookupOutcome, LookupRequest>((
+      ref,
+      request,
+    ) {
       final cancel = CancelToken();
       ref.onDispose(cancel.cancel);
+      final query = request.query;
       return ref.watch(lookupSelectionProvider)(
         text: query.text,
         mode: query.mode,
         sentence: query.sentence,
         locator: query.locator,
+        provider: request.provider,
         cancel: cancel,
       );
     }, retry: (_, _) => null);
