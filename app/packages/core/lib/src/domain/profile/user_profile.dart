@@ -1,0 +1,103 @@
+import 'package:meta/meta.dart';
+
+import '../lookup/cefr_level.dart';
+import '../lookup/ids.dart';
+import '../lookup/lookup_mode.dart';
+import 'cheat_sheet_scope.dart';
+
+/// User settings that the core needs.
+@immutable
+final class UserProfile {
+  /// Creates a profile; every field has a default.
+  const new({
+    this.mode = LookupMode.enEn,
+    this.level = CefrLevel.b2,
+    this.scope = CheatSheetScope.defaultScope,
+    this.providerOrder = const [],
+    this.serviceUrl,
+  });
+
+  /// Reads a profile; missing or invalid fields take defaults.
+  factory fromJson(Map<String, Object?> json) {
+    final level = CefrLevel.fromJson(json['level']);
+    final order = json['providerOrder'];
+    final url = json['serviceUrl'];
+    return UserProfile(
+      mode: LookupMode.fromJson(json['mode']),
+      level: level.isKnown ? level : CefrLevel.b2,
+      scope: CheatSheetScope.fromJson(json['scope']),
+      providerOrder: order is List<Object?>
+          ? [
+              for (final e in order)
+                if (e is String) ProviderId(e),
+            ]
+          : const [],
+      serviceUrl: url is String && url.isNotEmpty ? url : null,
+    );
+  }
+
+  /// Default lookup mode.
+  final LookupMode mode;
+
+  /// Reader's level; cheat sheet shows words above it.
+  final CefrLevel level;
+
+  /// Size of the cheat sheet piece.
+  final CheatSheetScope scope;
+
+  /// Preferred provider order; empty means "use registration order".
+  final List<ProviderId> providerOrder;
+
+  /// Address of the service, if configured.
+  final String? serviceUrl;
+
+  /// Copy with some fields replaced. [serviceUrl] takes a function so that
+  /// `() => null` can clear it.
+  UserProfile copyWith({
+    LookupMode? mode,
+    CefrLevel? level,
+    CheatSheetScope? scope,
+    List<ProviderId>? providerOrder,
+    String? Function()? serviceUrl,
+  }) => UserProfile(
+    mode: mode ?? this.mode,
+    level: level ?? this.level,
+    scope: scope ?? this.scope,
+    providerOrder: providerOrder ?? this.providerOrder,
+    serviceUrl: serviceUrl != null ? serviceUrl() : this.serviceUrl,
+  );
+
+  /// JSON form.
+  Map<String, Object?> toJson() => {
+    'mode': mode.toJson(),
+    'level': level.toJson(),
+    'scope': scope.toJson(),
+    'providerOrder': [for (final p in providerOrder) p.value],
+    'serviceUrl': serviceUrl,
+  };
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! UserProfile ||
+        other.mode != mode ||
+        other.level != level ||
+        other.scope != scope ||
+        other.serviceUrl != serviceUrl ||
+        other.providerOrder.length != providerOrder.length) {
+      return false;
+    }
+    for (var i = 0; i < providerOrder.length; i++) {
+      if (other.providerOrder[i] != providerOrder[i]) return false;
+    }
+    return true;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    mode,
+    level,
+    scope,
+    serviceUrl,
+    Object.hashAll(providerOrder),
+  );
+}
