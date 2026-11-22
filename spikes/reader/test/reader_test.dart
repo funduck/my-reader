@@ -1,5 +1,4 @@
 import 'package:flutter/gestures.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:reader_spike/reader.dart';
@@ -58,13 +57,15 @@ void main() {
     final c = ReaderSpikeController();
     await t.pumpWidget(app(p, SpikeEvents(), c));
     expect(c.firstVisible()?.block, 0);
-    await c.goTo(const SpikeLocator(80, 0));
+    final f1 = c.goTo(const SpikeLocator(80, 0));
     await t.pump();
     await t.pump();
+    await f1;
     expect(c.firstVisible()?.block, 80);
-    await c.goTo(const SpikeLocator(80, 200));
+    final f2 = c.goTo(const SpikeLocator(80, 200));
     await t.pump();
     await t.pump();
+    await f2;
     final got = c.firstVisible()!;
     expect(got.block, 80);
     expect((got.offset - 200).abs(), lessThan(60)); // about one line
