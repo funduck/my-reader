@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:core/application.dart' show LevelCheatSheetGenerator;
 import 'package:core/domain_books.dart' show Locator;
 import 'package:core/domain_lookup.dart';
 import 'package:core/ports.dart';
@@ -67,7 +68,8 @@ Future<List<Override>> buildDeviceOverrides() async {
 }
 
 /// Overrides of the tap-to-lookup chain: text analyzer, level dictionary,
-/// dictionary providers and the lookup sheet presenter.
+/// dictionary providers, the lookup sheet presenter and the cheat sheet
+/// generator.
 ///
 /// Packs are read from [packsDirPath] (the catalog of installed packs) as
 /// soon as they appear there. Separate from [buildDeviceOverrides] so that a
@@ -83,7 +85,18 @@ List<Override> buildLookupOverrides(
   levelDictionaryProvider.overrideWithValue(PackLevelDictionary(packsDirPath)),
   lookupProvidersProvider.overrideWith(providers ?? _buildLookupProviders),
   lookupPresenterProvider.overrideWith(_buildLookupPresenter),
+  cheatSheetGeneratorProvider.overrideWith(_buildCheatSheetGenerator),
 ];
+
+/// Cheat sheet generator over the analyzer and the level dictionary of the
+/// app (the same instances the lookup sheet uses, so one `en-levels` file is
+/// open). Level and piece size come from the profile on every build of a
+/// sheet, so changes in settings apply without a restart.
+CheatSheetGenerator _buildCheatSheetGenerator(Ref ref) =>
+    LevelCheatSheetGenerator(
+      analyzer: ref.watch(textAnalyzerProvider),
+      levels: ref.watch(levelDictionaryProvider),
+    );
 
 /// Dictionary providers over the installed packs: `en-en` Wiktionary.
 ///
