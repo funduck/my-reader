@@ -97,6 +97,12 @@
 
 - SQLite (`package:sqlite3`, drift): системная библиотека ОС. В `app/pubspec.yaml` задано `hooks: user_defines: sqlite3: source: system`, чтобы build hook не качал бинарник с github.com. Для Android пересмотреть после MVP. Открытие пакетов — `sqlite3.open(path, mode: OpenMode.readOnly)`; строка результата — `row.columnAt(i)`.
 
+- Оглавление EPUB (T-011): `TocEntry.chapter.href` — `путь#фрагмент` (фрагмент как в источнике, без отдельного поля), `index` — позиция файла в spine; несколько пунктов могут делить один `index`. Пункты вне spine и внешние ссылки отбрасываются, их дети поднимаются. Источник: nav → NCX → по пункту на spine.
+- XHTML → `ContentDocument` (T-012): `convertXhtml(xhtml, path:)` → `ChapterContent(document, anchors)`. В `ContentDocument` нет id элементов, поэтому `anchors` — побочная таблица id → индекс верхнего блока. Внутренние ссылки — `путь#фрагмент`, картинки — путь записи. Вложенные списки уплощаются, картинка внутри абзаца режет его на части.
+- Толкование (T-045, `package:core/application.dart`): `ProviderChain.lookup` → sealed `ChainResult` (`ChainSuccess` / `ChainFailure`), таймаут 5 с на провайдера. `LookupSelection.call` → sealed `LookupOutcome` (`LookupAnswered` / `LookupUnanswered`, у второго `isNotFound`). Сбой провайдеров — значение, бросается только `CancelledException` (тогда ничего не пишется). Порядок: id из `providerOrder` первыми, остальные — в порядке регистрации. Событие и `Term` пишутся и при неудаче. Провайдеру уходит исходный текст; лемму `WiktionaryLookupProvider` берёт через свой хук `lemmas`, `LookupQuery` не меняется.
+- `core` не может зависеть от `core_testing` (правило `check_imports`), поэтому тесты `core/application` держат свои мелкие фейки в `core/test/`.
+- `reader_simple` (T-016): `ScrollablePositionedList`, элемент 0 — «Previous chapter», блок `i` — элемент `i + 1`, последний — «Next chapter». Состояние — `engine.chapter` (`ValueListenable<ChapterState?>`) и `engine.style`. Тап и выделение подключаются в `BlockView`. `ChapterFinished` уходит по кнопке «Next chapter».
+
 ## Волны
 
 Задачи одной волны можно запускать параллельно: их зависимости закрыты предыдущими волнами. Номер волны — самый ранний старт при неограниченном числе агентов.
