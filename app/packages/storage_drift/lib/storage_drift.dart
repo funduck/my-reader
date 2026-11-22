@@ -5,3 +5,4 @@
 library;
 
 export 'src/database.dart' show AppDatabase, openDatabase, openInMemory;
+export 'src/repositories.dart' show DriftLookupJournal, DriftTermRepository;

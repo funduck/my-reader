@@ -154,3 +154,259 @@ final class DriftProfileRepository implements ProfileRepository {
         ),
       );
 }
+
+/// [LookupJournal] on top of `AppDatabase`.
+///
+/// Events are listed newest first; among equal times the later record comes
+/// first. The `level` filter matches events linked (through `term_events`) to a
+/// term that has exactly that level.
+final class DriftLookupJournal implements LookupJournal {
+  /// Creates a journal over the database.
+  new(this._db);
+
+  final AppDatabase _db;
+
+  @override
+  Future<void> record(LookupEvent event) async {
+    final locator = event.query.locator;
+    await _db
+        .into(_db.lookupEvents)
+        .insert(
+          LookupEventsCompanion.insert(
+            id: event.id.value,
+            at: event.at,
+            queryText: event.query.text,
+            mode: event.query.mode,
+            sentence: Value(event.query.sentence),
+            locator: Value(locator),
+            bookId: Value(locator?.book.value),
+            chapterHref: Value(locator?.chapter.href),
+            chapterIndex: Value(locator?.chapter.index),
+            provider: event.result.provider.value,
+            transcription: Value(event.result.transcription),
+            senses: event.result.senses,
+          ),
+        );
+  }
+
+  @override
+  Future<LookupEvent?> get(LookupEventId id) async {
+    final row = await (_db.select(
+      _db.lookupEvents,
+    )..where((t) => t.id.equals(id.value))).getSingleOrNull();
+    return row == null ? null : _toEvent(row);
+  }
+
+  @override
+  Stream<List<LookupEvent>> watch([
+    LookupFilter filter = const LookupFilter(),
+  ]) {
+    final query = _db.select(_db.lookupEvents)
+      ..where((t) => _matches(t, filter))
+      ..orderBy(_newestFirst);
+    return query.watch().map((rows) => rows.map(_toEvent).toList());
+  }
+
+  /// Returns the events linked to the term [id], newest first.
+  Future<List<LookupEvent>> byTerm(TermId id) async {
+    final linked = _db.selectOnly(_db.termEvents)
+      ..addColumns([_db.termEvents.eventId])
+      ..where(_db.termEvents.termId.equals(id.value));
+    final rows =
+        await (_db.select(_db.lookupEvents)
+              ..where((t) => t.id.isInQuery(linked))
+              ..orderBy(_newestFirst))
+            .get();
+    return rows.map(_toEvent).toList();
+  }
+
+  List<OrderingTerm Function($LookupEventsTable)> get _newestFirst => [
+    (t) => OrderingTerm.desc(t.at),
+    (t) => OrderingTerm.desc(CustomExpression<int>('${t.aliasedName}.rowid')),
+  ];
+
+  Expression<bool> _matches($LookupEventsTable t, LookupFilter f) {
+    final conditions = <Expression<bool>>[
+      if (f.book != null) t.bookId.equals(f.book!.value),
+      if (f.chapter != null) ...[
+        t.chapterHref.equals(f.chapter!.href),
+        t.chapterIndex.equals(f.chapter!.index),
+      ],
+      if (f.from != null)
+        t.at.isBiggerOrEqualValue(f.from!.microsecondsSinceEpoch),
+      if (f.to != null) t.at.isSmallerThanValue(f.to!.microsecondsSinceEpoch),
+      if (f.level != null) _hasTermLevel(t, f.level!),
+    ];
+    return conditions.fold(const Constant(true), (a, b) => a & b);
+  }
+
+  Expression<bool> _hasTermLevel($LookupEventsTable t, CefrLevel level) {
+    final subquery = _db.selectOnly(_db.termEvents)
+      ..join([
+        innerJoin(_db.terms, _db.terms.id.equalsExp(_db.termEvents.termId)),
+      ])
+      ..addColumns([_db.termEvents.eventId])
+      ..where(
+        _db.termEvents.eventId.equalsExp(t.id) &
+            _db.terms.level.equals(level.name),
+      );
+    return existsQuery(subquery);
+  }
+
+  LookupEvent _toEvent(LookupEventRow row) => LookupEvent(
+    id: LookupEventId(row.id),
+    query: LookupQuery(
+      text: row.queryText,
+      mode: row.mode,
+      sentence: row.sentence,
+      locator: row.locator,
+    ),
+    result: LookupResult(
+      provider: ProviderId(row.provider),
+      senses: row.senses,
+      transcription: row.transcription,
+    ),
+    at: row.at,
+  );
+}
+
+/// [TermRepository] on top of `AppDatabase`.
+final class DriftTermRepository implements TermRepository {
+  /// Creates a repository over the database.
+  new(this._db);
+
+  final AppDatabase _db;
+
+  @override
+  Future<Term?> find(String normalized, String language) async {
+    final row =
+        await (_db.select(_db.terms)..where(
+              (t) =>
+                  t.normalized.equals(normalized) & t.language.equals(language),
+            ))
+            .getSingleOrNull();
+    return row == null ? null : (await _withEvents([row])).single;
+  }
+
+  /// Returns the term with the lemma [lemma] in [language], or null.
+  Future<Term?> byLemma(String lemma, {String language = 'en'}) =>
+      find(lemma, language);
+
+  /// Returns the lemmas of all terms in [language], optionally only those
+  /// with [status]; for filtering the cheat sheet.
+  Future<Set<String>> allLemmas({
+    String language = 'en',
+    TermStatus? status,
+  }) async {
+    final query = _db.selectOnly(_db.terms)
+      ..addColumns([_db.terms.normalized])
+      ..where(
+        _db.terms.language.equals(language) &
+            (status == null
+                ? const Constant(true)
+                : _db.terms.status.equals(status.name)),
+      );
+    final rows = await query.get();
+    return {for (final row in rows) row.read(_db.terms.normalized)!};
+  }
+
+  @override
+  Stream<List<Term>> watchAll({TermStatus? status}) {
+    final query = _db.select(_db.terms)
+      ..where(
+        (t) => status == null
+            ? const Constant(true)
+            : t.status.equals(status.name),
+      )
+      ..orderBy([
+        (t) =>
+            OrderingTerm.asc(CustomExpression<int>('${t.aliasedName}.rowid')),
+      ]);
+    return query.watch().asyncMap(_withEvents);
+  }
+
+  @override
+  Future<void> save(Term term) => _db.transaction(() async {
+    await _db
+        .into(_db.terms)
+        .insertOnConflictUpdate(
+          TermsCompanion.insert(
+            id: term.id.value,
+            normalized: term.normalized,
+            language: term.language,
+            lookupCount: term.lookupCount,
+            status: term.status,
+            level: term.level,
+          ),
+        );
+    await (_db.delete(
+      _db.termEvents,
+    )..where((t) => t.termId.equals(term.id.value))).go();
+    await _db.batch((batch) {
+      batch.insertAll(_db.termEvents, [
+        for (final (i, event) in term.eventIds.indexed)
+          TermEventsCompanion.insert(
+            termId: term.id.value,
+            eventId: event.value,
+            position: i,
+          ),
+      ]);
+    });
+  });
+
+  /// Registers one more lookup of [lemma]: creates the term with [id] if there
+  /// is none, otherwise increments the counter of the existing one (its own id
+  /// stays). The [event] is appended to the term's events and [level] replaces
+  /// the stored one when known. Returns the saved term.
+  Future<Term> upsert({
+    required TermId id,
+    required String lemma,
+    required String language,
+    required LookupEventId event,
+    CefrLevel level = CefrLevel.unknown,
+  }) => _db.transaction(() async {
+    final existing = await find(lemma, language);
+    final term = existing == null
+        ? Term(
+            id: id,
+            normalized: lemma,
+            language: language,
+            lookupCount: 1,
+            eventIds: [event],
+            level: level,
+          )
+        : existing.copyWith(
+            lookupCount: existing.lookupCount + 1,
+            eventIds: [...existing.eventIds, event],
+            level: level.isKnown ? level : existing.level,
+          );
+    await save(term);
+    return term;
+  });
+
+  Future<List<Term>> _withEvents(List<TermRow> rows) async {
+    if (rows.isEmpty) return const [];
+    final links =
+        await (_db.select(_db.termEvents)..orderBy([
+              (t) => OrderingTerm.asc(t.termId),
+              (t) => OrderingTerm.asc(t.position),
+            ]))
+            .get();
+    final byTerm = <String, List<LookupEventId>>{};
+    for (final link in links) {
+      (byTerm[link.termId] ??= []).add(LookupEventId(link.eventId));
+    }
+    return [
+      for (final row in rows)
+        Term(
+          id: TermId(row.id),
+          normalized: row.normalized,
+          language: row.language,
+          lookupCount: row.lookupCount,
+          eventIds: byTerm[row.id] ?? const [],
+          status: row.status,
+          level: row.level,
+        ),
+    ];
+  }
+}

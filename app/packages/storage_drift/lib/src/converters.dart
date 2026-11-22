@@ -43,3 +43,33 @@ final class UserProfileConverter extends TypeConverter<UserProfile, String> {
   @override
   String toSql(UserProfile value) => jsonEncode(value.toJson());
 }
+
+/// Stores a list of [Sense] as a JSON string.
+final class SensesConverter extends TypeConverter<List<Sense>, String> {
+  /// Creates the converter.
+  const new();
+
+  @override
+  List<Sense> fromSql(String fromDb) => [
+    for (final item in jsonDecode(fromDb) as List<Object?>)
+      _fromJson(item! as Map<String, Object?>),
+  ];
+
+  @override
+  String toSql(List<Sense> value) => jsonEncode([
+    for (final sense in value)
+      {
+        'text': sense.text,
+        'pos': sense.partOfSpeech,
+        'examples': sense.examples,
+      },
+  ]);
+
+  Sense _fromJson(Map<String, Object?> json) => Sense(
+    text: json['text']! as String,
+    partOfSpeech: json['pos'] as String?,
+    examples: [
+      for (final e in json['examples']! as List<Object?>) e! as String,
+    ],
+  );
+}
