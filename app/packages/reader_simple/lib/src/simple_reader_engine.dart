@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:reader_api/reader_api.dart';
 
+import 'interactions.dart';
 import 'position.dart';
 import 'reader_style.dart';
 import 'reader_view.dart';
@@ -65,16 +66,23 @@ final class ChapterState {
 ///
 /// List layout: item `0` is the "previous chapter" control, items `1..n` are
 /// the `n` blocks (block `i` is item `i + 1`), item `n + 1` is the "next
-/// chapter" control. Tap and selection events are built on this layout by a
-/// later task (T-018).
+/// chapter" control.
+///
+/// Tap and selection: a single tap on a word emits [WordTapped], the
+/// "Translate" button of the selection menu emits [TextSelected]. The
+/// sentence for both comes from the [TextAnalyzer] given to the constructor,
+/// run over the paragraph that holds the text (never over several paragraphs).
 ///
 /// Position: a block index plus a character offset in the block text. The
 /// view reports the first visible block and line; the engine turns that into
 /// a [Locator] (see `position.dart` for the `engineHint` format) and emits
 /// [PositionChanged] at most once per [positionInterval].
-class SimpleReaderEngine implements ReaderEngine {
-  /// Creates an engine with default [ReaderSettings].
-  new();
+class SimpleReaderEngine implements ReaderEngine, TextInteractions {
+  /// Creates an engine with default [ReaderSettings]; the analyzer finds
+  /// the sentence around a tapped or selected text.
+  new({required this._analyzer});
+
+  final TextAnalyzer _analyzer;
 
   final _events = StreamController<ReaderEvent>.broadcast();
   final _chapter = ValueNotifier<ChapterState?>(null);
@@ -90,7 +98,7 @@ class SimpleReaderEngine implements ReaderEngine {
   BookId? _bookId;
   ViewportBridge? _bridge;
   Locator? _lastReported;
-  List<Locator> _highlights = const [];
+  final _highlights = ValueNotifier<List<Locator>>(const []);
   int _generation = 0;
   bool _disposed = false;
 
@@ -103,8 +111,31 @@ class SimpleReaderEngine implements ReaderEngine {
   /// Whether the last chapter switch from the list ends failed.
   ValueListenable<bool> get switchFailed => _failure;
 
-  /// The ranges last passed to [highlight]; drawing them is not done yet.
-  List<Locator> get highlights => _highlights;
+  /// The ranges last passed to [highlight].
+  List<Locator> get highlights => _highlights.value;
+
+  /// Changes when [highlight] is called.
+  @internal
+  Listenable get highlightsListenable => _highlights;
+
+  /// The highlighted ranges of [chapter] by block: block index to
+  /// `(start, end)` offsets in the block text. A locator that is not in this
+  /// chapter, or whose quote is not found, is skipped.
+  @internal
+  Map<int, List<(int, int)>> highlightsIn(ChapterState chapter) {
+    final ref = chapter.ref;
+    final result = <int, List<(int, int)>>{};
+    if (ref == null) return result;
+    for (final locator in _highlights.value) {
+      if (locator.chapter.index != ref.index) continue;
+      final range = chapter.text.rangeOfLocator(locator, ref.index);
+      if (range == null) continue;
+      chapter.text
+          .blockRanges(range.start, range.end)
+          .forEach((block, ranges) => (result[block] ??= []).addAll(ranges));
+    }
+    return result;
+  }
 
   /// Loads the bytes of a resource of the current book.
   Future<Uint8List> loadResource(String href) {
@@ -185,7 +216,8 @@ class SimpleReaderEngine implements ReaderEngine {
 
   @override
   void highlight(List<Locator> ranges) {
-    _highlights = List.unmodifiable(ranges);
+    if (_disposed) return;
+    _highlights.value = List.unmodifiable(ranges);
   }
 
   @override
@@ -264,6 +296,65 @@ class SimpleReaderEngine implements ReaderEngine {
     );
   }
 
+  @override
+  @internal
+  void wordTapped(TextTarget target, int offset) {
+    final range = wordRangeAt(target.text, offset);
+    if (range == null) return;
+    final (start, end) = range;
+    final at = _locatorOf(target, start, end);
+    if (at == null) return;
+    _emit(
+      WordTapped(
+        word: target.text.substring(start, end),
+        at: at,
+        sentence: sentenceAround(_analyzer, target.text, start, end),
+      ),
+    );
+  }
+
+  @override
+  @internal
+  void textSelected(TextTarget target, int start, int end) {
+    final text = target.text;
+    var from = start.clamp(0, text.length);
+    var to = end.clamp(0, text.length);
+    while (from < to && text[from].trim().isEmpty) {
+      from++;
+    }
+    while (to > from && text[to - 1].trim().isEmpty) {
+      to--;
+    }
+    if (from >= to) return;
+    final at = _locatorOf(target, from, to);
+    if (at == null) return;
+    _emit(
+      TextSelected(
+        text: text.substring(from, to),
+        at: at,
+        sentence: sentenceAround(_analyzer, text, from, to),
+      ),
+    );
+  }
+
+  /// The place of `target.text.substring(start, end)` in the book; the quote
+  /// is that text, the hint is the place of its first character.
+  Locator? _locatorOf(TextTarget target, int start, int end) {
+    final chapter = _chapter.value;
+    final ref = chapter?.ref;
+    final bookId = _bookId;
+    if (chapter == null || ref == null || bookId == null) return null;
+    final text = chapter.text;
+    final position = BlockPosition(target.block, target.base + start);
+    return Locator(
+      book: bookId,
+      chapter: ref,
+      progression: text.progressionOf(position),
+      quote: text.quoteAt(position, lineEnd: target.base + end),
+      engineHint: encodeHint(ref.index, position),
+    );
+  }
+
   void _emit(ReaderEvent event) {
     if (!_disposed) _events.add(event);
   }
@@ -277,6 +368,7 @@ class SimpleReaderEngine implements ReaderEngine {
     _chapter.dispose();
     _settings.dispose();
     _failure.dispose();
+    _highlights.dispose();
     await _events.close();
   }
 }

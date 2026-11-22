@@ -11,6 +11,8 @@ import 'package:material_ui/material_ui.dart';
 import 'package:reader_api/reader_api.dart';
 import 'package:reader_simple/reader_simple.dart';
 
+import '../test/fake_text_analyzer.dart';
+
 const _body =
     'The quick brown fox jumps over the lazy dog while the old reader '
     'turns another page of a long book.';
@@ -41,7 +43,7 @@ class ExampleScreen extends StatefulWidget {
 }
 
 class _ExampleScreenState extends State<ExampleScreen> {
-  final _engine = SimpleReaderEngine();
+  final _engine = SimpleReaderEngine(analyzer: FakeTextAnalyzer());
   var _settings = const ReaderSettings();
   var _ready = false;
 

@@ -23,7 +23,11 @@ class ReaderView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: Listenable.merge([engine.chapter, engine.style]),
+    listenable: Listenable.merge([
+      engine.chapter,
+      engine.style,
+      engine.highlightsListenable,
+    ]),
     builder: (context, _) {
       final style = engine.style.value;
       final chapter = engine.chapter.value;
@@ -36,6 +40,7 @@ class ReaderView extends StatelessWidget {
                 engine: engine,
                 chapter: chapter,
                 style: style,
+                highlights: engine.highlightsIn(chapter),
               ),
       );
     },
@@ -47,12 +52,14 @@ class _ChapterList extends StatefulWidget {
     required this.engine,
     required this.chapter,
     required this.style,
+    required this.highlights,
     super.key,
   });
 
   final SimpleReaderEngine engine;
   final ChapterState chapter;
   final ReaderStyle style;
+  final Map<int, List<(int, int)>> highlights;
 
   @override
   State<_ChapterList> createState() => _ChapterListState();
@@ -184,8 +191,11 @@ class _ChapterListState extends State<_ChapterList> implements ViewportBridge {
           key: _blockKeys.putIfAbsent(i - 1, GlobalKey.new),
           child: BlockView(
             block: blocks[i - 1],
+            index: i - 1,
             style: style,
             loadResource: engine.loadResource,
+            interactions: engine,
+            highlights: widget.highlights[i - 1] ?? const [],
           ),
         );
       },
