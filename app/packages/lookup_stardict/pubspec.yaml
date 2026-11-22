@@ -1,0 +1,11 @@
+name: lookup_stardict
+description: StarDict dictionary format and lookup provider.
+publish_to: none
+version: 0.1.0
+resolution: workspace
+environment:
+  sdk: ^3.14.0
+dependencies:
+  meta: ^1.19.0
+dev_dependencies:
+  test: ^1.25.0

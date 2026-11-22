@@ -10,6 +10,7 @@ workspace:
   - packages/features/common
   - packages/packs_http
   - packages/format_epub
+  - packages/lookup_stardict
   - packages/reader_api
   - packages/reader_simple
   - packages/storage_drift
