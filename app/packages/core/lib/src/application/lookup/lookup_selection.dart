@@ -29,6 +29,10 @@ const lookupLanguage = 'en';
 /// too, so it stays rebuildable from the journal: `lookupCount` counts events
 /// and `eventIds` lists them.
 ///
+/// The outcome also carries the `WordLevel` of the same key (lemma of a
+/// single word, lower-cased text of a phrase), so the lemma is chosen here,
+/// not by the caller.
+///
 /// A lookup cancelled through the token writes nothing and throws
 /// `CancelledException`. The query text is the trimmed selection; the term is
 /// keyed by the lemma of a single word, or the lower-cased text of a phrase.
@@ -84,22 +88,24 @@ class LookupSelection {
         senses: const [],
       ),
     };
-    final (event, term) = await _record(query, result);
+    final (event, term, wordLevel) = await _record(query, result);
     return switch (chain) {
       ChainSuccess(:final failedBefore) => LookupAnswered(
         event: event,
         term: term,
+        wordLevel: wordLevel,
         skipped: failedBefore,
       ),
       ChainFailure() => LookupUnanswered(
         event: event,
         term: term,
+        wordLevel: wordLevel,
         failure: chain,
       ),
     };
   }
 
-  Future<(LookupEvent, Term)> _record(
+  Future<(LookupEvent, Term, WordLevel)> _record(
     LookupQuery query,
     LookupResult result,
   ) async {
@@ -112,7 +118,8 @@ class LookupSelection {
     await _journal.record(event);
 
     final normalized = _normalize(query.text);
-    final level = _levels.levelOf(normalized).level;
+    final wordLevel = _levels.levelOf(normalized);
+    final level = wordLevel.level;
     final existing = await _terms.find(normalized, lookupLanguage);
     final Term term;
     if (existing == null) {
@@ -132,7 +139,7 @@ class LookupSelection {
       );
     }
     await _terms.save(term);
-    return (event, term);
+    return (event, term, wordLevel);
   }
 
   /// Lemma for a single word; lower-cased, space-collapsed text for a phrase.

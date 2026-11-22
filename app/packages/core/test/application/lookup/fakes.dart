@@ -153,11 +153,22 @@ class SimpleAnalyzer implements TextAnalyzer {
 }
 
 class MapLevels implements LevelDictionary {
-  new([this.levels = const {}]);
+  new([this.levels = const {}, this.estimated = const {}]);
 
   final Map<String, CefrLevel> levels;
 
+  /// Keys whose level counts as derived from frequency.
+  final Set<String> estimated;
+
+  /// Keys asked, in order.
+  final List<String> asked = [];
+
   @override
-  WordLevel levelOf(String lemma, {String? pos}) =>
-      WordLevel(levels[lemma] ?? CefrLevel.unknown);
+  WordLevel levelOf(String lemma, {String? pos}) {
+    asked.add(lemma);
+    return WordLevel(
+      levels[lemma] ?? CefrLevel.unknown,
+      estimated: estimated.contains(lemma),
+    );
+  }
 }

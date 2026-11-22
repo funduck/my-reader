@@ -4,6 +4,7 @@ import 'package:features_common/features_common.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import 'level_badge.dart';
 import 'lookup_providers.dart';
 
 /// Opens the lookup sheet for [query] and returns when it is closed.
@@ -188,8 +189,7 @@ class _Answer extends ConsumerWidget {
           children: [
             if (transcription != null)
               Text(transcription, style: theme.textTheme.titleMedium),
-            if (outcome.level.isKnown)
-              Chip(label: Text(outcome.level.name.toUpperCase())),
+            LevelBadge(level: outcome.wordLevel),
           ],
         ),
         const SizedBox(height: 8),

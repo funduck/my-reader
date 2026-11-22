@@ -71,7 +71,10 @@ Term _term(CefrLevel level) => Term(
   level: level,
 );
 
-LookupOutcome _answered({CefrLevel level = CefrLevel.c1}) => LookupAnswered(
+LookupOutcome _answered({
+  CefrLevel level = CefrLevel.c1,
+  bool estimated = false,
+}) => LookupAnswered(
   event: _event(
     const LookupResult(
       provider: _providerId,
@@ -87,12 +90,14 @@ LookupOutcome _answered({CefrLevel level = CefrLevel.c1}) => LookupAnswered(
     ),
   ),
   term: _term(level),
+  wordLevel: WordLevel(level, estimated: estimated),
   skipped: const [],
 );
 
 LookupOutcome _unanswered(List<ProviderAttempt> attempts) => LookupUnanswered(
   event: _event(const LookupResult(provider: _providerId, senses: [])),
   term: _term(CefrLevel.unknown),
+  wordLevel: const WordLevel(CefrLevel.unknown),
   failure: ChainFailure(attempts),
 );
 
@@ -162,6 +167,25 @@ void main() {
 
     expect(find.text('1. lasting a very short time'), findsOneWidget);
     expect(find.byType(Chip), findsNothing);
+  });
+
+  testWidgets('marks an estimated level with ≈', (tester) async {
+    await _open(
+      tester,
+      () async => _answered(level: CefrLevel.b2, estimated: true),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('≈B2'), findsOneWidget);
+    expect(find.text('B2'), findsNothing);
+  });
+
+  testWidgets('shows a list level without ≈', (tester) async {
+    await _open(tester, () async => _answered(level: CefrLevel.b2));
+    await tester.pumpAndSettle();
+
+    expect(find.text('B2'), findsOneWidget);
+    expect(find.textContaining('≈'), findsNothing);
   });
 
   testWidgets('shows "nothing found" when every provider found nothing', (
