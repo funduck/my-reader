@@ -12,6 +12,7 @@ workspace:
   - packages/format_epub
   - packages/lookup_wiktionary
   - packages/levels_cefr
+  - packages/lookup_stardict
   - packages/reader_api
   - packages/reader_simple
   - packages/storage_drift
