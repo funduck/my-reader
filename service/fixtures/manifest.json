@@ -1,0 +1,33 @@
+{
+  "manifest_version": 1,
+  "generated_at": "2026-01-01T00:00:00Z",
+  "packs": [
+    {
+      "id": "en-en",
+      "version": "20260101.1",
+      "schema_version": 1,
+      "size": 40960,
+      "sha256": "7d596faca20a508e1a0a94942db91587d05e9fb7acf410d4080e891bd8caab90",
+      "path": "packs/en-en-20260101.1.sqlite",
+      "license": "CC BY-SA 4.0"
+    },
+    {
+      "id": "en-forms",
+      "version": "20260101.1",
+      "schema_version": 1,
+      "size": 16384,
+      "sha256": "7fada6ef1a200e59c937138f89828eb36027a5310447d8ffb0479754421a28c4",
+      "path": "packs/en-forms-20260101.1.sqlite",
+      "license": "CC BY-SA 4.0"
+    },
+    {
+      "id": "en-levels",
+      "version": "20260101.1",
+      "schema_version": 1,
+      "size": 12288,
+      "sha256": "3acf90cfa39d4f96e623c4ff70b735edd1e207061cea4ed91793844f34bb1a23",
+      "path": "packs/en-levels-20260101.1.sqlite",
+      "license": "CC BY-SA 4.0"
+    }
+  ]
+}
