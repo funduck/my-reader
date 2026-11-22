@@ -19,7 +19,11 @@
   **минимальный** уровень: слово, известное на низком уровне, не считается трудным.
 * Для всех лемм CEFR добавляется ``zipf`` (``NULL``, если wordfreq слова не знает).
 * Затем добавляются топ-``extra_words`` частотных слов wordfreq, которых нет среди лемм
-  CEFR: ``pos = any``, ``cefr = NULL``, ``estimated = 0``. Оценка уровня по Zipf — T-035.
+  CEFR: ``pos = any``; уровень — оценка по Zipf (``zipf_thresholds.ZIPF_THRESHOLDS``),
+  ``estimated = 1``. Строки без Zipf остаются с ``cefr = NULL``. Слова из CEFR-списков
+  всегда ``estimated = 0``.
+* Подбор порогов: ``fit`` — по леммам CEFR, уровень леммы — минимум по частям речи,
+  только однословные (см. ``fit_samples``).
 """
 
 from __future__ import annotations
@@ -30,7 +34,7 @@ import datetime as dt
 import re
 import sys
 import urllib.request
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -38,6 +42,13 @@ from wordfreq import top_n_list, zipf_frequency
 
 from build.packdb import LevelRow, PackMeta, write_en_levels
 from build.schema import CEFR_VALUES, POS_ANY, normalize_key
+from build.zipf_thresholds import (
+    ZIPF_THRESHOLDS,
+    estimate_cefr,
+    evaluate,
+    fit_thresholds,
+    split_samples,
+)
 
 BASE_URL = "https://raw.githubusercontent.com/openlanguageprofiles/olp-en-cefrj/master/"
 CEFRJ_NAME = "cefrj-vocabulary-profile-1.5.csv"
@@ -143,8 +154,9 @@ def build_rows(
     extra_words: int = 50_000,
     zipf: Callable[[str], float | None] = zipf_or_none,
     frequent: Callable[[int], list[str]] = frequent_words,
+    thresholds: Sequence[float] = ZIPF_THRESHOLDS,
 ) -> list[LevelRow]:
-    """Строки пакета: все леммы CEFR с zipf плюс частотные слова вне CEFR."""
+    """Строки пакета: леммы CEFR с zipf плюс частотные слова вне CEFR с оценкой уровня."""
     rows = [
         LevelRow(lemma, pos, level, zipf(lemma), False)
         for (lemma, pos), level in sorted(cefr.items())
@@ -152,8 +164,51 @@ def build_rows(
     known = {lemma for lemma, _ in cefr}
     for word in frequent(extra_words):
         if word not in known:
-            rows.append(LevelRow(word, POS_ANY, None, zipf(word), False))
+            z = zipf(word)
+            level = estimate_cefr(z, thresholds)
+            rows.append(LevelRow(word, POS_ANY, level, z, level is not None))
     return rows
+
+
+def fit_samples(
+    cefr: dict[tuple[str, str], str],
+    zipf: Callable[[str], float | None] = zipf_or_none,
+) -> list[tuple[str, float, int]]:
+    """Выборка для подбора порогов: ``(лемма, zipf, индекс уровня)``.
+
+    Уровень леммы — минимум по частям речи: Zipf у wordfreq один на написание, а не на
+    пару (лемма, pos), и многие записи C1/C2 Octanove — редкие значения частых слов
+    (``rich`` C1 при A1). Многословные леммы (пробел, дефис) исключены: Zipf фразы в
+    wordfreq считается из частот частей и несравним с частотой слова.
+    """
+    per_lemma: dict[str, int] = {}
+    for (lemma, _pos), level in cefr.items():
+        idx = CEFR_VALUES.index(level)
+        per_lemma[lemma] = min(per_lemma.get(lemma, idx), idx)
+    samples = []
+    for lemma, idx in sorted(per_lemma.items()):
+        if " " in lemma or "-" in lemma:
+            continue
+        z = zipf(lemma)
+        if z is not None:
+            samples.append((lemma, z, idx))
+    return samples
+
+
+def fit_report(cefr: dict[tuple[str, str], str]) -> str:
+    """Подбирает пороги на обучающей части и описывает точность на отложенной."""
+    train, test = split_samples(fit_samples(cefr))
+    fitted = fit_thresholds([(z, i) for _, z, i in train])
+    lines = [f"samples: {len(train)} train, {len(test)} held-out"]
+    lines.append(f"fitted thresholds (a1,a2,b1,b2,c1): {fitted}")
+    lines.append(f"config ZIPF_THRESHOLDS:              {tuple(ZIPF_THRESHOLDS)}")
+    for name, part in (("train", train), ("held-out", test)):
+        acc = evaluate([(z, i) for _, z, i in part], fitted)
+        lines.append(
+            f"{name}: exact {acc.exact:.3f}, within +-1 {acc.within_one:.3f}, "
+            f"mean |error| {acc.mean_abs_error:.3f} (n={acc.n})"
+        )
+    return "\n".join(lines)
 
 
 def build_pack(
@@ -192,6 +247,10 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="cmd", required=True)
     p_fetch = sub.add_parser("fetch", help="скачать CSV CEFR-J и Octanove")
     p_fetch.add_argument("--dest", type=Path, default=DEFAULT_CEFR_DIR)
+    p_fit = sub.add_parser("fit", help="подобрать пороги Zipf -> CEFR и показать точность")
+    p_fit.add_argument("--cefrj", type=Path, default=DEFAULT_CEFR_DIR / CEFRJ_NAME)
+    p_fit.add_argument("--octanove", type=Path, default=DEFAULT_CEFR_DIR / OCTANOVE_NAME)
+    p_fit.add_argument("--examples", type=int, default=0, help="показать N оценённых слов")
     p_build = sub.add_parser("build", help="собрать en-levels из локальных CSV")
     p_build.add_argument("--cefrj", type=Path, default=DEFAULT_CEFR_DIR / CEFRJ_NAME)
     p_build.add_argument("--octanove", type=Path, default=DEFAULT_CEFR_DIR / OCTANOVE_NAME)
@@ -203,6 +262,16 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "fetch":
         for path in fetch(args.dest):
             print(path)
+        return 0
+    if args.cmd == "fit":
+        merged = merge_cefr(parse_cefr_csv(args.cefrj), parse_cefr_csv(args.octanove))
+        print(fit_report(merged))
+        if args.examples:
+            print(f"examples ({args.examples} estimated words, evenly spaced by frequency rank):")
+            rows = [r for r in build_rows(merged) if r.estimated]
+            step = max(1, len(rows) // args.examples)
+            for r in rows[::step][: args.examples]:
+                print(f"  {r.lemma}\tzipf {r.zipf}\t{r.cefr}")
         return 0
     out = args.out_dir / f"en-levels-{args.version}.sqlite"
     rows = build_pack(args.cefrj, args.octanove, out, args.version, args.extra_words)
