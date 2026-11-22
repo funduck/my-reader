@@ -6,6 +6,8 @@ resolution: workspace
 environment:
   sdk: ^3.14.0
 dependencies:
+  core: any
   meta: ^1.19.0
 dev_dependencies:
+  core_testing: any
   test: ^1.25.0
