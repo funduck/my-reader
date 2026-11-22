@@ -7,13 +7,17 @@ import 'package:lookup_stardict/lookup_stardict.dart';
 /// A headword and its article text for [buildStarDict].
 class FixtureEntry {
   /// Creates an entry.
-  const new(this.word, this.article);
+  const new(this.word, this.article, {this.rawBytes});
 
   /// Headword.
   final String word;
 
   /// Article, stored in `.dict` as UTF-8.
   final String article;
+
+  /// Raw bytes stored instead of the UTF-8 of [article], for articles that
+  /// carry their own type bytes (no `sametypesequence`) or binary fields.
+  final List<int>? rawBytes;
 }
 
 /// The three files of a tiny StarDict dictionary, built in memory.
@@ -48,6 +52,18 @@ class StarDictFixture {
     File('$base.dict').writeAsBytesSync(dict);
     return base;
   }
+
+  /// Like [writeTo], but stores the articles gzip-compressed as
+  /// `<name>.dict.dz` (no plain `.dict`), the way dictzip files look to a
+  /// reader that only needs gzip.
+  String writeDzTo(String dir, [String name = 'test']) {
+    Directory(dir).createSync(recursive: true);
+    final base = '$dir/$name';
+    File('$base.ifo').writeAsStringSync(ifo);
+    File('$base.idx').writeAsBytesSync(idx);
+    File('$base.dict.dz').writeAsBytesSync(gzip.encode(dict));
+    return base;
+  }
 }
 
 /// Builds a tiny StarDict dictionary from [entries].
@@ -68,7 +84,7 @@ StarDictFixture buildStarDict(
   final dict = BytesBuilder();
   final raw = <StarDictEntry>[];
   for (final e in entries) {
-    final article = utf8.encode(e.article);
+    final article = e.rawBytes ?? utf8.encode(e.article);
     raw.add(StarDictEntry(e.word, dict.length + offsetShift, article.length));
     dict.add(article);
   }
