@@ -1,5 +1,7 @@
 import 'package:core/ports.dart';
 
+import 'forms_lemmatizer.dart';
+
 /// Abbreviations after which a period never ends a sentence (lower case,
 /// without the final period).
 const Set<String> _strongAbbreviations = {
@@ -104,10 +106,14 @@ bool _isHyphen(int c) => c == 0x2D || c == 0x2011;
 /// before a lower-case start, after a known abbreviation or initial, and
 /// always a split at a blank line. Tokens are words containing a letter;
 /// an apostrophe or hyphen between alphanumerics stays inside the token.
-/// The lemma is, for now, the lower-cased word with `’` replaced by `'`.
+/// The lemma comes from [Lemmatizer] when one is given; without it, it is the
+/// lower-cased word with `’` replaced by `'`.
 final class EnglishTextAnalyzer implements TextAnalyzer {
-  /// Creates the analyzer.
-  const new();
+  /// Creates the analyzer, optionally backed by a pack [lemmatizer].
+  const new({this.lemmatizer});
+
+  /// Source of lemmas; null means the lower-case fallback.
+  final Lemmatizer? lemmatizer;
 
   @override
   List<SentenceSpan> sentences(String text) {
@@ -265,6 +271,9 @@ final class EnglishTextAnalyzer implements TextAnalyzer {
   }
 
   @override
-  String lemma(String word) =>
-      word.toLowerCase().replaceAll('’', "'").replaceAll('ʼ', "'");
+  String lemma(String word) {
+    final source = lemmatizer;
+    if (source != null) return source.lemma(word);
+    return word.toLowerCase().replaceAll('’', "'").replaceAll('ʼ', "'");
+  }
 }
