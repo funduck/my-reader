@@ -1,0 +1,396 @@
+import 'dart:typed_data';
+
+import 'package:core/application.dart';
+import 'package:core/domain_books.dart';
+import 'package:core/domain_lookup.dart';
+import 'package:core/ports.dart';
+import 'package:test/test.dart';
+
+/// Words by regex, sentences up to `.`, `!` or `?`; lemma is a table lookup
+/// over the lower-cased word.
+class _Analyzer implements TextAnalyzer {
+  const new([this.lemmas = const {}]);
+
+  final Map<String, String> lemmas;
+
+  @override
+  List<SentenceSpan> sentences(String text) => [
+    for (final m in RegExp('[^.!?]+[.!?]*').allMatches(text))
+      if (m.group(0)!.trim().isNotEmpty) SentenceSpan(m.start, m.end),
+  ];
+
+  @override
+  List<TextToken> tokens(String text) => [
+    for (final m in RegExp("[A-Za-z]+(?:'[A-Za-z]+)?").allMatches(text))
+      TextToken(m.group(0)!, m.start, m.end),
+  ];
+
+  @override
+  String lemma(String word) {
+    final lower = word.toLowerCase();
+    return lemmas[lower] ?? lower;
+  }
+}
+
+class _Levels implements LevelDictionary {
+  const new(this.table);
+
+  final Map<String, WordLevel> table;
+
+  @override
+  WordLevel levelOf(String lemma, {String? pos}) =>
+      table[lemma] ?? const WordLevel(CefrLevel.unknown);
+}
+
+WordLevel _w(CefrLevel level, [double? zipf]) => WordLevel(level, zipf: zipf);
+
+const _bookId = BookId('b');
+const _ch0 = ChapterRef(href: 'c0.xhtml', index: 0);
+const _from = Locator(book: _bookId, chapter: _ch0, progression: 0);
+const _to = Locator(book: _bookId, chapter: _ch0, progression: 1);
+
+Future<List<CheatSheetItem>> _run(
+  String text,
+  Map<String, WordLevel> levels, {
+  CefrLevel user = CefrLevel.b1,
+  Set<String> known = const {},
+  Map<String, String> lemmas = const {},
+}) async {
+  final sheet =
+      await LevelCheatSheetGenerator(
+        analyzer: _Analyzer(lemmas),
+        levels: _Levels(levels),
+      ).generate(
+        text: text,
+        from: _from,
+        to: _to,
+        userLevel: user,
+        knownTerms: known,
+      );
+  return sheet.items;
+}
+
+class _Profiles implements ProfileRepository {
+  new(this.profile);
+
+  UserProfile profile;
+
+  @override
+  Future<UserProfile> get() async => profile;
+
+  @override
+  Stream<UserProfile> watch() => Stream.value(profile);
+
+  @override
+  Future<void> save(UserProfile profile) async => this.profile = profile;
+}
+
+class _Terms implements TermRepository {
+  const new(this.terms);
+
+  final List<Term> terms;
+
+  @override
+  Future<Term?> find(String normalized, String language) async => null;
+
+  @override
+  Stream<List<Term>> watchAll({TermStatus? status}) => Stream.value([
+    for (final t in terms)
+      if (status == null || t.status == status) t,
+  ]);
+
+  @override
+  Future<void> save(Term term) async {}
+}
+
+Term _term(String normalized, {String language = 'en'}) => Term(
+  id: TermId('t-$language-$normalized'),
+  normalized: normalized,
+  language: language,
+  lookupCount: 1,
+  eventIds: const [],
+);
+
+class _Book implements OpenedBook {
+  const new(this.paragraphs);
+
+  final List<String> paragraphs;
+
+  @override
+  List<ChapterRef> get spine => const [_ch0];
+
+  @override
+  List<TocEntry> get toc => const [];
+
+  @override
+  Future<ContentDocument> chapter(ChapterRef ref) async => ContentDocument([
+    for (final p in paragraphs) ParagraphBlock([TextInline(p)]),
+  ]);
+
+  @override
+  Future<Uint8List> resource(String href) => throw UnimplementedError();
+
+  @override
+  Future<void> close() async {}
+}
+
+class _RecordingGenerator implements CheatSheetGenerator {
+  String? text;
+  Locator? from;
+  Locator? to;
+  CefrLevel? userLevel;
+  Set<String>? knownTerms;
+
+  @override
+  Future<CheatSheet> generate({
+    required String text,
+    required Locator from,
+    required Locator to,
+    required CefrLevel userLevel,
+    Set<String> knownTerms = const {},
+    CancelToken? cancel,
+  }) async {
+    this.text = text;
+    this.from = from;
+    this.to = to;
+    this.userLevel = userLevel;
+    this.knownTerms = knownTerms;
+    return CheatSheet(from: from, to: to, items: const []);
+  }
+}
+
+void main() {
+  group('LevelCheatSheetGenerator', () {
+    test('keeps only words strictly above the user level', () async {
+      final items = await _run('cat ephemeral sun ubiquitous window arcane', {
+        'cat': _w(CefrLevel.a1),
+        'sun': _w(CefrLevel.b1),
+        'window': _w(CefrLevel.b2),
+        'ephemeral': _w(CefrLevel.c2),
+        'ubiquitous': _w(CefrLevel.c1),
+        'arcane': _w(CefrLevel.c1),
+      });
+      expect(items.map((i) => i.text), [
+        'ephemeral',
+        'ubiquitous',
+        'arcane',
+        'window',
+      ]);
+      expect(items.first.level, CefrLevel.c2);
+      expect(items.first.kind, CheatSheetItemKind.word);
+    });
+
+    test(
+      'drops words with unknown level and words equal to the level',
+      () async {
+        final items = await _run('equal mystery hard', {
+          'equal': _w(CefrLevel.b1),
+          'hard': _w(CefrLevel.c1),
+        });
+        expect(items.map((i) => i.text), ['hard']);
+      },
+    );
+
+    test('levels are looked up by lemma and forms are merged', () async {
+      final items = await _run(
+        'He ran. They run. Running is fun.',
+        {'run': _w(CefrLevel.c1)},
+        lemmas: {'ran': 'run', 'running': 'run'},
+      );
+      expect(items.map((i) => i.text), ['run']);
+    });
+
+    test('drops words from knownTerms', () async {
+      final levels = {'alpha': _w(CefrLevel.c1), 'beta': _w(CefrLevel.c1)};
+      final items = await _run('alpha beta', levels, known: {'alpha'});
+      expect(items.map((i) => i.text), ['beta']);
+    });
+
+    test(
+      'drops proper names: capital not at the start of a sentence',
+      () async {
+        final levels = {
+          'london': _w(CefrLevel.c1),
+          'brown': _w(CefrLevel.c1),
+          'quixotic': _w(CefrLevel.c1),
+          'tuesday': _w(CefrLevel.c1),
+          'arcade': _w(CefrLevel.c1),
+        };
+        final items = await _run(
+          'He went to London. London was big. "Quixotic," said Mr Brown. '
+          'The brown dog barked. Tuesday came. A quixotic arcade.',
+          levels,
+        );
+        // london: only capitalized, once mid-sentence: name.
+        // brown: also lower case: common word.
+        // quixotic: first occurrence at the start of a quote is not a name
+        //   anyway, and it appears in lower case.
+        // tuesday: only at the start of a sentence: not proven a name, kept.
+        expect(items.map((i) => i.text).toSet(), {
+          'brown',
+          'quixotic',
+          'tuesday',
+          'arcade',
+        });
+      },
+    );
+
+    test('a sentence starting with a quote still counts its first word as '
+        'the start', () async {
+      final items = await _run('He left. "Zephyr" blew.', {
+        'zephyr': _w(CefrLevel.c1),
+      });
+      expect(items.map((i) => i.text), ['zephyr']);
+    });
+
+    test('ranks by level, then lower Zipf, then count, then first '
+        'occurrence', () async {
+      final levels = {
+        'a': _w(CefrLevel.c2, 2),
+        'b': _w(CefrLevel.c1, 3),
+        'c': _w(CefrLevel.c1, 2),
+        'd': _w(CefrLevel.c1, 3),
+        'e': _w(CefrLevel.c1, 3),
+        'f': _w(CefrLevel.c1),
+      };
+      // d occurs twice, b and e once; b comes before e.
+      final items = await _run('b e d d f c a', levels);
+      expect(items.map((i) => i.text), ['a', 'f', 'c', 'd', 'b', 'e']);
+    });
+
+    test('takes at most cheatSheetMaxItems, the best ones', () async {
+      final words = [
+        for (var i = 0; i < 20; i++) 'w${String.fromCharCode(97 + i)}',
+      ];
+      // Analyzer tokens are letters only: use letter-only words.
+      final names = [for (var i = 0; i < 20; i++) 'x${'a' * i}'];
+      final levels = {
+        for (var i = 0; i < names.length; i++)
+          names[i]: _w(CefrLevel.c1, 1.0 + i / 10),
+      };
+      expect(words, hasLength(20));
+      final items = await _run(names.reversed.join(' '), levels);
+      expect(cheatSheetMaxItems, 15);
+      expect(items, hasLength(15));
+      expect(items.map((i) => i.text), names.take(15));
+    });
+
+    test('example is the first sentence of the text with the word', () async {
+      final items = await _run(
+        'Nothing here.  An\nephemeral thing. Another ephemeral one.',
+        {'ephemeral': _w(CefrLevel.c1)},
+      );
+      expect(items.single.example, 'An ephemeral thing.');
+      expect(items.single.translation, isNull);
+    });
+
+    test('result carries from and to; empty text gives no items', () async {
+      final sheet = await const LevelCheatSheetGenerator(
+        analyzer: _Analyzer(),
+        levels: _Levels({}),
+      ).generate(text: '', from: _from, to: _to, userLevel: CefrLevel.b1);
+      expect(sheet.items, isEmpty);
+      expect(sheet.from, _from);
+      expect(sheet.to, _to);
+    });
+
+    test('cancelled token throws', () async {
+      final cancel = CancelToken()..cancel();
+      expect(
+        const LevelCheatSheetGenerator(
+          analyzer: _Analyzer(),
+          levels: _Levels({}),
+        ).generate(
+          text: 'x',
+          from: _from,
+          to: _to,
+          userLevel: CefrLevel.b1,
+          cancel: cancel,
+        ),
+        throwsA(isA<CancelledException>()),
+      );
+    });
+  });
+
+  group('BuildCheatSheet', () {
+    test('passes the piece, level and looked-up lemmas to the '
+        'generator', () async {
+      final generator = _RecordingGenerator();
+      final build = BuildCheatSheet(
+        generator: generator,
+        profiles: _Profiles(
+          const UserProfile(level: CefrLevel.c1, scope: CheatSheetChapter()),
+        ),
+        terms: _Terms([
+          _term('alpha'),
+          _term('beta'),
+          _term('gamma', language: 'ru'),
+        ]),
+      );
+      final sheet = await build(
+        const _Book(['First one.', 'Second one.']),
+        from: _from,
+      );
+      expect(sheet, isNotNull);
+      expect(generator.text, 'First one.\n\nSecond one.');
+      expect(generator.userLevel, CefrLevel.c1);
+      expect(generator.knownTerms, {'alpha', 'beta'});
+      expect(generator.from!.chapter, _ch0);
+      expect(generator.from!.progression, 0);
+      expect(generator.to!.progression, 1);
+    });
+
+    test('uses the scope of the profile', () async {
+      final generator = _RecordingGenerator();
+      final build = BuildCheatSheet(
+        generator: generator,
+        profiles: _Profiles(const UserProfile(scope: CheatSheetPages(1))),
+        terms: const _Terms([]),
+      );
+      // Two paragraphs of 200 words: one page (300) is reached by the second.
+      final p = List.filled(200, 'word').join(' ');
+      await build(_Book([p, p, p]), from: _from);
+      expect(generator.text, '$p\n\n$p');
+    });
+
+    test('returns null when the position is not in the book', () async {
+      final generator = _RecordingGenerator();
+      final build = BuildCheatSheet(
+        generator: generator,
+        profiles: _Profiles(const UserProfile()),
+        terms: const _Terms([]),
+      );
+      const other = Locator(
+        book: _bookId,
+        chapter: ChapterRef(href: 'zz.xhtml', index: 9),
+        progression: 0,
+      );
+      expect(await build(const _Book(['Text.']), from: other), isNull);
+      expect(generator.text, isNull);
+    });
+
+    test('end to end: levels, history and names', () async {
+      final build = BuildCheatSheet(
+        generator: LevelCheatSheetGenerator(
+          analyzer: const _Analyzer(),
+          levels: _Levels({
+            'ephemeral': _w(CefrLevel.c2, 2),
+            'ubiquitous': _w(CefrLevel.c1, 3),
+            'arcane': _w(CefrLevel.c1, 2),
+            'london': _w(CefrLevel.c1, 3),
+            'cat': _w(CefrLevel.a1, 6),
+          }),
+        ),
+        profiles: _Profiles(const UserProfile()),
+        terms: _Terms([_term('arcane')]),
+      );
+      final sheet = await build(
+        const _Book([
+          'The cat saw London. Ephemeral, ubiquitous arcane magic.',
+        ]),
+        from: _from,
+      );
+      expect(sheet!.items.map((i) => i.text), ['ephemeral', 'ubiquitous']);
+    });
+  });
+}
