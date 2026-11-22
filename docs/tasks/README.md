@@ -81,6 +81,7 @@
 - `TextQuote.fromText` бросает `RangeError` при `start >= end` или выходе за границы; контекст считается после схлопывания пробелов.
 - `CefrLevel.unknown` вне порядка: все сравнения с ним `false`, `compareTo` бросает `StateError`. Фильтр «выше уровня пользователя» — `level.isHarderThan(profile.level)`.
 - `UserProfile.providerOrder` пустой — значит порядок регистрации провайдеров.
+- Порты (`package:core/ports.dart`): `LookupProvider.lookup` при неудаче бросает `ProviderUnavailable` или `LookupNotFound` (sealed `LookupFailure`), цепочка идёт к следующему провайдеру; отмена — `CancelledException` через `CancelToken`. `BookFormatAdapter` принимает абсолютный путь `String path`, на битый файл бросает `FormatException`. `TextAnalyzer` и `LevelDictionary` синхронные, офсеты — UTF-16, полуинтервал.
 
 ## Волны
 
