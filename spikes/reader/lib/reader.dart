@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
@@ -47,10 +49,21 @@ class _ReaderSpikeState extends State<ReaderSpike> {
   final _keys = <int, GlobalKey>{};
   Offset _lastDown = Offset.zero;
 
+  /// A single tap is reported only after this delay. A double click selects
+  /// a word meanwhile, which cancels the pending tap.
+  static const tapDelay = Duration(milliseconds: 300);
+  Timer? _pendingTap;
+
   @override
   void initState() {
     super.initState();
     widget.controller?._state = this;
+  }
+
+  @override
+  void dispose() {
+    _pendingTap?.cancel();
+    super.dispose();
   }
 
   GlobalKey _key(int i) => _keys.putIfAbsent(i, GlobalKey.new);
@@ -65,32 +78,37 @@ class _ReaderSpikeState extends State<ReaderSpike> {
     if (visible.isEmpty) return null;
     final first = visible.first;
     final ctx = _key(first.index).currentContext;
-    var offset = 0;
-    if (ctx != null) {
-      final editable = findRenderEditable(ctx);
-      if (editable != null) {
-        // Char at the top-left corner of the list viewport.
-        final listBox = context.findRenderObject()! as RenderBox;
-        final top = listBox.localToGlobal(Offset.zero);
-        offset = editable
-            .getPositionForPoint(Offset(top.dx + 1, top.dy + 1))
-            .offset;
-      }
-    }
+    final editable = ctx == null ? null : findRenderEditable(ctx);
+    if (editable == null) return SpikeLocator(first.index, 0);
+    // Probe inside the text box, on the line that crosses the viewport top.
+    // The text itself starts below the item's padding, so a probe at the
+    // item's corner would land in the padding and pick the line above.
+    final viewportTop = _viewportTop();
+    final textTop = editable.localToGlobal(Offset.zero);
+    if (textTop.dy >= viewportTop) return SpikeLocator(first.index, 0);
+    final offset = editable
+        .getPositionForPoint(Offset(textTop.dx + 1, viewportTop + 1))
+        .offset;
     return SpikeLocator(first.index, offset);
   }
+
+  double _viewportTop() =>
+      (context.findRenderObject()! as RenderBox).localToGlobal(Offset.zero).dy;
 
   Future<void> _goTo(SpikeLocator l) async {
     // Step 1: bring the block to the top so that it gets built.
     _scroll.jumpTo(index: l.block);
     await WidgetsBinding.instance.endOfFrame;
-    // Step 2: shift so the requested char line sits at the top.
+    // Step 2: shift so the line holding the offset sits at the top. The
+    // distance is measured on screen, so the item's padding is included.
     final ctx = _key(l.block).currentContext;
     final editable = ctx == null ? null : findRenderEditable(ctx);
     if (editable == null || l.offset == 0) return;
     final caret = editable.getLocalRectForCaret(TextPosition(offset: l.offset));
+    final lineTop = editable.localToGlobal(caret.topLeft).dy;
     final viewport = (context.findRenderObject()! as RenderBox).size.height;
-    _scroll.jumpTo(index: l.block, alignment: -caret.top / viewport);
+    final shift = lineTop - _viewportTop();
+    _scroll.jumpTo(index: l.block, alignment: -shift / viewport);
   }
 
   // ---- item 4: custom context-menu button --------------------------------
@@ -124,8 +142,9 @@ class _ReaderSpikeState extends State<ReaderSpike> {
     if (off == null) return;
     final r = wordRangeAt(widget.paragraphs[i], off);
     if (r == null) return;
-    widget.events.lastWord.value =
-        '${r.textInside(widget.paragraphs[i])}@$i:${r.start}';
+    final word = '${r.textInside(widget.paragraphs[i])}@$i:${r.start}';
+    _pendingTap?.cancel();
+    _pendingTap = Timer(tapDelay, () => widget.events.lastWord.value = word);
   }
 
   @override
@@ -145,6 +164,7 @@ class _ReaderSpikeState extends State<ReaderSpike> {
             onTap: () => _onTap(i),
             onSelectionChanged: (sel, cause) {
               if (!sel.isCollapsed) {
+                _pendingTap?.cancel();
                 widget.events.lastSelection.value = sel.textInside(
                   widget.paragraphs[i],
                 );
