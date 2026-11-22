@@ -9,6 +9,7 @@ workspace:
   - packages/core_testing
   - packages/reader_api
   - packages/storage_drift
+  - packages/text_en
 dev_dependencies:
   # tool/check_imports.dart and its tests
   test: ^1.25.0
