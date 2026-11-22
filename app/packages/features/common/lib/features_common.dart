@@ -5,4 +5,5 @@
 /// read ports only through these providers and never import `app`.
 library;
 
+export 'src/dictionary_library.dart';
 export 'src/port_providers.dart';

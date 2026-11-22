@@ -1,11 +1,13 @@
 import 'package:core/application.dart';
 import 'package:core/domain_lookup.dart';
+import 'package:core/ports.dart';
 import 'package:features_common/features_common.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'level_badge.dart';
 import 'lookup_providers.dart';
+import 'simple_html.dart';
 
 /// Opens the lookup sheet for [query] and returns when it is closed.
 ///
@@ -50,6 +52,9 @@ class LookupSheet extends ConsumerStatefulWidget {
 class _LookupSheetState extends ConsumerState<LookupSheet> {
   late LookupMode _mode = widget.query.mode;
 
+  /// Provider picked by the user; `null` is the chain in the profile order.
+  ProviderId? _provider;
+
   @override
   Widget build(BuildContext context) {
     final source = widget.query;
@@ -60,7 +65,17 @@ class _LookupSheetState extends ConsumerState<LookupSheet> {
       locator: source.locator,
     );
     final onOpenSettings = widget.onOpenSettings;
-    final outcome = ref.watch(lookupOutcomeProvider(query));
+    final candidates = [
+      for (final p in ref.watch(lookupProvidersProvider))
+        if (p.supports(_mode)) p,
+    ];
+    // A pick that does not serve the mode (after a switch) falls back to auto.
+    final provider = candidates.any((p) => p.id == _provider)
+        ? _provider
+        : null;
+    final outcome = ref.watch(
+      lookupOutcomeProvider((query: query, provider: provider)),
+    );
     return SafeArea(
       child: ConstrainedBox(
         constraints: BoxConstraints(
@@ -87,6 +102,14 @@ class _LookupSheetState extends ConsumerState<LookupSheet> {
                 onSelectionChanged: (modes) =>
                     setState(() => _mode = modes.single),
               ),
+              if (candidates.length > 1) ...[
+                const SizedBox(height: 8),
+                _ProviderPicker(
+                  providers: candidates,
+                  selected: provider,
+                  onChanged: (id) => setState(() => _provider = id),
+                ),
+              ],
               const SizedBox(height: 12),
               switch (outcome) {
                 AsyncLoading() => const _Skeleton(),
@@ -117,6 +140,44 @@ class _LookupSheetState extends ConsumerState<LookupSheet> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _ProviderPicker extends StatelessWidget {
+  const new({
+    required this.providers,
+    required this.selected,
+    required this.onChanged,
+  });
+
+  final List<LookupProvider> providers;
+  final ProviderId? selected;
+  final ValueChanged<ProviderId?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Text('Dictionary', style: Theme.of(context).textTheme.labelMedium),
+        const SizedBox(width: 12),
+        Flexible(
+          child: DropdownButton<ProviderId?>(
+            key: const Key('lookup-provider'),
+            value: selected,
+            isExpanded: true,
+            items: [
+              const DropdownMenuItem<ProviderId?>(child: Text('Auto')),
+              for (final p in providers)
+                DropdownMenuItem<ProviderId?>(
+                  value: p.id,
+                  child: Text(p.info.name, overflow: TextOverflow.ellipsis),
+                ),
+            ],
+            onChanged: onChanged,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -206,7 +267,10 @@ class _Answer extends ConsumerWidget {
                       fontStyle: FontStyle.italic,
                     ),
                   ),
-                Text('${i + 1}. ${sense.text}'),
+                if (looksLikeHtml(sense.text))
+                  SimpleHtml(sense.text, prefix: '${i + 1}. ')
+                else
+                  Text('${i + 1}. ${sense.text}'),
                 for (final example in sense.examples)
                   Text(
                     example,

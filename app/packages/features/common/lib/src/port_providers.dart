@@ -2,6 +2,8 @@ import 'package:core/ports.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:reader_api/reader_api.dart';
 
+import 'dictionary_library.dart';
+
 /// Thrown when a port is read before `bootstrap.dart` has wired it.
 class PortNotWiredError extends StateError {
   /// Creates the error for the port called [port].
@@ -72,3 +74,7 @@ final Provider<List<LookupProvider>> lookupProvidersProvider =
 /// Creates the reader engine that draws books.
 final Provider<ReaderEngineFactory> readerEngineFactoryProvider =
     _port<ReaderEngineFactory>('readerEngineFactoryProvider');
+
+/// Library of dictionaries imported by the user (StarDict).
+final Provider<DictionaryLibrary> dictionaryLibraryProvider =
+    _port<DictionaryLibrary>('dictionaryLibraryProvider');

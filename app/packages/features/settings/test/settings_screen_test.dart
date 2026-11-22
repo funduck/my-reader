@@ -9,6 +9,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
+import 'fakes.dart';
+
 /// Store whose downloads wait for the test.
 class _SlowPackStore extends FakePackStore {
   new({super.offered});
@@ -49,6 +51,8 @@ void main() {
         overrides: [
           profileRepositoryProvider.overrideWithValue(profile),
           packStoreProvider.overrideWithValue(packs),
+          dictionaryLibraryProvider.overrideWithValue(FakeDictionaryLibrary()),
+          lookupProvidersProvider.overrideWithValue(const []),
         ],
         child: const MaterialApp(home: SettingsScreen()),
       ),
