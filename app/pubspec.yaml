@@ -11,6 +11,7 @@ workspace:
   - packages/packs_http
   - packages/format_epub
   - packages/lookup_wiktionary
+  - packages/levels_cefr
   - packages/reader_api
   - packages/reader_simple
   - packages/storage_drift

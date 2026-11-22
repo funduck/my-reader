@@ -1,0 +1,12 @@
+name: levels_cefr
+description: CEFR levels of English words over the en-levels pack.
+publish_to: none
+version: 0.1.0
+resolution: workspace
+environment:
+  sdk: ^3.14.0
+dependencies:
+  core: any
+  sqlite3: ^3.0.0
+dev_dependencies:
+  test: ^1.25.0
