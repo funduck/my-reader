@@ -8,6 +8,7 @@ workspace:
   - packages/core
   - packages/core_testing
   - packages/features/common
+  - packages/features/library
   - packages/features/lookup_sheet
   - packages/packs_http
   - packages/format_epub

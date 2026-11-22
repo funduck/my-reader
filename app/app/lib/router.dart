@@ -1,3 +1,4 @@
+import 'package:features_library/features_library.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -38,7 +39,9 @@ GoRouter createRouter({String initialLocation = Routes.library}) {
       GoRoute(path: '/', redirect: (_, _) => Routes.library),
       GoRoute(
         path: Routes.library,
-        builder: (_, _) => const PlaceholderScreen(title: 'Library'),
+        builder: (context, _) => LibraryScreen(
+          onOpenBook: (id) => context.push(Routes.readerAt(id.value)),
+        ),
       ),
       GoRoute(
         path: Routes.reader,
