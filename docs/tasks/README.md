@@ -89,6 +89,8 @@
 
 - `packs_http` (T-040): `HttpPackStore({baseUri, directory, client?, timeout})`. Файлы `<dir>/<id>.sqlite` и `<dir>/packs.json` (`{"packs": {id: version}}`). Ошибки — sealed `PackException`: `PackNetworkException`, `PackHashMismatchException`, `PackManifestException`, `PackNotFoundException`. Докачки и отмены нет.
 
+- Провайдеры портов (T-009) — в `packages/features/common` (`package:features_common/features_common.dart`), все `Provider<T>`; без override бросают `PortNotWiredError`. Фича зависит от `features_common` и `flutter_riverpod`, другие фичи и `app` не импортирует; в тестах — `xProvider.overrideWithValue(fake)`. Новые порты — через `_port<T>(name)` в `port_providers.dart`. Маршруты — константы `Routes` в `app/app/lib/router.dart`; фичи заменяют `builder` заглушки там же. `Override` и `ProviderException` импортируются из `package:flutter_riverpod/misc.dart`.
+
 ## Волны
 
 Задачи одной волны можно запускать параллельно: их зависимости закрыты предыдущими волнами. Номер волны — самый ранний старт при неограниченном числе агентов.
