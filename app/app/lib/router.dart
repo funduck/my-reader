@@ -1,3 +1,4 @@
+import 'package:features_history/features_history.dart';
 import 'package:features_library/features_library.dart';
 import 'package:features_settings/features_settings.dart';
 import 'package:flutter/foundation.dart';
@@ -58,10 +59,7 @@ GoRouter createRouter({String initialLocation = Routes.library}) {
         ),
       ),
       GoRoute(path: Routes.settings, builder: (_, _) => const SettingsScreen()),
-      GoRoute(
-        path: Routes.history,
-        builder: (_, _) => const PlaceholderScreen(title: 'History'),
-      ),
+      GoRoute(path: Routes.history, builder: (_, _) => const HistoryScreen()),
       GoRoute(
         path: Routes.cheatsheet,
         builder: (_, state) => PlaceholderScreen(

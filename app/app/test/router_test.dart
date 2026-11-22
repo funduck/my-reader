@@ -1,3 +1,5 @@
+import 'package:core_testing/core_testing.dart';
+import 'package:features_common/features_common.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -25,7 +27,6 @@ void main() {
       'locator: {"a":1}',
     ],
     Routes.settings: ['Settings'],
-    Routes.history: ['History'],
     Routes.cheatsheetFor('b2'): ['Cheat sheet', 'bookId: b2'],
   };
 
@@ -39,6 +40,29 @@ void main() {
       }
     });
   }
+
+  testWidgets('route ${Routes.history} opens the history screen', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      bootstrap(
+        overrides: [
+          ...buildOverrides(),
+          bookRepositoryProvider.overrideWithValue(FakeBookRepository()),
+          lookupJournalProvider.overrideWithValue(FakeLookupJournal()),
+          termRepositoryProvider.overrideWithValue(FakeTermRepository()),
+        ],
+      ),
+    );
+    await tester.pumpAndSettle();
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(Scaffold)),
+    );
+    container.read(routerProvider).go(Routes.history);
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(AppBar, 'History'), findsOneWidget);
+    expect(find.text('No lookups yet.'), findsOneWidget);
+  });
 
   testWidgets('light and dark themes follow the system', (tester) async {
     tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
