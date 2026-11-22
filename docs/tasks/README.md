@@ -103,6 +103,9 @@
 - `core` не может зависеть от `core_testing` (правило `check_imports`), поэтому тесты `core/application` держат свои мелкие фейки в `core/test/`.
 - `reader_simple` (T-016): `ScrollablePositionedList`, элемент 0 — «Previous chapter», блок `i` — элемент `i + 1`, последний — «Next chapter». Состояние — `engine.chapter` (`ValueListenable<ChapterState?>`) и `engine.style`. Тап и выделение подключаются в `BlockView`. `ChapterFinished` уходит по кнопке «Next chapter».
 
+- `storage_drift` (T-007): `openDatabase(path)` / `openInMemory()` → `AppDatabase` с геттерами `bookRepository`, `progressRepository`, `profileRepository`. `Locator` и `UserProfile` — JSON-текст, `DateTime` — микросекунды UTC. FK нет, каскад прогресса — в `remove`. `*.g.dart` коммитятся (`dart run build_runner build`). Новая таблица: `tables.dart` → `@DriftDatabase` → поднять `currentSchemaVersion` и `onUpgrade` → `drift_dev schema dump` → `schema generate` в `test/generated` с переименованием выхода в `*.g.dart` (иначе `strict_raw_type` в сгенерированном коде) → тест миграции в `schema_test.dart`.
+- `lookup_wiktionary` (T-044): `WiktionaryLookupProvider({packStore, lemmas, packId = 'en-en'})`, id `wiktionary.en-en`, только `enEn`. Нет пакета — `ProviderUnavailable`. Хук `lemmas` (`LemmaCandidates`) подключает лемматизатор `text_en`. Нужен `close()`. `normalizeKey` экспортируется и повторяет `normalize_key` сервиса. p95 на полном пакете — 0,2–1,2 мс.
+
 ## Волны
 
 Задачи одной волны можно запускать параллельно: их зависимости закрыты предыдущими волнами. Номер волны — самый ранний старт при неограниченном числе агентов.
