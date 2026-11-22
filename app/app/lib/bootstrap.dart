@@ -1,12 +1,21 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:core/domain_books.dart' show Locator;
+import 'package:core/domain_lookup.dart';
 import 'package:core/ports.dart';
 import 'package:features_common/features_common.dart';
 import 'package:features_library/features_library.dart';
+import 'package:features_reader/features_reader.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:format_epub/format_epub.dart';
+import 'package:go_router/go_router.dart';
+import 'package:levels_cefr/levels_cefr.dart';
+import 'package:logging/logging.dart';
+import 'package:lookup_sheet/lookup_sheet.dart';
+import 'package:lookup_wiktionary/lookup_wiktionary.dart'
+    show WiktionaryLookupProvider;
 import 'package:material_ui/material_ui.dart';
 import 'package:packs_http/packs_http.dart';
 import 'package:path_provider/path_provider.dart';
@@ -16,6 +25,7 @@ import 'package:text_en/text_en.dart';
 
 import 'app.dart';
 import 'logging.dart';
+import 'router.dart';
 
 /// Overrides of the port providers: the only place where concrete
 /// implementations are chosen (docs/Architecture-app.md, section 8).
@@ -38,6 +48,7 @@ Future<List<Override>> buildDeviceOverrides() async {
   final support = await getApplicationSupportDirectory();
   await support.create(recursive: true);
   final database = openDatabase('${support.path}/my_reader.sqlite');
+  final packsDirPath = '${support.path}/packs';
   return [
     bookRepositoryProvider.overrideWithValue(database.bookRepository),
     progressRepositoryProvider.overrideWithValue(database.progressRepository),
@@ -46,11 +57,70 @@ Future<List<Override>> buildDeviceOverrides() async {
     termRepositoryProvider.overrideWithValue(database.termRepository),
     bookFormatsProvider.overrideWithValue(const [EpubFormatAdapter()]),
     booksDirectoryProvider.overrideWithValue('${support.path}/books'),
-    // Sentence bounds need no lemmatizer; T-047 wires the pack-backed one.
-    readerEngineFactoryProvider.overrideWithValue(
-      () => SimpleReaderEngine(analyzer: const EnglishTextAnalyzer()),
+    ...buildLookupOverrides(packsDirPath),
+    // The engine needs only sentence bounds and lemmas from the analyzer.
+    readerEngineFactoryProvider.overrideWith(
+      (ref) =>
+          () => SimpleReaderEngine(analyzer: ref.watch(textAnalyzerProvider)),
     ),
   ];
+}
+
+/// Overrides of the tap-to-lookup chain: text analyzer, level dictionary,
+/// dictionary providers and the lookup sheet presenter.
+///
+/// Packs are read from [packsDirPath] (the catalog of installed packs) as
+/// soon as they appear there. Separate from [buildDeviceOverrides] so that a
+/// test can wire the same chain without `path_provider`; it can also pass its
+/// own dictionary [providers] instead of the pack-backed ones.
+List<Override> buildLookupOverrides(
+  String packsDirPath, {
+  List<LookupProvider> Function(Ref ref)? providers,
+}) => [
+  textAnalyzerProvider.overrideWithValue(
+    EnglishTextAnalyzer(lemmatizer: PackFormsLemmatizer(packsDirPath)),
+  ),
+  levelDictionaryProvider.overrideWithValue(PackLevelDictionary(packsDirPath)),
+  lookupProvidersProvider.overrideWith(providers ?? _buildLookupProviders),
+  lookupPresenterProvider.overrideWith(_buildLookupPresenter),
+];
+
+/// Dictionary providers over the installed packs: `en-en` Wiktionary.
+///
+/// The lemma hook uses the analyzer of the app, so inflected forms find their
+/// headword.
+List<LookupProvider> _buildLookupProviders(Ref ref) {
+  final analyzer = ref.watch(textAnalyzerProvider);
+  final provider = WiktionaryLookupProvider(
+    packStore: ref.watch(packStoreProvider),
+    lemmas: (text) => [analyzer.lemma(text)],
+  );
+  ref.onDispose(provider.close);
+  return [provider];
+}
+
+/// Opens the lookup sheet for a word the reader reports; the direction is the
+/// default of the profile, the sheet's "settings" button goes to settings.
+LookupPresenter _buildLookupPresenter(Ref ref) {
+  return (
+    BuildContext context, {
+    required String text,
+    required Locator at,
+    required String sentence,
+  }) async {
+    final profile = await ref.read(profileRepositoryProvider).get();
+    if (!context.mounted) return;
+    await showLookupSheet(
+      context,
+      LookupQuery(
+        text: text,
+        mode: profile.mode,
+        sentence: sentence,
+        locator: at,
+      ),
+      onOpenSettings: () => context.go(Routes.settings),
+    );
+  };
 }
 
 /// Service address used when the profile has none.
@@ -78,6 +148,72 @@ PackStore _buildPackStore(Ref ref) {
   );
   ref.onDispose(store.close);
   return store;
+}
+
+final Logger _packLog = Logger('PackBacked');
+
+/// Path of the installed pack [id] in the catalog [directory], `null` if the
+/// pack file is not there (layout of `HttpPackStore`: `<dir>/<id>.sqlite`).
+String? _installedPackPath(String directory, String id) {
+  final path = '$directory/$id.sqlite';
+  return File(path).existsSync() ? path : null;
+}
+
+/// [Lemmatizer] over the `en-forms` pack that opens it on first use after it
+/// is installed; before that it only lower-cases (like no lemmatizer).
+class PackFormsLemmatizer implements Lemmatizer {
+  /// Creates a lemmatizer reading the pack from the catalog [directory].
+  new(this.directory);
+
+  /// Catalog of installed packs.
+  final String directory;
+
+  Lemmatizer? _inner;
+
+  @override
+  String lemma(String word, {String? pos}) {
+    var inner = _inner;
+    if (inner == null) {
+      final path = _installedPackPath(directory, 'en-forms');
+      if (path != null) {
+        try {
+          inner = _inner = FormsLemmatizer.open(path);
+        } on Object catch (e, s) {
+          _packLog.warning('Opening en-forms failed', e, s);
+        }
+      }
+    }
+    return inner?.lemma(word, pos: pos) ?? normalizeKey(word);
+  }
+}
+
+/// [LevelDictionary] over the `en-levels` pack that opens it on first use
+/// after it is installed; before that every word is unknown.
+class PackLevelDictionary implements LevelDictionary {
+  /// Creates a dictionary reading the pack from the catalog [directory].
+  new(this.directory);
+
+  /// Catalog of installed packs.
+  final String directory;
+
+  CefrLevelDictionary? _inner;
+
+  @override
+  WordLevel levelOf(String lemma, {String? pos}) {
+    var inner = _inner;
+    if (inner == null) {
+      final path = _installedPackPath(directory, 'en-levels');
+      if (path != null) {
+        try {
+          inner = _inner = CefrLevelDictionary.fromPath(path);
+        } on Object catch (e, s) {
+          _packLog.warning('Opening en-levels failed', e, s);
+        }
+      }
+    }
+    return inner?.levelOf(lemma, pos: pos) ??
+        const WordLevel(CefrLevel.unknown);
+  }
 }
 
 /// Catalog of installed packs: `<application support>/packs`.

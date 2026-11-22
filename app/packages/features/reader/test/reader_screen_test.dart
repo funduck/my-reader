@@ -53,6 +53,7 @@ void main() {
   late FakeProgressRepository progress;
   late FakeBookFormatAdapter adapter;
   late List<_FakeEngine> engines;
+  late List<({String text, Locator at, String sentence})> lookups;
 
   Locator at(int chapter, double progression) => Locator(
     book: id,
@@ -70,6 +71,7 @@ void main() {
         chapters: ['One.', 'Two.', 'Three.', 'Four.'],
       );
     engines = [];
+    lookups = [];
     await books.save(
       Book(
         id: id,
@@ -88,6 +90,10 @@ void main() {
       progressRepositoryProvider.overrideWithValue(progress),
       bookFormatsProvider.overrideWithValue([adapter]),
       clockProvider.overrideWithValue(FakeClock()),
+      lookupPresenterProvider.overrideWithValue(
+        (context, {required text, required at, required sentence}) async =>
+            lookups.add((text: text, at: at, sentence: sentence)),
+      ),
       readerEngineFactoryProvider.overrideWithValue(() {
         final engine = _FakeEngine();
         engines.add(engine);
@@ -194,6 +200,65 @@ void main() {
     expect(engines.single.goTos.single.chapter.index, 2);
     expect(engines.single.goTos.single.book, id);
     expect(find.text('Chapter 3'), findsNothing);
+    await close(tester);
+  });
+
+  testWidgets('a tapped word is passed to the lookup with place and sentence', (
+    tester,
+  ) async {
+    await open(tester);
+    engines.single.emit(
+      WordTapped(word: 'sand', at: at(1, 0.25), sentence: 'The sand moves.'),
+    );
+    await tester.pump();
+    expect(lookups, [
+      (text: 'sand', at: at(1, 0.25), sentence: 'The sand moves.'),
+    ]);
+    await close(tester);
+  });
+
+  testWidgets('a selection is passed to the lookup the same way', (
+    tester,
+  ) async {
+    await open(tester);
+    engines.single.emit(
+      TextSelected(
+        text: 'sand moves',
+        at: at(2, 0.5),
+        sentence: 'The sand moves.',
+      ),
+    );
+    await tester.pump();
+    expect(lookups, [
+      (text: 'sand moves', at: at(2, 0.5), sentence: 'The sand moves.'),
+    ]);
+    await close(tester);
+  });
+
+  testWidgets('a failing lookup does not break the reader', (tester) async {
+    // Not wired in this scope: the presenter throws on read.
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          bookRepositoryProvider.overrideWithValue(books),
+          progressRepositoryProvider.overrideWithValue(progress),
+          bookFormatsProvider.overrideWithValue([adapter]),
+          clockProvider.overrideWithValue(FakeClock()),
+          readerEngineFactoryProvider.overrideWithValue(() {
+            final engine = _FakeEngine();
+            engines.add(engine);
+            return engine;
+          }),
+        ],
+        child: const MaterialApp(home: ReaderScreen(bookId: id)),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    engines.last.emit(WordTapped(word: 'x', at: at(0, 0), sentence: 'x.'));
+    await tester.pump();
+    expect(find.text('engine view'), findsOneWidget);
+    expect(tester.takeException(), isNull);
     await close(tester);
   });
 

@@ -100,10 +100,39 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   }
 
   void _onEvent(ReaderEvent event) {
-    if (event is! PositionChanged) return;
+    switch (event) {
+      case WordTapped(:final word, :final at, :final sentence):
+        _lookup(word, at, sentence);
+        return;
+      case TextSelected(:final text, :final at, :final sentence):
+        _lookup(text, at, sentence);
+        return;
+      case ChapterFinished():
+        return;
+      case PositionChanged():
+        break;
+    }
     _pending = event.locator;
     _debounce?.cancel();
     _debounce = Timer(saveDebounce, _flush);
+  }
+
+  void _lookup(String text, Locator at, String sentence) {
+    if (!mounted) return;
+    unawaited(_showLookup(text, at, sentence));
+  }
+
+  Future<void> _showLookup(String text, Locator at, String sentence) async {
+    try {
+      await ref.read(lookupPresenterProvider)(
+        context,
+        text: text,
+        at: at,
+        sentence: sentence,
+      );
+    } on Object catch (e, s) {
+      _log.severe('Showing the lookup of "$text" failed', e, s);
+    }
   }
 
   /// Saves the last reported position now, if it is not saved yet.
