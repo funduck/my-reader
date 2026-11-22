@@ -70,17 +70,7 @@ CREATE TABLE examples (
   idx INTEGER NOT NULL,
   text TEXT NOT NULL
 );
-CREATE INDEX examples_sense ON examples (sense_id, idx);
-
-CREATE TABLE translations (
-  id INTEGER PRIMARY KEY,
-  entry_id INTEGER NOT NULL REFERENCES entries (id),
-  sense_id INTEGER REFERENCES senses (id),
-  lang TEXT NOT NULL CHECK (lang = 'ru'),
-  text TEXT NOT NULL,
-  idx INTEGER NOT NULL
-);
-CREATE INDEX translations_entry ON translations (entry_id, idx);"""
+CREATE INDEX examples_sense ON examples (sense_id, idx);"""
 
 DDL_EN_FORMS = """\
 CREATE TABLE forms (

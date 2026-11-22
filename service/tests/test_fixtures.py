@@ -114,9 +114,7 @@ def test_en_en_content() -> None:
     assert _all("en-en", "SELECT COUNT(*) FROM entries WHERE key IN ('can''t', 'take off')") == [
         (2,)
     ]
-    # Переводы: и по значению, и по статье; примеры есть.
-    assert _all("en-en", "SELECT COUNT(*) FROM translations WHERE sense_id IS NULL")[0][0] > 0
-    assert _all("en-en", "SELECT COUNT(*) FROM translations WHERE sense_id IS NOT NULL")[0][0] > 0
+    # Примеры есть.
     assert _all("en-en", "SELECT COUNT(*) FROM examples")[0][0] > 0
     tags = _all("en-en", "SELECT tags FROM senses WHERE tags IS NOT NULL")
     assert all(isinstance(json.loads(t), list) for (t,) in tags)

@@ -24,7 +24,6 @@ class SenseRow:
     tags: tuple[str, ...] = ()
     examples: tuple[str, ...] = ()
     #: Русские переводы, относящиеся именно к этому значению.
-    ru: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -34,7 +33,6 @@ class EntryRow:
     ipa: str | None
     senses: tuple[SenseRow, ...]
     #: Русские переводы всей статьи (без привязки к значению).
-    ru: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -100,7 +98,6 @@ def write_en_en(path: Path, meta: PackMeta, entries: Iterable[EntryRow]) -> None
             (key, entry.lemma, entry.pos, entry.ipa, rank),
         )
         entry_id = cur.lastrowid
-        n_ru = 0
         for idx, sense in enumerate(entry.senses):
             cur = con.execute(
                 "INSERT INTO senses (entry_id, idx, gloss, tags) VALUES (?, ?, ?, ?)",
@@ -112,20 +109,6 @@ def write_en_en(path: Path, meta: PackMeta, entries: Iterable[EntryRow]) -> None
                     "INSERT INTO examples (sense_id, idx, text) VALUES (?, ?, ?)",
                     (sense_id, ex_idx, text),
                 )
-            for text in sense.ru:
-                con.execute(
-                    "INSERT INTO translations (entry_id, sense_id, lang, text, idx)"
-                    " VALUES (?, ?, 'ru', ?, ?)",
-                    (entry_id, sense_id, text, n_ru),
-                )
-                n_ru += 1
-        for text in entry.ru:
-            con.execute(
-                "INSERT INTO translations (entry_id, sense_id, lang, text, idx)"
-                " VALUES (?, NULL, 'ru', ?, ?)",
-                (entry_id, text, n_ru),
-            )
-            n_ru += 1
     con.commit()
     con.close()
 

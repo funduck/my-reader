@@ -6,8 +6,8 @@
       "id": "en-en",
       "version": "20260101.1",
       "schema_version": 1,
-      "size": 40960,
-      "sha256": "7d596faca20a508e1a0a94942db91587d05e9fb7acf410d4080e891bd8caab90",
+      "size": 32768,
+      "sha256": "7b77ea9cbc5438ab5a01d26c8233e03224d5add88d307b06b10a3c603dc8d41b",
       "path": "packs/en-en-20260101.1.sqlite",
       "license": "CC BY-SA 4.0"
     },

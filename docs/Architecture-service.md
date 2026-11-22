@@ -92,7 +92,7 @@ CREATE TABLE meta (
 
 ### 4.2. Пакет `en-en`
 
-Толкования, IPA, часть речи и примеры; русские переводы, если они есть в источнике. Источник — kaikki.org. Служебные значения (`form-of`, «plural of …») в пакет не входят, они уходят в `en-forms`.
+Толкования, IPA, часть речи и примеры. Русских переводов в пакете нет: EN→RU даёт StarDict. Источник — kaikki.org. Служебные значения (`form-of`, «plural of …») в пакет не входят, они уходят в `en-forms`.
 
 ```sql
 CREATE TABLE entries (
@@ -121,16 +121,6 @@ CREATE TABLE examples (
   text TEXT NOT NULL
 );
 CREATE INDEX examples_sense ON examples (sense_id, idx);
-
-CREATE TABLE translations (
-  id INTEGER PRIMARY KEY,
-  entry_id INTEGER NOT NULL REFERENCES entries (id),
-  sense_id INTEGER REFERENCES senses (id),
-  lang TEXT NOT NULL CHECK (lang = 'ru'),
-  text TEXT NOT NULL,
-  idx INTEGER NOT NULL
-);
-CREATE INDEX translations_entry ON translations (entry_id, idx);
 ```
 
 | Таблица.колонка | Смысл |
@@ -147,11 +137,6 @@ CREATE INDEX translations_entry ON translations (entry_id, idx);
 | `senses.tags` | `NULL` или JSON-массив строк: `["informal"]`, `["formal","literary"]` |
 | `examples` | Пример употребления значения |
 | `examples.idx` | Порядок примера внутри значения, от 0 |
-| `translations` | Русские переводы. Если в пакете нет ни одной строки, режим `enRu` провайдер не поддерживает |
-| `translations.entry_id` | Статья, всегда заполнена |
-| `translations.sense_id` | Значение, к которому относится перевод, или `NULL`, если перевод относится ко всей статье |
-| `translations.lang` | Сейчас только `ru` |
-| `translations.idx` | Порядок перевода внутри статьи, от 0 (сквозной для значений и статьи) |
 
 Типовой запрос статьи:
 
@@ -159,7 +144,6 @@ CREATE INDEX translations_entry ON translations (entry_id, idx);
 SELECT id, lemma, pos, ipa FROM entries WHERE key = ? ORDER BY rank;
 SELECT id, gloss, tags FROM senses WHERE entry_id = ? ORDER BY idx;
 SELECT text FROM examples WHERE sense_id = ? ORDER BY idx;
-SELECT sense_id, text FROM translations WHERE entry_id = ? AND lang = 'ru' ORDER BY idx;
 ```
 
 Значение `senses.gloss` не содержит разметки. Если `entries.key` совпадает с нормализованной леммой из запроса, статья найдена; иначе приложение пробует нормализованную исходную форму (см. T-044).

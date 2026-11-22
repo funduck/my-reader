@@ -30,12 +30,12 @@ GENERATED_AT = "2026-01-01T00:00:00Z"
 LICENSE = "CC BY-SA 4.0"
 
 
-def _s(gloss: str, *examples: str, tags: tuple[str, ...] = (), ru: tuple[str, ...] = ()):
-    return SenseRow(gloss=gloss, tags=tags, examples=examples, ru=ru)
+def _s(gloss: str, *examples: str, tags: tuple[str, ...] = ()):
+    return SenseRow(gloss=gloss, tags=tags, examples=examples)
 
 
-def _e(lemma, pos, ipa, senses, ru=()):
-    return EntryRow(lemma=lemma, pos=pos, ipa=ipa, senses=tuple(senses), ru=tuple(ru))
+def _e(lemma, pos, ipa, senses):
+    return EntryRow(lemma=lemma, pos=pos, ipa=ipa, senses=tuple(senses))
 
 
 EN_EN: tuple[EntryRow, ...] = (
@@ -47,12 +47,10 @@ EN_EN: tuple[EntryRow, ...] = (
             _s(
                 "To move or travel from one place to another.",
                 "I go to work by bus.",
-                ru=("идти", "ехать"),
             ),
-            _s("To leave a place.", "It is late, I must go.", ru=("уходить",)),
+            _s("To leave a place.", "It is late, I must go."),
             _s("To function correctly.", "The old clock still goes."),
         ],
-        ru=("ходить",),
     ),
     _e("go", "noun", "/ɡoʊ/", [_s("An attempt or try.", "Have a go at it.", tags=("informal",))]),
     _e(
@@ -60,7 +58,7 @@ EN_EN: tuple[EntryRow, ...] = (
         "noun",
         "/tʃaɪld/",
         [
-            _s("A young human being.", "The child laughed.", ru=("ребёнок", "дитя")),
+            _s("A young human being.", "The child laughed."),
             _s("A son or daughter of any age.", "Their children live abroad."),
         ],
     ),
@@ -69,7 +67,7 @@ EN_EN: tuple[EntryRow, ...] = (
         "adj",
         "/ɡʊd/",
         [
-            _s("Having positive qualities.", "This is a good book.", ru=("хороший",)),
+            _s("Having positive qualities.", "This is a good book."),
             _s("Morally right.", "She is a good person."),
         ],
     ),
@@ -78,20 +76,20 @@ EN_EN: tuple[EntryRow, ...] = (
         "well",
         "adv",
         "/wɛl/",
-        [_s("In a good or satisfactory way.", "She sings well.", ru=("хорошо",))],
+        [_s("In a good or satisfactory way.", "She sings well.")],
     ),
     _e(
         "well",
         "noun",
         "/wɛl/",
-        [_s("A deep hole dug to reach water.", "They drew water from the well.", ru=("колодец",))],
+        [_s("A deep hole dug to reach water.", "They drew water from the well.")],
     ),
     _e(
         "leave",
         "verb",
         "/liːv/",
         [
-            _s("To go away from a place.", "Please leave the room.", ru=("покидать", "уходить")),
+            _s("To go away from a place.", "Please leave the room."),
             _s("To cause to remain.", "He left a note on the table."),
         ],
     ),
@@ -100,35 +98,34 @@ EN_EN: tuple[EntryRow, ...] = (
         "adj",
         "/lɛft/",
         [_s("On the side of the body that is toward the west when facing north.", "Turn left.")],
-        ru=("левый",),
     ),
     _e(
         "run",
         "verb",
         "/ɹʌn/",
-        [_s("To move quickly on foot.", "She runs every morning.", ru=("бежать",))],
+        [_s("To move quickly on foot.", "She runs every morning.")],
     ),
     _e("run", "noun", "/ɹʌn/", [_s("An act of running.", "He went for a run.")]),
     _e(
         "book",
         "noun",
         "/bʊk/",
-        [_s("A written or printed work bound together.", "I read a book.", ru=("книга",))],
+        [_s("A written or printed work bound together.", "I read a book.")],
     ),
     _e("book", "verb", "/bʊk/", [_s("To reserve in advance.", "We booked a table.")]),
     _e(
         "read",
         "verb",
         "/ɹiːd/",
-        [_s("To look at and understand written words.", "Read the text aloud.", ru=("читать",))],
+        [_s("To look at and understand written words.", "Read the text aloud.")],
     ),
     _e(
         "bank",
         "noun",
         "/bæŋk/",
         [
-            _s("An institution that holds money.", "She works at a bank.", ru=("банк",)),
-            _s("The land alongside a river.", "They sat on the river bank.", ru=("берег",)),
+            _s("An institution that holds money.", "She works at a bank."),
+            _s("The land alongside a river.", "They sat on the river bank."),
         ],
     ),
     _e(
@@ -139,18 +136,17 @@ EN_EN: tuple[EntryRow, ...] = (
             _s(
                 "Electromagnetic radiation that makes things visible.",
                 "Turn on the light.",
-                ru=("свет",),
             )
         ],
     ),
-    _e("light", "adj", "/laɪt/", [_s("Not heavy.", "A light bag.", ru=("лёгкий",))]),
+    _e("light", "adj", "/laɪt/", [_s("Not heavy.", "A light bag.")]),
     _e(
         "happy",
         "adj",
         "/ˈhæpi/",
-        [_s("Feeling pleasure or contentment.", "I am happy to help.", ru=("счастливый",))],
+        [_s("Feeling pleasure or contentment.", "I am happy to help.")],
     ),
-    _e("quick", "adj", "/kwɪk/", [_s("Done with speed.", "A quick reply.", ru=("быстрый",))]),
+    _e("quick", "adj", "/kwɪk/", [_s("Done with speed.", "A quick reply.")]),
     _e(
         "serendipity",
         "noun",
@@ -178,20 +174,20 @@ EN_EN: tuple[EntryRow, ...] = (
         "lamp",
         "noun",
         "/læmp/",
-        [_s("A device that produces light.", "A desk lamp.", ru=("лампа",))],
+        [_s("A device that produces light.", "A desk lamp.")],
     ),
     _e(
         "cat",
         "noun",
         "/kæt/",
-        [_s("A small domesticated feline.", "The cat sat on the mat.", ru=("кошка", "кот"))],
+        [_s("A small domesticated feline.", "The cat sat on the mat.")],
     ),
-    _e("dog", "noun", "/dɒɡ/", [_s("A domesticated canine.", "The dog barked.", ru=("собака",))]),
+    _e("dog", "noun", "/dɒɡ/", [_s("A domesticated canine.", "The dog barked.")]),
     _e(
         "ask",
         "verb",
         "/ɑːsk/",
-        [_s("To put a question to someone.", "Ask him why.", ru=("спрашивать", "просить"))],
+        [_s("To put a question to someone.", "Ask him why.")],
     ),
     _e(
         "take off",
