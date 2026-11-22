@@ -1,0 +1,24 @@
+name: reader_simple
+description: MVP reader engine; draws a ContentDocument with Flutter widgets.
+publish_to: none
+version: 0.1.0
+resolution: workspace
+environment:
+  sdk: ^3.14.0
+dependencies:
+  core: any
+  flutter:
+    sdk: flutter
+  material_ui: ^1.1.0
+  reader_api: any
+  scrollable_positioned_list: ^0.3.8
+dev_dependencies:
+  core_testing: any
+  flutter_driver:
+    sdk: flutter
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+flutter:
+  uses-material-design: true
