@@ -40,10 +40,17 @@ CHUNK = 1 << 20
 
 @dataclass(frozen=True, slots=True)
 class Sense:
-    """Одно значение слова: толкования (``glosses``) и примеры из Wiktionary."""
+    """Одно значение слова: толкования (``glosses``), примеры, теги и ссылки ``form_of``.
+
+    ``tags`` — теги значения из Wiktionary (``informal``, ``form-of``, ``plural``...).
+    ``form_of`` — леммы, формой которых является слово (``pies`` -> ``("pie",)``); у служебных
+    значений вида «plural of …» тег ``form-of`` и непустой ``form_of``.
+    """
 
     glosses: tuple[str, ...] = ()
     examples: tuple[str, ...] = ()
+    tags: tuple[str, ...] = ()
+    form_of: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -108,7 +115,15 @@ def _sense(raw: dict[str, Any]) -> Sense:
     examples = tuple(
         t for ex in _dicts(raw.get("examples")) if isinstance(t := ex.get("text"), str) and t
     )
-    return Sense(glosses=_str_tuple(raw.get("glosses")), examples=examples)
+    form_of = tuple(
+        w for d in _dicts(raw.get("form_of")) if isinstance(w := d.get("word"), str) and w
+    )
+    return Sense(
+        glosses=_str_tuple(raw.get("glosses")),
+        examples=examples,
+        tags=_str_tuple(raw.get("tags")),
+        form_of=form_of,
+    )
 
 
 def parse_entry(obj: Any) -> Entry | None:

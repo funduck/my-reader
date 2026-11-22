@@ -284,3 +284,20 @@ def test_fetch_requires_last_modified(tmp_path: Path) -> None:
 
     with pytest.raises(RuntimeError, match="Last-Modified"):
         fetch(tmp_path, URL, opener, quiet)
+
+
+def test_sense_tags_and_form_of_from_fixture() -> None:
+    entries = list(read_entries(SAMPLE))
+    pies = next(e for e in entries if e.word == "pies" and e.pos == "noun")
+    sense = pies.senses[0]
+    assert sense.form_of == ("pie",)
+    assert "form-of" in sense.tags and "plural" in sense.tags
+
+
+def test_sense_form_of_ignores_bad_items() -> None:
+    entry = parse_entry(
+        {"word": "x", "pos": "noun", "senses": [{"tags": "bad", "form_of": [1, {}, {"word": "y"}]}]}
+    )
+    assert entry is not None
+    assert entry.senses[0].tags == ()
+    assert entry.senses[0].form_of == ("y",)
