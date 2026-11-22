@@ -11,4 +11,5 @@ dependencies:
   meta: ^1.19.0
   xml: ^6.5.0
 dev_dependencies:
+  core_testing: any
   test: ^1.25.0
