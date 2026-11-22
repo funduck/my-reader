@@ -8,11 +8,15 @@ environment:
 dependencies:
   core: any
   features_common: any
+  features_library: any
   flutter:
     sdk: flutter
   flutter_riverpod: ^3.5.0
+  format_epub: any
   go_router: ^18.1.4
   material_ui: ^1.1.0
+  path_provider: ^2.1.0
+  storage_drift: any
 dev_dependencies:
   flutter_test:
     sdk: flutter

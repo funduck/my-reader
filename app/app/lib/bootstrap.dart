@@ -1,8 +1,12 @@
 import 'package:core/ports.dart';
 import 'package:features_common/features_common.dart';
+import 'package:features_library/features_library.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
+import 'package:format_epub/format_epub.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:storage_drift/storage_drift.dart';
 
 import 'app.dart';
 
@@ -15,6 +19,24 @@ List<Override> buildOverrides() => [
   clockProvider.overrideWithValue(const SystemClock()),
   idGeneratorProvider.overrideWithValue(CounterIdGenerator()),
 ];
+
+/// Overrides that need the device: the drift database file and the directory
+/// of imported books, both in the application support directory, plus the
+/// repositories and format adapters on top of them.
+///
+/// Call once before `runApp` and pass `[...buildOverrides(), ...these]`.
+Future<List<Override>> buildDeviceOverrides() async {
+  final support = await getApplicationSupportDirectory();
+  await support.create(recursive: true);
+  final database = openDatabase('${support.path}/my_reader.sqlite');
+  return [
+    bookRepositoryProvider.overrideWithValue(database.bookRepository),
+    progressRepositoryProvider.overrideWithValue(database.progressRepository),
+    profileRepositoryProvider.overrideWithValue(database.profileRepository),
+    bookFormatsProvider.overrideWithValue(const [EpubFormatAdapter()]),
+    booksDirectoryProvider.overrideWithValue('${support.path}/books'),
+  ];
+}
 
 /// Builds the root widget with all providers wired.
 Widget bootstrap({List<Override>? overrides}) {
