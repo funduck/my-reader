@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:core/domain_books.dart';
+import 'package:core/domain_lookup.dart';
 import 'package:core/ports.dart';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
