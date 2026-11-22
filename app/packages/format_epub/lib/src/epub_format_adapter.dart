@@ -7,6 +7,7 @@ import 'package:core/ports.dart';
 import 'epub_archive.dart';
 import 'epub_package.dart';
 import 'epub_path.dart';
+import 'toc/toc_parser.dart';
 
 /// [BookFormatAdapter] for EPUB 2 and EPUB 3.
 final class EpubFormatAdapter implements BookFormatAdapter {
@@ -77,9 +78,9 @@ String _baseName(String path) {
 
 /// An opened EPUB: package structure plus access to its entries.
 ///
-/// The table of contents and chapter parsing are added by later tasks
-/// (nav/ncx, XHTML); until then [toc] is empty and [chapter] throws
-/// [UnsupportedError].
+/// [toc] comes from nav.xhtml, toc.ncx or the spine (see `parseToc`);
+/// chapter parsing is added by a later task and [chapter] throws
+/// [UnsupportedError] until then.
 final class EpubBook implements OpenedBook {
   new _(this._archive, this.package);
 
@@ -90,7 +91,9 @@ final class EpubBook implements OpenedBook {
   final EpubPackage package;
 
   @override
-  List<TocEntry> get toc => const [];
+  late final List<TocEntry> toc = List.unmodifiable(
+    parseToc(_archive, package),
+  );
 
   /// Spine in reading order; `href` is the container entry name of the
   /// chapter file (e.g. `OEBPS/text/ch1.xhtml`), `index` its spine position.
