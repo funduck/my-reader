@@ -1,5 +1,6 @@
 import 'package:core/ports.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:reader_api/reader_api.dart';
 
 /// Thrown when a port is read before `bootstrap.dart` has wired it.
 class PortNotWiredError extends StateError {
@@ -67,3 +68,7 @@ final Provider<List<BookFormatAdapter>> bookFormatsProvider =
 /// Lookup providers in registration order.
 final Provider<List<LookupProvider>> lookupProvidersProvider =
     _port<List<LookupProvider>>('lookupProvidersProvider');
+
+/// Creates the reader engine that draws books.
+final Provider<ReaderEngineFactory> readerEngineFactoryProvider =
+    _port<ReaderEngineFactory>('readerEngineFactoryProvider');

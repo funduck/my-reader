@@ -10,6 +10,7 @@ import 'package:format_epub/format_epub.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:packs_http/packs_http.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:reader_simple/reader_simple.dart';
 import 'package:storage_drift/storage_drift.dart';
 
 import 'app.dart';
@@ -28,7 +29,8 @@ List<Override> buildOverrides() => [
 
 /// Overrides that need the device: the drift database file and the directory
 /// of imported books, both in the application support directory, plus the
-/// repositories and format adapters on top of them.
+/// repositories and format adapters on top of them, and the reader engine
+/// (kept here so that tests of `buildOverrides` can supply their own).
 ///
 /// Call once before `runApp` and pass `[...buildOverrides(), ...these]`.
 Future<List<Override>> buildDeviceOverrides() async {
@@ -43,6 +45,7 @@ Future<List<Override>> buildDeviceOverrides() async {
     termRepositoryProvider.overrideWithValue(database.termRepository),
     bookFormatsProvider.overrideWithValue(const [EpubFormatAdapter()]),
     booksDirectoryProvider.overrideWithValue('${support.path}/books'),
+    readerEngineFactoryProvider.overrideWithValue(SimpleReaderEngine.new),
   ];
 }
 
