@@ -76,7 +76,11 @@
 - Riverpod, `go_router`, drift для базы приложения, `package:sqlite3` для чтения пакетов, `package:http`.
 - Сервис: Python 3.12, `uv`, `ruff`, `pytest`.
 - Виджеты Material — из `package:material_ui/material_ui.dart`: в Flutter 3.50 `package:flutter/material.dart` устарел, и `--fatal-infos` на нём падает.
-- Конструкторы — в форме Dart 3.14 `const new(...)`: этого требует линт `unnecessary_type_name_in_constructor`.
+- Конструкторы — в форме Dart 3.14 `const new(...)`: этого требует линт `unnecessary_type_name_in_constructor`. Именованные фабрики — `factory fromJson(...)` без имени типа; вызов снаружи прежний: `Locator.fromJson(...)`.
+- Доменные типы импортируются из `package:core/domain_books.dart` и `package:core/domain_lookup.dart`; `core.dart` их не реэкспортирует. Внутри `core/lib` — относительными путями.
+- `TextQuote.fromText` бросает `RangeError` при `start >= end` или выходе за границы; контекст считается после схлопывания пробелов.
+- `CefrLevel.unknown` вне порядка: все сравнения с ним `false`, `compareTo` бросает `StateError`. Фильтр «выше уровня пользователя» — `level.isHarderThan(profile.level)`.
+- `UserProfile.providerOrder` пустой — значит порядок регистрации провайдеров.
 
 ## Волны
 

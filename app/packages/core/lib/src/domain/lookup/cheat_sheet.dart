@@ -1,7 +1,7 @@
 import 'package:meta/meta.dart';
 
+import '../../../domain_books.dart';
 import 'cefr_level.dart';
-import 'locator_stub.dart';
 
 /// Kind of a cheat sheet entry.
 enum CheatSheetItemKind {

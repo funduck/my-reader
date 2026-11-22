@@ -1,6 +1,6 @@
 import 'package:meta/meta.dart';
 
-import 'locator_stub.dart';
+import '../../../domain_books.dart';
 import 'lookup_mode.dart';
 
 /// What the user asked for.
