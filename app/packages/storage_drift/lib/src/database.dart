@@ -17,13 +17,22 @@ part 'database.g.dart';
 /// Create it with [openDatabase] or [openInMemory]. Tables and generated row
 /// classes are internal to this package; the outside sees only the
 /// repositories.
-@DriftDatabase(tables: [Books, ReadingProgressTable, ProfileTable])
+@DriftDatabase(
+  tables: [
+    Books,
+    ReadingProgressTable,
+    ProfileTable,
+    LookupEvents,
+    Terms,
+    TermEvents,
+  ],
+)
 class AppDatabase extends _$AppDatabase {
   /// Opens the database on the query executor.
   new(super.e);
 
   /// Current schema version; bump it and add a step to [migration] together.
-  static const int currentSchemaVersion = 1;
+  static const int currentSchemaVersion = 2;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -31,8 +40,26 @@ class AppDatabase extends _$AppDatabase {
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (m) => m.createAll(),
-    // Add `onUpgrade` steps here for schema v2+ (see drift_schemas/).
+    onUpgrade: (m, from, to) async {
+      if (from < 2) {
+        // v2: lookup journal and terms.
+        await m.createTable(lookupEvents);
+        await m.createTable(terms);
+        await m.createTable(termEvents);
+        // Indexes declared with @TableIndex are separate entities.
+        await m.create(lookupEventsAt);
+        await m.create(lookupEventsBook);
+        await m.create(termsLemma);
+        await m.create(termEventsEvent);
+      }
+    },
   );
+
+  /// Journal of lookups; also lists events of one term.
+  DriftLookupJournal get lookupJournal => DriftLookupJournal(this);
+
+  /// Terms aggregated from the journal.
+  DriftTermRepository get termRepository => DriftTermRepository(this);
 
   /// Library of books.
   BookRepository get bookRepository => DriftBookRepository(this);

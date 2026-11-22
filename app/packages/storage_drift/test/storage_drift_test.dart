@@ -37,6 +37,8 @@ void main() {
   bookRepositoryContract(() => _inMemory().bookRepository);
   progressRepositoryContract(() => _inMemory().progressRepository);
   profileRepositoryContract(() => _inMemory().profileRepository);
+  lookupJournalContract(() => _inMemory().lookupJournal);
+  termRepositoryContract(() => _inMemory().termRepository);
 
   group('storage_drift', () {
     test(
