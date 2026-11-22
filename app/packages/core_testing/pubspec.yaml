@@ -7,5 +7,5 @@ environment:
   sdk: ^3.14.0
 dependencies:
   core: any
-dev_dependencies:
+  # Contract suites live in lib/ and use package:test.
   test: ^1.25.0
