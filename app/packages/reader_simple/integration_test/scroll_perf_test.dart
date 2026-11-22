@@ -7,6 +7,8 @@ import 'package:material_ui/material_ui.dart';
 import 'package:reader_simple/reader_simple.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
+import '../test/fake_text_analyzer.dart';
+
 /// Frame budget from the T-021 spike report (spikes/reader/REPORT.md,
 /// section 3): p99 of build and raster must stay within one 60 Hz frame.
 /// The spike measured p99 build 2.87 ms and raster 1.75 ms on the same kind
@@ -44,7 +46,7 @@ void main() {
     final text = chapterOf15kWords();
     expect(text.split(RegExp(r'\s+')).length, 15000);
 
-    final engine = SimpleReaderEngine();
+    final engine = SimpleReaderEngine(analyzer: FakeTextAnalyzer());
     addTearDown(engine.dispose);
     await engine.load(
       FakeOpenedBook(chapters: [text]),

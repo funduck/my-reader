@@ -25,7 +25,7 @@ MVP-рендерер: `SimpleReaderEngine implements ReaderEngine` из `reader_
 
 Позиция (T-017): первый видимый блок и строка превращаются в `Locator` (глава, `progression` по символам главы, `TextQuote` первой видимой строки, `engineHint` вида `simple:1:<глава>:<блок>:<смещение>`); `PositionChanged` не чаще раза в 500 мс. `load(at)` и `goTo` ищут место по `engineHint`, затем по `TextQuote`, затем по `progression`. `currentLocator()` отдаёт позицию сразу.
 
-Не сделано, это T-018: события `WordTapped`, `TextSelected`. `highlight` только запоминает диапазоны.
+Тап и выделение (T-018): одиночный тап по слову шлёт `WordTapped` (слово без пунктуации, `Locator`, предложение) через 300 мс, если за это время не стало двойного клика. Кнопка «Translate» в меню выделения шлёт `TextSelected`. Предложение даёт `TextAnalyzer`, переданный в конструктор `SimpleReaderEngine`; он смотрит один абзац, не соседние. `highlight(ranges)` закрашивает диапазоны фоном.
 
 ## Пример
 

@@ -10,6 +10,8 @@ import 'package:reader_api/reader_api.dart';
 import 'package:reader_simple/reader_simple.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
+import 'fake_text_analyzer.dart';
+
 const _bookId = BookId('book-1');
 
 /// 1x1 transparent PNG.
@@ -69,7 +71,7 @@ Future<SimpleReaderEngine> _open(
   OpenedBook book, {
   Locator? at,
 }) async {
-  final engine = SimpleReaderEngine();
+  final engine = SimpleReaderEngine(analyzer: FakeTextAnalyzer());
   addTearDown(engine.dispose);
   await engine.load(book, bookId: _bookId, at: at);
   await tester.pumpWidget(_app(engine));
@@ -387,7 +389,7 @@ void main() {
 
   group('lifecycle', () {
     test('dispose closes events and is safe to call twice', () async {
-      final engine = SimpleReaderEngine();
+      final engine = SimpleReaderEngine(analyzer: FakeTextAnalyzer());
       final done = engine.events.toList();
       await engine.dispose();
       await engine.dispose();
@@ -395,7 +397,7 @@ void main() {
     });
 
     test('goTo before load is a programming error', () {
-      final engine = SimpleReaderEngine();
+      final engine = SimpleReaderEngine(analyzer: FakeTextAnalyzer());
       addTearDown(engine.dispose);
       expect(
         () => engine.goTo(
@@ -410,7 +412,7 @@ void main() {
     });
 
     test('highlight replaces the previous set', () async {
-      final engine = SimpleReaderEngine();
+      final engine = SimpleReaderEngine(analyzer: FakeTextAnalyzer());
       addTearDown(engine.dispose);
       const a = Locator(
         book: _bookId,

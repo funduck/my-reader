@@ -10,6 +10,8 @@ import 'package:reader_simple/src/position.dart';
 import 'package:reader_simple/src/simple_reader_engine.dart'
     show positionInterval;
 
+import 'fake_text_analyzer.dart';
+
 const _bookId = BookId('book-1');
 
 /// Long paragraphs, several lines each, with a unique word every few
@@ -69,7 +71,7 @@ Future<_Opened> _open(
   Locator? at,
   OpenedBook? book,
 }) async {
-  final engine = SimpleReaderEngine();
+  final engine = SimpleReaderEngine(analyzer: FakeTextAnalyzer());
   final events = <Locator>[];
   final sub = engine.events.listen((e) {
     if (e is PositionChanged) events.add(e.locator);

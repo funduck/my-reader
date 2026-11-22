@@ -13,6 +13,7 @@ final class ReaderStyle {
       text: dark ? const Color(0xFFE0E0E0) : const Color(0xFF212121),
       link: dark ? const Color(0xFF90CAF9) : const Color(0xFF1565C0),
       muted: dark ? const Color(0xFF9E9E9E) : const Color(0xFF757575),
+      highlight: dark ? const Color(0x66FFD54F) : const Color(0x80FFEB3B),
     );
   }
 
@@ -22,6 +23,7 @@ final class ReaderStyle {
     required this.text,
     required this.link,
     required this.muted,
+    required this.highlight,
   });
 
   /// The settings this style was derived from.
@@ -38,6 +40,9 @@ final class ReaderStyle {
 
   /// Colour of secondary elements: quote bar, bullets, captions.
   final Color muted;
+
+  /// Background of text marked by `highlight`.
+  final Color highlight;
 
   /// Line height factor of body text.
   static const double lineHeight = 1.5;

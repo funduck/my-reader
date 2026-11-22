@@ -207,6 +207,63 @@ class ChapterText {
     return _positionAt(origin[best]);
   }
 
+  /// Where [quote] lies at [position] as a range of [text]: the first
+  /// non-space character at or after [position] to the end of `quote.exact`.
+  /// `null` if the text there is not the quote.
+  ({int start, int end})? rangeOf(BlockPosition position, TextQuote quote) {
+    var i = indexOf(position);
+    while (i < text.length && _isSpace(text, i)) {
+      i++;
+    }
+    final start = i;
+    final exact = quote.exact;
+    if (exact.isEmpty) return null;
+    for (var j = 0; j < exact.length; j++) {
+      if (i >= text.length) return null;
+      if (exact[j] == ' ') {
+        if (!_isSpace(text, i)) return null;
+        while (i < text.length && _isSpace(text, i)) {
+          i++;
+        }
+      } else {
+        if (text[i] != exact[j]) return null;
+        i++;
+      }
+    }
+    return (start: start, end: i);
+  }
+
+  /// Where [locator] lies in chapter [chapter], by its hint or its quote only;
+  /// `null` when neither finds it (the progression alone is not precise
+  /// enough to mark text).
+  ({int start, int end})? rangeOfLocator(Locator locator, int chapter) {
+    final quote = locator.quote;
+    if (quote == null || quote.exact.isEmpty) return null;
+    final hinted = decodeHint(locator.engineHint, chapter, this);
+    final at = hinted != null && confirms(hinted, quote)
+        ? hinted
+        : find(quote, locator.progression);
+    return at == null ? null : rangeOf(at, quote);
+  }
+
+  /// Splits the chapter range `[start, end)` into ranges inside blocks:
+  /// block index to `(start, end)` offsets in the block text.
+  Map<int, List<(int, int)>> blockRanges(int start, int end) {
+    final result = <int, List<(int, int)>>{};
+    if (_blocks.isEmpty || end <= start) return result;
+    for (var b = _positionAt(start).block; b < _blocks.length; b++) {
+      final blockStart = _starts[b];
+      if (blockStart >= end) break;
+      final lo = start > blockStart ? start : blockStart;
+      final blockEnd = blockStart + _blocks[b].length;
+      final hi = end < blockEnd ? end : blockEnd;
+      if (hi > lo) {
+        (result[b] ??= []).add((lo - blockStart, hi - blockStart));
+      }
+    }
+    return result;
+  }
+
   ({String flat, List<int> origin}) _collapse() {
     final flat = StringBuffer();
     final origin = <int>[];
