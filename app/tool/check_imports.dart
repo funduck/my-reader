@@ -3,7 +3,9 @@
 // Rules (docs/Architecture-app.md, section 1):
 //   core      -> only Dart SDK and pure utilities (no Flutter, SQLite, HTTP)
 //   adapters  -> core only (dev: core_testing)
-//   features  -> core and reader_api, never adapters (dev: core_testing)
+//   features  -> core, reader_api and features_common, never adapters or
+//                other features (dev: core_testing)
+//   features_common (packages/features/common) -> core and reader_api
 //   app/app   -> everything, the only place that wires concrete adapters
 //
 // The kind of a package comes from its directory, see [kindOfPath].
@@ -31,6 +33,9 @@ enum PackageKind {
 
   /// Any other package under `packages/`: formats, lookup, storage, text...
   adapter('adapter'),
+
+  /// Shared providers of ports for features: `packages/features/common`.
+  featuresCommon('features_common'),
 
   /// A UI feature under `packages/features/`.
   feature('feature');
@@ -82,7 +87,11 @@ PackageKind? kindOfPath(String relPath) {
   final parts = relPath.split('/');
   if (relPath == 'app') return PackageKind.app;
   if (parts.length < 2 || parts.first != 'packages') return null;
-  if (parts.length == 3 && parts[1] == 'features') return PackageKind.feature;
+  if (parts.length == 3 && parts[1] == 'features') {
+    return parts[2] == 'common'
+        ? PackageKind.featuresCommon
+        : PackageKind.feature;
+  }
   if (parts.length != 2) return null;
   final name = parts[1];
   if (name == 'core') return PackageKind.core;
@@ -100,7 +109,12 @@ Set<PackageKind> _allowedInternal(PackageKind kind) => switch (kind) {
   PackageKind.api => {PackageKind.core},
   PackageKind.renderer => {PackageKind.core, PackageKind.api},
   PackageKind.adapter => {PackageKind.core},
-  PackageKind.feature => {PackageKind.core, PackageKind.api},
+  PackageKind.featuresCommon => {PackageKind.core, PackageKind.api},
+  PackageKind.feature => {
+    PackageKind.core,
+    PackageKind.api,
+    PackageKind.featuresCommon,
+  },
 };
 
 class _Package {

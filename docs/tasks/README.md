@@ -70,7 +70,7 @@
 
 - Pub workspaces без melos.
 - Доменные классы в `core` — ручной код (`==`, `hashCode`, `copyWith`), без `freezed` и кодогенерации. Классы с ручным `==` помечаются `@immutable` из `package:meta` (зависимость `core`): этого требует линт `avoid_equals_and_hash_code_on_mutable_classes`.
-- Вид пакета задаёт каталог (проверяет `app/tool/check_imports.dart`): `packages/core`, `packages/core_testing`, `packages/reader_api`, `packages/reader_*` — рендереры (от `core` и `reader_api`), `packages/features/<name>` — фичи, остальное в `packages/` — адаптеры.
+- Вид пакета задаёт каталог (проверяет `app/tool/check_imports.dart`): `packages/core`, `packages/core_testing`, `packages/reader_api`, `packages/reader_*` — рендереры (от `core` и `reader_api`), `packages/features/common` — `features_common` (от `core` и `reader_api`), `packages/features/<name>` — фичи (от `core`, `reader_api`, `features_common`; друг от друга — нет), остальное в `packages/` — адаптеры.
 - `TextQuote`: точная цитата плюс до 30 символов до и после, пробелы схлопнуты в один.
 - Условная страница для шпаргалки — 300 слов.
 - Riverpod, `go_router`, drift для базы приложения, `package:sqlite3` для чтения пакетов, `package:http`.

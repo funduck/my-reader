@@ -135,7 +135,10 @@ void main() {
       });
       final v = checkImports(root);
       expect(v.single.packageDir, 'packages/features/history');
-      expect(v.single.message, contains('only on: core, reader_api'));
+      expect(
+        v.single.message,
+        contains('only on: core, reader_api, features_common'),
+      );
     });
 
     test('feature depending on a renderer or another feature fails', () {
@@ -146,6 +149,23 @@ void main() {
         'packages/features/b': 'dependencies:\n  a: any',
       });
       expect(checkImports(root), hasLength(2));
+    });
+
+    test('feature may depend on features_common, not the reverse', () {
+      final root = _workspace({
+        'packages/core': '',
+        'packages/features/common': 'dependencies:\n  core: any',
+        'packages/features/lookup_sheet':
+            'dependencies:\n  core: any\n  common: any',
+      });
+      expect(checkImports(root), isEmpty);
+
+      final bad = _workspace({
+        'packages/core': '',
+        'packages/features/common': 'dependencies:\n  lookup_sheet: any',
+        'packages/features/lookup_sheet': 'dependencies:\n  core: any',
+      });
+      expect(checkImports(bad).single.packageDir, 'packages/features/common');
     });
 
     test('core_testing in dependencies fails', () {
@@ -204,6 +224,10 @@ void main() {
       expect(kindOfPath('packages/reader_api'), PackageKind.api);
       expect(kindOfPath('packages/reader_simple'), PackageKind.renderer);
       expect(kindOfPath('packages/features/library'), PackageKind.feature);
+      expect(
+        kindOfPath('packages/features/common'),
+        PackageKind.featuresCommon,
+      );
       expect(kindOfPath('packages/text_en'), PackageKind.adapter);
     });
   });
