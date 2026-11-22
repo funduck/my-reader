@@ -71,7 +71,7 @@ Future<SimpleReaderEngine> _open(
 }) async {
   final engine = SimpleReaderEngine();
   addTearDown(engine.dispose);
-  await engine.load(book, at: at);
+  await engine.load(book, bookId: _bookId, at: at);
   await tester.pumpWidget(_app(engine));
   await tester.pump();
   return engine;

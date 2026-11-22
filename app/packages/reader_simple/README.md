@@ -23,7 +23,9 @@ MVP-рендерер: `SimpleReaderEngine implements ReaderEngine` из `reader_
 
 Переход между главами: кнопка в конце списка открывает следующую главу с первого блока и шлёт `ChapterFinished`; кнопка в начале открывает предыдущую с её последнего блока. Ошибка чтения главы (`FormatException`) оставляет текущую главу и показывает «Could not open the chapter».
 
-Не сделано, это T-017 и T-018: события `PositionChanged`, `WordTapped`, `TextSelected`, перевод позиции в `Locator`. `highlight` только запоминает диапазоны. `load(at)` и `goTo` пока ставят блок по `progression` главы (`floor(progression * число блоков)`), без `TextQuote`.
+Позиция (T-017): первый видимый блок и строка превращаются в `Locator` (глава, `progression` по символам главы, `TextQuote` первой видимой строки, `engineHint` вида `simple:1:<глава>:<блок>:<смещение>`); `PositionChanged` не чаще раза в 500 мс. `load(at)` и `goTo` ищут место по `engineHint`, затем по `TextQuote`, затем по `progression`. `currentLocator()` отдаёт позицию сразу.
+
+Не сделано, это T-018: события `WordTapped`, `TextSelected`. `highlight` только запоминает диапазоны.
 
 ## Пример
 

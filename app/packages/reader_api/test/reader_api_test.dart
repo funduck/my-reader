@@ -22,7 +22,11 @@ class _FakeEngine implements ReaderEngine {
   Widget buildView(BuildContext context) => const SizedBox();
 
   @override
-  Future<void> load(OpenedBook book, {Locator? at}) async {}
+  Future<void> load(
+    OpenedBook book, {
+    required BookId bookId,
+    Locator? at,
+  }) async {}
 
   @override
   Future<void> goTo(Locator locator) async {}

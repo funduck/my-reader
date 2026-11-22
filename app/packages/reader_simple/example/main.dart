@@ -4,6 +4,7 @@
 //   flutter run -d macos -t example/main.dart
 import 'dart:async';
 
+import 'package:core/domain_books.dart';
 import 'package:core/ports.dart';
 import 'package:core_testing/core_testing.dart';
 import 'package:material_ui/material_ui.dart';
@@ -54,7 +55,7 @@ class _ExampleScreenState extends State<ExampleScreen> {
   }
 
   Future<void> _open(OpenedBook book) async {
-    await _engine.load(book);
+    await _engine.load(book, bookId: const BookId('example'));
     if (mounted) setState(() => _ready = true);
   }
 

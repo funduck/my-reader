@@ -1,3 +1,4 @@
+import 'package:core/domain_books.dart';
 import 'package:core_testing/core_testing.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -45,7 +46,10 @@ void main() {
 
     final engine = SimpleReaderEngine();
     addTearDown(engine.dispose);
-    await engine.load(FakeOpenedBook(chapters: [text]));
+    await engine.load(
+      FakeOpenedBook(chapters: [text]),
+      bookId: const BookId('perf'),
+    );
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(body: Builder(builder: engine.buildView)),
