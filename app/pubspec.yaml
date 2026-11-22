@@ -10,6 +10,7 @@ workspace:
   - packages/features/common
   - packages/features/library
   - packages/features/lookup_sheet
+  - packages/features/settings
   - packages/packs_http
   - packages/format_epub
   - packages/lookup_wiktionary
