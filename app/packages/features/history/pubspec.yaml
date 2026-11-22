@@ -1,0 +1,18 @@
+name: features_history
+description: History screen of the app, lookup terms with their contexts.
+publish_to: none
+version: 0.1.0
+resolution: workspace
+environment:
+  sdk: ^3.14.0
+dependencies:
+  core: any
+  features_common: any
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^3.5.0
+  material_ui: ^1.1.0
+dev_dependencies:
+  core_testing: any
+  flutter_test:
+    sdk: flutter

@@ -8,6 +8,7 @@ environment:
 dependencies:
   core: any
   features_common: any
+  features_history: any
   features_library: any
   features_settings: any
   flutter:

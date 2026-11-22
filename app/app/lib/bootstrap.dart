@@ -39,6 +39,8 @@ Future<List<Override>> buildDeviceOverrides() async {
     bookRepositoryProvider.overrideWithValue(database.bookRepository),
     progressRepositoryProvider.overrideWithValue(database.progressRepository),
     profileRepositoryProvider.overrideWithValue(database.profileRepository),
+    lookupJournalProvider.overrideWithValue(database.lookupJournal),
+    termRepositoryProvider.overrideWithValue(database.termRepository),
     bookFormatsProvider.overrideWithValue(const [EpubFormatAdapter()]),
     booksDirectoryProvider.overrideWithValue('${support.path}/books'),
   ];
