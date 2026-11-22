@@ -9,6 +9,7 @@ dependencies:
   core: any
   flutter:
     sdk: flutter
+  meta: ^1.19.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
