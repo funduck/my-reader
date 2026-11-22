@@ -19,10 +19,10 @@ uv run ruff format --check   # формат (без --check — переформ
 ## Структура
 
 ```
-build/      сборка пакетов: schema.py (DDL и нормализация), packdb.py (запись SQLite и manifest), fixtures.py, kaikki.py (дамп kaikki.org)
+build/      сборка пакетов: schema.py (DDL и нормализация), packdb.py (запись SQLite и manifest), fixtures.py, kaikki.py (дамп kaikki.org), pack_en_levels.py
 serve/      HTTP-раздача (появится в T-036)
 data/       дампы и собранные пакеты, не в git
-fixtures/   мини-пакеты для тестов приложения: manifest.json + packs/*.sqlite
+fixtures/   мини-пакеты для тестов приложения: manifest.json + packs/*.sqlite; cefr/ — выборки CSV для тестов en-levels
 tests/
 ```
 
@@ -53,3 +53,21 @@ uv run python -m build.kaikki count путь.jsonl --strict
 Парсер (`build.kaikki.iter_entries` / `read_entries`) читает построчно и отдаёт датаклассы `Entry(word, pos, senses, sounds, forms)`. Плохие строки (не JSON, нет `word`/`pos`) пропускаются и считаются; `count --strict` возвращает код 1, если такие есть. Записи с `lang_code` не `en` пропускаются. Подробности — в докстринге модуля.
 
 Тесты работают на фрагменте из 100 строк `fixtures/kaikki/kaikki-100.jsonl` (см. `ATTRIBUTION.md`) и на подменённом HTTP, без сети.
+
+## Пакет en-levels
+
+Уровни CEFR (CEFR-J A1–B2, Octanove C1–C2) и частотность Zipf из `wordfreq` (данные внутри пакета `wordfreq`, сеть не нужна).
+
+```sh
+uv run python -m build.pack_en_levels fetch   # CSV с GitHub -> data/cefr/ (нужна сеть до raw.githubusercontent.com)
+uv run python -m build.pack_en_levels build   # data/cefr/ -> data/packs/en-levels-<дата>.sqlite
+```
+
+`build` принимает свои пути: `--cefrj ПУТЬ --octanove ПУТЬ --out-dir ПАПКА --version ГГГГММДД[.N] --extra-words 50000`.
+
+Правила сведения (подробности — в docstring `build/pack_en_levels.py`):
+
+- Заголовок со `/` (`color/colour`, `a.m./A.M./am/AM`) — отдельные леммы на каждый вариант, после нормализации дубли схлопываются.
+- `pos` источников приводится к схеме: `adjective` -> `adj`, `modal auxiliary` и `be/do/have-verb` -> `verb`, `infinitive-to` -> `particle`, пустая -> `any`; опечатка `vern` -> `verb`.
+- Одна пара (лемма, pos) в нескольких строках или в обоих списках — минимальный уровень.
+- `zipf` — для всех лемм; `NULL`, если слова нет в wordfreq. Сверх CEFR добавляются топ-50 000 слов wordfreq (`pos = any`, `cefr = NULL`, `estimated = 0`). Оценка уровня по Zipf — отдельная задача (T-035).
