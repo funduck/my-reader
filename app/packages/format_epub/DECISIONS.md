@@ -1,6 +1,6 @@
 # Решения: format_epub
 
-Контракты и соглашения пакета, принятые в задачах. Общие правила — в [docs/tasks/README.md](../../../docs/tasks/README.md#принятые-решения).
+Контракты и соглашения пакета, принятые в задачах. Общие правила — в [docs/tasks/AGENT.md](../../../docs/tasks/AGENT.md#принятые-решения).
 
 - `format_epub` (T-010): `ChapterRef.href` — путь записи внутри контейнера (`OEBPS/text/ch1.xhtml`), уже разрешённый относительно OPF; `linear="no"` включается. С T-013 `ChapterRef.index` — позиция главы, а `href` главы — цель из оглавления (см. ниже). Обложка — через `EpubFormatAdapter.readCover(path)` и `EpubBook.cover()`, в `BookMetadata` её нет. Для ссылок из nav/NCX/XHTML — `resolveEntryPath(base, href)`.
 - Оглавление EPUB (T-011): `TocEntry.chapter.href` — `путь#фрагмент` (фрагмент как в источнике, без отдельного поля), `index` — позиция главы (с T-013); несколько пунктов могут делить один `index`. Пункты вне spine и внешние ссылки отбрасываются, их дети поднимаются. Источник: nav → NCX → по пункту на spine.

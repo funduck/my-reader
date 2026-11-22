@@ -1,5 +1,5 @@
 # Решения: features/settings
 
-Контракты и соглашения пакета, принятые в задачах. Общие правила — в [docs/tasks/README.md](../../../../docs/tasks/README.md#принятые-решения).
+Контракты и соглашения пакета, принятые в задачах. Общие правила — в [docs/tasks/AGENT.md](../../../../docs/tasks/AGENT.md#принятые-решения).
 
 - Настройки (T-041): `packStoreProvider` переопределён через `overrideWith(_buildPackStore)` и следит за `serviceUrlProvider` (`StreamProvider<String?>` из профиля): смена адреса закрывает старый и создаёт новый `LazyHttpPackStore` (каталог `<applicationSupport>/packs` создаётся при первом обращении). Кто зависит от файлов пакетов, делает `ref.watch(packStoreProvider)`. `profileProvider` экспортируется из `features_settings`. После загрузки `en-levels` `CefrLevelDictionary` нужно открыть заново — это не делает `PacksController`, решает T-047/T-055. `defaultServiceUrl` продублирован в `features_settings` и `bootstrap.dart`.

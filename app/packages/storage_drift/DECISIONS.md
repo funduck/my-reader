@@ -1,6 +1,6 @@
 # Решения: storage_drift
 
-Контракты и соглашения пакета, принятые в задачах. Общие правила — в [docs/tasks/README.md](../../../docs/tasks/README.md#принятые-решения).
+Контракты и соглашения пакета, принятые в задачах. Общие правила — в [docs/tasks/AGENT.md](../../../docs/tasks/AGENT.md#принятые-решения).
 
 - `storage_drift` (T-007): `openDatabase(path)` / `openInMemory()` → `AppDatabase` с геттерами `bookRepository`, `progressRepository`, `profileRepository`. `Locator` и `UserProfile` — JSON-текст, `DateTime` — микросекунды UTC. FK нет, каскад прогресса — в `remove`. `*.g.dart` коммитятся (`dart run build_runner build`). Новая таблица: `tables.dart` → `@DriftDatabase` → поднять `currentSchemaVersion` и `onUpgrade` → `drift_dev schema dump` → `schema generate` в `test/generated` с переименованием выхода в `*.g.dart` (иначе `strict_raw_type` в сгенерированном коде) → тест миграции в `schema_test.dart`.
 - Журнал и термины (T-008): порты `core` не менялись (`record`/`get`/`watch(filter)`, `find`/`watchAll`/`save`). `AppDatabase.lookupJournal` → `DriftLookupJournal` (+`byTerm`), `AppDatabase.termRepository` → `DriftTermRepository` (+`upsert` в транзакции, `byLemma`, `allLemmas({language, status})` — все статусы, если `status` не задан). `LookupSelection` (T-045) пока делает `find` + `save`, а не `upsert`. Схема v2: `lookup_events`, `terms` (уникальный `(normalized, language)`), `term_events` (`position` — порядок `eventIds`). Журнал — `at` ↓, затем `rowid` ↓.

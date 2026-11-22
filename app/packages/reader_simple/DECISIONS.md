@@ -1,6 +1,6 @@
 # Решения: reader_simple
 
-Контракты и соглашения пакета, принятые в задачах. Общие правила — в [docs/tasks/README.md](../../../docs/tasks/README.md#принятые-решения).
+Контракты и соглашения пакета, принятые в задачах. Общие правила — в [docs/tasks/AGENT.md](../../../docs/tasks/AGENT.md#принятые-решения).
 
 - `reader_simple` (T-016): `ScrollablePositionedList`, элемент 0 — «Previous chapter», блок `i` — элемент `i + 1`, последний — «Next chapter». Состояние — `engine.chapter` (`ValueListenable<ChapterState?>`) и `engine.style`. Тап и выделение подключаются в `BlockView`. `ChapterFinished` уходит по кнопке «Next chapter».
 - Позиция в `reader_simple` (T-017): `engineHint` — `simple:1:<глава>:<блок>:<офсет UTF-16>`, чужие подсказки движки игнорируют; подсказка, не совпавшая с `TextQuote`, отбрасывается. `progression` — доля текста главы до позиции (блоки через `\n`). `TextQuote.exact` — первая видимая строка, до 80 символов; при неоднозначной цитате — фолбэк на `progression`. Точность — строка; офсет внутри блока только в абзацах и заголовках. `PositionChanged` — не чаще раза в 500 мс; `SimpleReaderEngine.currentLocator()` — позиция сразу (для сохранения при выходе). Для T-018: блок `i` — элемент списка `i + 1` в `KeyedSubtree`, Locator для тапа — через `ChapterText` (`quoteAt`, `encodeHint`, `progressionOf`) внутри пакета.

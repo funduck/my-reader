@@ -1,6 +1,6 @@
 # Решения: lookup_stardict
 
-Контракты и соглашения пакета, принятые в задачах. Общие правила — в [docs/tasks/README.md](../../../docs/tasks/README.md#принятые-решения).
+Контракты и соглашения пакета, принятые в задачах. Общие правила — в [docs/tasks/AGENT.md](../../../docs/tasks/AGENT.md#принятые-решения).
 
 - StarDict, формат (T-060): `StarDictInfo.parse`, `StarDictIndex.parse/open(path, info)`, `index.lookup(word)` → `List<StarDictEntry>` (точное написание первым). `.idx` целиком в памяти, сортировка не проверяется. Генератор фикстур — `test/fixtures/build.dart` (`buildStarDict`), импортировать относительным путём.
 - StarDict, статьи (T-061): `decompressDictDz(dzPath, dictPath)` — один раз при импорте, хранится только `.dict` (битый gzip → `FormatException`, частичный файл удаляется). `StarDictDict.open(path, info)` синхронный, нужен `close()`; `read(entry)` → `StarDictArticle` (`fields: List<StarDictField(type, text)>`, `text` — через `\n`). `h` отдаётся сырым HTML, `x` — без тегов (без разделителя между тегами), бинарные типы пропускаются. Настоящий dictzip с таблицей чанков не проверен.
