@@ -1,4 +1,5 @@
 import 'package:features_library/features_library.dart';
+import 'package:features_settings/features_settings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -53,10 +54,7 @@ GoRouter createRouter({String initialLocation = Routes.library}) {
           ],
         ),
       ),
-      GoRoute(
-        path: Routes.settings,
-        builder: (_, _) => const PlaceholderScreen(title: 'Settings'),
-      ),
+      GoRoute(path: Routes.settings, builder: (_, _) => const SettingsScreen()),
       GoRoute(
         path: Routes.history,
         builder: (_, _) => const PlaceholderScreen(title: 'History'),
