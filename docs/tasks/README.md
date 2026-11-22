@@ -91,6 +91,8 @@
 
 - Провайдеры портов (T-009) — в `packages/features/common` (`package:features_common/features_common.dart`), все `Provider<T>`; без override бросают `PortNotWiredError`. Фича зависит от `features_common` и `flutter_riverpod`, другие фичи и `app` не импортирует; в тестах — `xProvider.overrideWithValue(fake)`. Новые порты — через `_port<T>(name)` в `port_providers.dart`. Маршруты — константы `Routes` в `app/app/lib/router.dart`; фичи заменяют `builder` заглушки там же. `Override` и `ProviderException` импортируются из `package:flutter_riverpod/misc.dart`.
 
+- `format_epub` (T-010): `ChapterRef.href` — путь записи внутри контейнера (`OEBPS/text/ch1.xhtml`), уже разрешённый относительно OPF; `index` — позиция в spine, `linear="no"` включается. Обложка — через `EpubFormatAdapter.readCover(path)` и `EpubBook.cover()`, в `BookMetadata` её нет. Для ссылок из nav/NCX/XHTML — `resolveEntryPath(base, href)`.
+
 ## Волны
 
 Задачи одной волны можно запускать параллельно: их зависимости закрыты предыдущими волнами. Номер волны — самый ранний старт при неограниченном числе агентов.
