@@ -10,6 +10,7 @@ dependencies:
   features_common: any
   features_history: any
   features_library: any
+  features_reader: any
   features_settings: any
   flutter:
     sdk: flutter
@@ -20,10 +21,12 @@ dependencies:
   material_ui: ^1.1.0
   packs_http: any
   path_provider: ^2.1.0
+  reader_simple: any
   storage_drift: any
 dev_dependencies:
   core_testing: any
   flutter_test:
     sdk: flutter
+  reader_api: any
 flutter:
   uses-material-design: true

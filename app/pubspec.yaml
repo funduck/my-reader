@@ -11,6 +11,7 @@ workspace:
   - packages/features/history
   - packages/features/library
   - packages/features/lookup_sheet
+  - packages/features/reader
   - packages/features/settings
   - packages/packs_http
   - packages/format_epub

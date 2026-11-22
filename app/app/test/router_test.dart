@@ -20,12 +20,6 @@ void main() {
 
   final cases = <String, List<String>>{
     Routes.library: ['Library'],
-    Routes.readerAt('b1'): ['Reader', 'bookId: b1', 'locator: -'],
-    Routes.readerAt('b1', locator: '{"a":1}'): [
-      'Reader',
-      'bookId: b1',
-      'locator: {"a":1}',
-    ],
     Routes.settings: ['Settings'],
     Routes.cheatsheetFor('b2'): ['Cheat sheet', 'bookId: b2'],
   };

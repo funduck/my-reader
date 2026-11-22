@@ -1,5 +1,7 @@
+import 'package:core/domain_books.dart';
 import 'package:features_history/features_history.dart';
 import 'package:features_library/features_library.dart';
+import 'package:features_reader/features_reader.dart';
 import 'package:features_settings/features_settings.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -50,13 +52,15 @@ GoRouter createRouter({String initialLocation = Routes.library}) {
       ),
       GoRoute(
         path: Routes.reader,
-        builder: (_, state) => PlaceholderScreen(
-          title: 'Reader',
-          details: [
-            'bookId: ${state.pathParameters['bookId']}',
-            'locator: ${state.uri.queryParameters['locator'] ?? '-'}',
-          ],
-        ),
+        builder: (_, state) {
+          final bookId = BookId(state.pathParameters['bookId']!);
+          final param = state.uri.queryParameters['locator'];
+          return ReaderScreen(
+            key: ValueKey('${bookId.value}|$param'),
+            bookId: bookId,
+            locator: parseLocatorParam(param),
+          );
+        },
       ),
       GoRoute(path: Routes.settings, builder: (_, _) => const SettingsScreen()),
       GoRoute(path: Routes.history, builder: (_, _) => const HistoryScreen()),
