@@ -53,11 +53,14 @@ final class EpubArchive {
     }
   }
 
-  /// Entry [path] decoded as UTF-8 (a BOM is dropped, bad bytes replaced).
-  String readText(String path) {
-    final text = utf8.decode(read(path), allowMalformed: true);
-    return text.startsWith('﻿') ? text.substring(1) : text;
-  }
+  /// Entry [path] decoded as text.
+  ///
+  /// UTF-8 (a BOM is dropped) and UTF-16 (by BOM) are decoded strictly;
+  /// `ISO-8859-1` / `latin1` declared in an XML prolog is decoded as Latin-1.
+  /// Any other declared encoding and malformed UTF-8 give a
+  /// [FormatException] naming the encoding and the entry: text is never
+  /// silently replaced with U+FFFD.
+  String readText(String path) => _decodeText(read(path), path);
 
   /// Parses the entry [path] as XML; [FormatException] on malformed XML.
   XmlDocument readXml(String path) => parseXml(readText(path), path);
@@ -95,4 +98,66 @@ XmlDocument parseXml(String source, String what) {
   } on XmlException catch (e) {
     throw FormatException('Malformed XML in $what: ${e.message}');
   }
+}
+
+final RegExp _declaredEncoding = RegExp(
+  r'''^<\?xml[^>]*?\sencoding\s*=\s*["']([^"']+)["']''',
+);
+
+const _utf8Names = {'utf-8', 'utf8', 'us-ascii', 'ascii'};
+const _latin1Names = {
+  'iso-8859-1',
+  'iso8859-1',
+  'iso_8859-1',
+  'latin1',
+  'latin-1',
+  'l1',
+};
+
+String _decodeText(Uint8List bytes, String path) {
+  if (bytes.length >= 2) {
+    final bigEndian = bytes[0] == 0xfe && bytes[1] == 0xff;
+    final littleEndian = bytes[0] == 0xff && bytes[1] == 0xfe;
+    if (bigEndian || littleEndian) {
+      return _decodeUtf16(bytes, path, bigEndian: bigEndian);
+    }
+  }
+  var start = 0;
+  if (bytes.length >= 3 &&
+      bytes[0] == 0xef &&
+      bytes[1] == 0xbb &&
+      bytes[2] == 0xbf) {
+    start = 3;
+  }
+  final head = String.fromCharCodes(
+    bytes.sublist(start, (start + 200).clamp(0, bytes.length)),
+  );
+  final declared = _declaredEncoding.firstMatch(head)?.group(1);
+  final name = declared?.toLowerCase();
+  if (name != null && _latin1Names.contains(name)) {
+    return latin1.decode(bytes.sublist(start));
+  }
+  if (name != null && !_utf8Names.contains(name)) {
+    throw FormatException('Unsupported encoding "$declared" in $path');
+  }
+  try {
+    return utf8.decode(bytes.sublist(start));
+  } on FormatException catch (e) {
+    throw FormatException('Invalid UTF-8 in $path: ${e.message}');
+  }
+}
+
+String _decodeUtf16(Uint8List bytes, String path, {required bool bigEndian}) {
+  final body = bytes.length - 2;
+  if (body.isOdd) {
+    throw FormatException('Truncated UTF-16 text in $path');
+  }
+  final units = [
+    for (var i = 2; i < bytes.length; i += 2)
+      if (bigEndian)
+        (bytes[i] << 8) | bytes[i + 1]
+      else
+        (bytes[i + 1] << 8) | bytes[i],
+  ];
+  return String.fromCharCodes(units);
 }
