@@ -1,0 +1,15 @@
+name: features_common
+description: Riverpod providers of core ports, shared by features and app.
+publish_to: none
+version: 0.1.0
+resolution: workspace
+environment:
+  sdk: ^3.14.0
+dependencies:
+  core: any
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^3.0.0
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
