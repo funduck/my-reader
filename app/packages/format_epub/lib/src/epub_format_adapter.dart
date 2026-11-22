@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:core/domain_books.dart';
 import 'package:core/ports.dart';
 
+import 'chapters.dart';
+import 'content/xhtml_to_content.dart';
 import 'epub_archive.dart';
 import 'epub_package.dart';
 import 'epub_path.dart';
@@ -78,34 +80,125 @@ String _baseName(String path) {
 
 /// An opened EPUB: package structure plus access to its entries.
 ///
-/// [toc] comes from nav.xhtml, toc.ncx or the spine (see `parseToc`);
-/// chapter parsing is added by a later task and [chapter] throws
-/// [UnsupportedError] until then.
+/// Chapters follow the table of contents, not the files: see [ChapterPlan].
+/// Several chapters may share one file, and one chapter may span several
+/// files. [spine] lists the chapters, [toc] the table of contents whose
+/// `ChapterRef.index` is a chapter position (a nested entry points to the
+/// chapter that contains it), and [chapter] returns exactly one chapter.
 final class EpubBook implements OpenedBook {
   new _(this._archive, this.package);
 
   final EpubArchive _archive;
   bool _closed = false;
+  final Map<String, ChapterContent?> _converted = {};
 
   /// Parsed OPF: metadata, manifest and spine.
   final EpubPackage package;
 
-  @override
-  late final List<TocEntry> toc = List.unmodifiable(
+  late final List<TocEntry> _fileToc = List.unmodifiable(
     parseToc(_archive, package),
   );
 
-  /// Spine in reading order; `href` is the container entry name of the
-  /// chapter file (e.g. `OEBPS/text/ch1.xhtml`), `index` its spine position.
-  @override
-  late final List<ChapterRef> spine = List.unmodifiable([
-    for (final (i, item) in package.spine.indexed)
-      ChapterRef(href: item.path, index: i),
-  ]);
+  late final List<String> _filePaths = [for (final i in package.spine) i.path];
 
+  late final Map<String, int> _fileIndex = {
+    for (final (i, path) in _filePaths.indexed) path: i,
+  };
+
+  late final ChapterPlan _plan = ChapterPlan.build(
+    spinePaths: _filePaths,
+    toc: _fileToc,
+    anchorsOf: (path) => _convertedOrNull(path)?.anchors,
+  );
+
+  /// Table of contents from nav.xhtml, toc.ncx or the spine (see
+  /// `parseToc`). `href` is the container entry name of the target file with
+  /// `#fragment` when the source link had one; `index` is the position of
+  /// the chapter (see [spine]) that contains the target.
   @override
-  Future<ContentDocument> chapter(ChapterRef ref) =>
-      throw UnsupportedError('Chapter parsing is not implemented yet');
+  late final List<TocEntry> toc = List.unmodifiable(_chapterToc(_fileToc));
+
+  /// Chapters in reading order, one per top-level table-of-contents entry
+  /// (plus a leading one for text before the first entry, if any).
+  ///
+  /// `href` is the target of the entry: container entry name, followed by
+  /// `#fragment` when the entry had one; `index` is the position in this list.
+  @override
+  late final List<ChapterRef> spine = _plan.refs;
+
+  /// Parses the chapter [ref] points to: exactly one chapter.
+  ///
+  /// [ref] is found by `href`: a chapter start as listed in [spine] or [toc]
+  /// selects that chapter; any other place in the book (a file, a file with
+  /// `#fragment`, a nested table-of-contents entry) selects the chapter that
+  /// contains it. `index` is ignored. Throws [FormatException] when the
+  /// target is not in the spine or the XHTML is malformed.
+  @override
+  Future<ContentDocument> chapter(ChapterRef ref) async {
+    _checkOpen();
+    final index = _chapterIndexOf(ref.href);
+    final blocks = <Block>[];
+    for (final (path, from, to) in _plan.parts(index)) {
+      final all = _convert(path).document.blocks;
+      final end = to ?? all.length;
+      if (from < end) blocks.addAll(all.sublist(from, end));
+    }
+    return ContentDocument(blocks);
+  }
+
+  int _chapterIndexOf(String href) {
+    final exact = _plan.indexOfHref(href);
+    if (exact >= 0) return exact;
+    final path = normalizeEntryPath(href);
+    final file = path == null ? null : _fileIndex[path];
+    if (file == null) {
+      throw FormatException('No such chapter in the EPUB: $href');
+    }
+    final hash = href.indexOf('#');
+    final fragment = hash < 0 ? '' : href.substring(hash + 1);
+    final block = fragment.isEmpty
+        ? 0
+        : (_convertedOrNull(path!)?.anchors[fragment] ?? 0);
+    return _plan.indexAt(file, block);
+  }
+
+  List<TocEntry> _chapterToc(List<TocEntry> entries) => [
+    for (final e in entries)
+      e.copyWith(
+        chapter: e.chapter.copyWith(index: _chapterIndexOfEntry(e.chapter)),
+        children: _chapterToc(e.children),
+      ),
+  ];
+
+  int _chapterIndexOfEntry(ChapterRef ref) {
+    final exact = _plan.indexOfHref(ref.href);
+    if (exact >= 0) return exact;
+    final path = _filePaths[ref.index];
+    final hasFragment = ref.href.length > path.length + 1;
+    final block = hasFragment
+        ? (_convertedOrNull(path)
+                  ?.anchors[ref.href.substring(path.length + 1)] ??
+              0)
+        : 0;
+    return _plan.indexAt(ref.index, block);
+  }
+
+  ChapterContent _convert(String path) {
+    final cached = _converted[path];
+    if (cached != null) return cached;
+    final content = convertXhtml(_archive.readText(path), path: path);
+    return _converted[path] = content;
+  }
+
+  /// Like [_convert], but null when the file is unreadable or malformed.
+  ChapterContent? _convertedOrNull(String path) {
+    if (_converted.containsKey(path)) return _converted[path];
+    try {
+      return _convert(path);
+    } on FormatException {
+      return _converted[path] = null;
+    }
+  }
 
   /// Returns the raw bytes of the entry at [href].
   ///
