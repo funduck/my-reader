@@ -19,7 +19,7 @@ uv run ruff format --check   # формат (без --check — переформ
 ## Структура
 
 ```
-build/      сборка пакетов: schema.py (DDL и нормализация), packdb.py (запись SQLite и manifest), fixtures.py, kaikki.py (дамп kaikki.org), pack_en_levels.py
+build/      сборка пакетов: schema.py (DDL и нормализация), packdb.py (запись SQLite и manifest), fixtures.py, kaikki.py (дамп kaikki.org), pack_en_levels.py, pack_en_forms.py
 serve/      HTTP-раздача (появится в T-036)
 data/       дампы и собранные пакеты, не в git
 fixtures/   мини-пакеты для тестов приложения: manifest.json + packs/*.sqlite; cefr/ — выборки CSV для тестов en-levels
@@ -71,3 +71,20 @@ uv run python -m build.pack_en_levels build   # data/cefr/ -> data/packs/en-leve
 - `pos` источников приводится к схеме: `adjective` -> `adj`, `modal auxiliary` и `be/do/have-verb` -> `verb`, `infinitive-to` -> `particle`, пустая -> `any`; опечатка `vern` -> `verb`.
 - Одна пара (лемма, pos) в нескольких строках или в обоих списках — минимальный уровень.
 - `zipf` — для всех лемм; `NULL`, если слова нет в wordfreq. Сверх CEFR добавляются топ-50 000 слов wordfreq (`pos = any`, `cefr = NULL`, `estimated = 0`). Оценка уровня по Zipf — отдельная задача (T-035).
+
+## Пакет en-forms
+
+Словоформа -> лемма из дампа kaikki.org (поле `forms` записей-лемм и значения `form-of` записей-форм) плюс Zipf из `wordfreq` для ранга. Сети не нужно, если дамп уже скачан.
+
+```sh
+uv run python -m build.pack_en_forms build                      # data/kaikki.org-dictionary-English.jsonl -> data/packs/en-forms-<версия дампа>.sqlite
+uv run python -m build.pack_en_forms build --dump ПУТЬ.jsonl --out-dir ПАПКА --version ГГГГММДД[.N]
+uv run python -m build.pack_en_forms info [ПУТЬ.sqlite]         # число строк, число форм, размер в байтах
+```
+
+Правила (подробности — в docstring `build/pack_en_forms.py`):
+
+- Из `forms` берутся только формы со словоизменением (`plural`, `past`, `comparative`...) без тегов вариантов написания (`alternative`, `pronunciation-spelling`, `table-tags`...); многословные формы (`more left`) пропускаются. Архаичные и нестандартные формы (`goeth`, `goed`) остаются.
+- Значение `form-of` даёт `форма -> лемма`; `"good and well"` разбивается на `good` и `well`, если обе части — заголовки.
+- Строка `лемма -> лемма` только если у формы есть другие варианты. Ранг: сначала словоизменение (по убыванию Zipf леммы, затем алфавит), затем строки `лемма -> лемма`.
+- Тесты работают на выборке `fixtures/kaikki/kaikki-forms.jsonl` (39 строк, атрибуция — как у `kaikki-100.jsonl`, см. `fixtures/kaikki/ATTRIBUTION.md`).
