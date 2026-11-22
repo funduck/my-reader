@@ -1,0 +1,11 @@
+name: text_en
+description: English text analysis, sentences, tokens and lemmas.
+publish_to: none
+version: 0.1.0
+resolution: workspace
+environment:
+  sdk: ^3.14.0
+dependencies:
+  core: any
+dev_dependencies:
+  test: ^1.25.0
