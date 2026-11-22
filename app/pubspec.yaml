@@ -10,4 +10,7 @@ workspace:
   - packages/reader_api
   - packages/storage_drift
 dev_dependencies:
+  # tool/check_imports.dart and its tests
+  test: ^1.25.0
   very_good_analysis: ^11.0.0
+  yaml: ^3.1.0
