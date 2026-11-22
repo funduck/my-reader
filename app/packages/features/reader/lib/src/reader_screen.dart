@@ -114,6 +114,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
       at: widget.locator ?? outcome.resumeAt,
     );
     if (!mounted) return;
+    // A place opened from a route link (history) is marked in the text.
+    final target = widget.locator;
+    if (target != null) engine.highlight([target]);
     setState(() => _book = outcome.book);
   }
 

@@ -71,7 +71,17 @@ GoRouter createRouter({String initialLocation = Routes.library}) {
         },
       ),
       GoRoute(path: Routes.settings, builder: (_, _) => const SettingsScreen()),
-      GoRoute(path: Routes.history, builder: (_, _) => const HistoryScreen()),
+      GoRoute(
+        path: Routes.history,
+        builder: (context, _) => HistoryScreen(
+          onOpenLocation: (locator) => context.push(
+            Routes.readerAt(
+              locator.book.value,
+              locator: encodeLocatorParam(locator),
+            ),
+          ),
+        ),
+      ),
       GoRoute(
         path: Routes.cheatsheet,
         builder: (context, state) {
