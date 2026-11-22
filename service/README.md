@@ -19,8 +19,8 @@ uv run ruff format --check   # формат (без --check — переформ
 ## Структура
 
 ```
-build/      сборка пакетов: schema.py (DDL и нормализация), packdb.py (запись SQLite и manifest), fixtures.py, kaikki.py (дамп kaikki.org), pack_en_levels.py, zipf_thresholds.py, pack_en_forms.py, pack_en_en.py
-serve/      HTTP-раздача (появится в T-036)
+build/      сборка пакетов: schema.py (DDL и нормализация), packdb.py (запись SQLite и manifest), fixtures.py, kaikki.py (дамп kaikki.org), pack_en_levels.py, zipf_thresholds.py, pack_en_forms.py, pack_en_en.py, manifest.py (build all, manifest.json)
+serve/      HTTP-раздача: python -m serve
 data/       дампы и собранные пакеты, не в git
 fixtures/   мини-пакеты для тестов приложения: manifest.json + packs/*.sqlite; cefr/ — выборки CSV для тестов en-levels
 tests/
@@ -120,3 +120,24 @@ uv run python -m build.pack_en_en report --pack ПУТЬ    # отчёт по к
 - Толкование — последний элемент `glosses` (в kaikki это цепочка «рубрика -> родитель -> значение»). Примеров не больше 3 на значение. IPA — первая транскрипция в `/…/`.
 - `rank`: сначала статьи, у которых `lemma == key` (`polish` перед `Polish`), потом порядок дампа.
 - Размер. Если пакет больше 150 МБ и `--min-zipf` не задан, сборка автоматически повторяется с порогом 2.0 (константа `DEFAULT_CUT_ZIPF`): статьи, у которых `wordfreq`-Zipf ниже порога, отбрасываются (слова, которых нет в wordfreq, считаются 0). `--min-zipf X` применяет порог сразу, `--min-zipf 0` не отсекает никогда. Порог записывается в `meta.zipf_threshold`.
+
+## Сборка всех пакетов и раздача
+
+Корень сервиса — `data/out/`: `manifest.json` и `packs/<id>-<версия>.sqlite`. Протокол — [../docs/Architecture-service.md](../docs/Architecture-service.md), раздел 3; формат манифеста такой же, как в `fixtures/manifest.json`.
+
+Полный цикл (нужна сеть, дамп ≈3,4 ГБ, несколько минут):
+
+```sh
+cd service
+uv run python -m build.kaikki fetch             # дамп kaikki.org -> data/
+uv run python -m build.pack_en_levels fetch     # CSV CEFR-J и Octanove -> data/cefr/
+uv run python -m build.manifest all             # en-en, en-forms, en-levels -> data/out/packs/ + data/out/manifest.json
+uv run python -m serve                          # http://127.0.0.1:8080
+curl http://localhost:8080/manifest.json        # в другом терминале
+```
+
+`build.manifest all` принимает `--out`, `--dump`, `--cefrj`, `--octanove`, `--version`, `--levels-version`, `--min-zipf`, `--extra-words`. Версии: `en-en` и `en-forms` — версия дампа (`--version` переопределяет), `en-levels` — своя, по умолчанию сегодняшняя дата (`--levels-version`). Автоотсечение `en-en` по размеру — как в `build.pack_en_en`.
+
+`uv run python -m build.manifest manifest [--out ПАПКА]` только переписывает `manifest.json` по пакетам, которые уже лежат в `ПАПКА/packs/`. Id, версия и лицензия берутся из `meta` пакета, размер и sha256 считаются по файлу; имя файла должно быть `<id>-<версия>.sqlite`. Если версий одного id несколько, в манифест идёт новейшая, старые файлы не удаляются.
+
+`serve` (только stdlib): `uv run python -m serve [--dir ПУТЬ] [--port 8080] [--lan]`. По умолчанию слушает `127.0.0.1` и раздаёт `data/out/`; `--lan` — `0.0.0.0` (телефон в той же сети). Отдаёт `GET`/`HEAD`, `Content-Type: application/json` для `.json`, `Content-Length`, `Accept-Ranges: bytes` и один диапазон `Range` (206, `Content-Range`; 416 для невыполнимого) для докачки; несколько диапазонов сразу не поддерживаются (отдаётся весь файл). Каталоги не листаются, выход за корень — 404. Быстрая проверка без сборки: `uv run python -m serve --dir fixtures`.
