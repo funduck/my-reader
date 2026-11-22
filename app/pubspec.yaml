@@ -7,6 +7,7 @@ workspace:
   - app
   - packages/core
   - packages/core_testing
+  - packages/format_epub
   - packages/reader_api
   - packages/storage_drift
 dev_dependencies:
