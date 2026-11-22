@@ -83,9 +83,15 @@ final class EpubArchive {
 }
 
 /// Parses [source] as XML, mapping parser errors to [FormatException].
+///
+/// Named HTML entities (`&nbsp;`, `&mdash;`) are decoded, as real EPUBs use
+/// them without declaring them.
 XmlDocument parseXml(String source, String what) {
   try {
-    return XmlDocument.parse(source);
+    return XmlDocument.parse(
+      source,
+      entityMapping: const XmlDefaultEntityMapping.html(),
+    );
   } on XmlException catch (e) {
     throw FormatException('Malformed XML in $what: ${e.message}');
   }
