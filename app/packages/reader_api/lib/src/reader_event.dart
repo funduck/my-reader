@@ -30,7 +30,13 @@ final class PositionChanged extends ReaderEvent {
   int get hashCode => Object.hash(PositionChanged, locator);
 }
 
-/// The user selected a word or phrase (T-1).
+/// The user selected a word or phrase and the selection is ready (T-1,
+/// T-088): the finger or the mouse button was released after a hold, a drag
+/// of a handle or a drag, or the "Translate" item of the selection toolbar was
+/// chosen.
+///
+/// A word and a phrase come the same way. It is never sent for an
+/// intermediate change of the selection.
 final class TextSelected extends ReaderEvent {
   /// Creates the event.
   const new({required this.text, required this.at, required this.sentence});
@@ -55,32 +61,6 @@ final class TextSelected extends ReaderEvent {
   int get hashCode => Object.hash(TextSelected, text, at, sentence);
 }
 
-/// The user held a word (about 500 ms, T-085) to look it up; the word is
-/// taken whole.
-final class WordTapped extends ReaderEvent {
-  /// Creates the event.
-  const new({required this.word, required this.at, required this.sentence});
-
-  /// The tapped word as shown, without surrounding punctuation.
-  final String word;
-
-  /// Where the word starts in the book.
-  final Locator at;
-
-  /// The sentence that contains the word, as context for history.
-  final String sentence;
-
-  @override
-  bool operator ==(Object other) =>
-      other is WordTapped &&
-      other.word == word &&
-      other.at == at &&
-      other.sentence == sentence;
-
-  @override
-  int get hashCode => Object.hash(WordTapped, word, at, sentence);
-}
-
 /// The user reached the end of a chapter (basis for the chapter test, L-3).
 final class ChapterFinished extends ReaderEvent {
   /// Creates the event for [chapter].
@@ -100,7 +80,7 @@ final class ChapterFinished extends ReaderEvent {
 /// The user tapped once anywhere in the view (T-087): on text, on a word, on
 /// the margins or on the empty space under the chapter.
 ///
-/// Not sent for a hold (it is a lookup), a drag or scroll, a double tap, a
+/// Not sent for a hold (it selects text), a drag or scroll, a double tap, a
 /// tap that only clears a selection, or a tap on the view's own buttons. The
 /// app uses it to show and hide the menu; later a tap near an edge can turn
 /// pages.

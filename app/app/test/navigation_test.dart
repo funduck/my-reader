@@ -160,8 +160,8 @@ void main() {
   testWidgets('word sheet -> settings -> back -> reader', (tester) async {
     await pumpApp(tester, at: Routes.readerAt('b1'));
     engine.emit(
-      const WordTapped(
-        word: 'sand',
+      const TextSelected(
+        text: 'sand',
         at: Locator(
           book: id,
           chapter: ChapterRef(href: 'chapter1.xhtml', index: 0),

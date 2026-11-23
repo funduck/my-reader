@@ -29,6 +29,7 @@ final class ReaderSettings {
     this.textureOpacity = 0.5,
     this.dim = 0,
     this.edgeTaps = true,
+    this.translateOnSelect = false,
   });
 
   /// Font family name, or `null` for the engine's default.
@@ -66,6 +67,10 @@ final class ReaderSettings {
   /// Whether a tap on the screen edge turns the page.
   final bool edgeTaps;
 
+  /// Whether a ready selection is sent at once as `TextSelected` (`true`), or
+  /// the engine first shows a toolbar with "Translate" and "Copy" (`false`).
+  final bool translateOnSelect;
+
   /// Returns a copy with the given fields replaced.
   ///
   /// [fontFamily] cannot be reset to `null` through this method; create a new
@@ -83,6 +88,7 @@ final class ReaderSettings {
     double? textureOpacity,
     double? dim,
     bool? edgeTaps,
+    bool? translateOnSelect,
   }) => ReaderSettings(
     fontFamily: fontFamily ?? this.fontFamily,
     fontSize: fontSize ?? this.fontSize,
@@ -95,6 +101,7 @@ final class ReaderSettings {
     textureOpacity: textureOpacity ?? this.textureOpacity,
     dim: dim ?? this.dim,
     edgeTaps: edgeTaps ?? this.edgeTaps,
+    translateOnSelect: translateOnSelect ?? this.translateOnSelect,
   );
 
   @override
@@ -110,7 +117,8 @@ final class ReaderSettings {
       other.texture == texture &&
       other.textureOpacity == textureOpacity &&
       other.dim == dim &&
-      other.edgeTaps == edgeTaps;
+      other.edgeTaps == edgeTaps &&
+      other.translateOnSelect == translateOnSelect;
 
   @override
   int get hashCode => Object.hash(
@@ -125,11 +133,12 @@ final class ReaderSettings {
     textureOpacity,
     dim,
     edgeTaps,
+    translateOnSelect,
   );
 
   @override
   String toString() =>
       'ReaderSettings($fontFamily, $fontSize, $theme, $horizontalPadding, '
       '$lineHeight, $text, $background, $texture, $textureOpacity, $dim, '
-      '$edgeTaps)';
+      '$edgeTaps, $translateOnSelect)';
 }

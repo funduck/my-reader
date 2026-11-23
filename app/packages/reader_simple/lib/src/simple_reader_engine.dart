@@ -68,10 +68,12 @@ final class ChapterState {
 /// the `n` blocks (block `i` is item `i + 1`), item `n + 1` is the "next
 /// chapter" control.
 ///
-/// Tap and selection: a single tap on a word emits [WordTapped], the
-/// "Translate" button of the selection menu emits [TextSelected]. The
-/// sentence for both comes from the [TextAnalyzer] given to the constructor,
-/// run over the paragraph that holds the text (never over several paragraphs).
+/// Tap and selection: a single tap in the view emits [ViewTapped]; a ready
+/// selection (a hold, a handle or mouse drag, a double click with a mouse)
+/// emits [TextSelected] at once or after "Translate" in the selection
+/// toolbar, by `ReaderSettings.translateOnSelect`. The sentence comes from
+/// the [TextAnalyzer] given to the constructor, run over the paragraph that
+/// holds the text (never over several paragraphs).
 ///
 /// Position: a block index plus a character offset in the block text. The
 /// view reports the first visible block and line; the engine turns that into
@@ -294,23 +296,6 @@ class SimpleReaderEngine implements ReaderEngine, TextInteractions {
       startOffset: start.offset,
       generation: ++_generation,
       isLast: ref.index >= spine.length - 1,
-    );
-  }
-
-  @override
-  @internal
-  void wordTapped(TextTarget target, int offset) {
-    final range = wordRangeAt(target.text, offset);
-    if (range == null) return;
-    final (start, end) = range;
-    final at = _locatorOf(target, start, end);
-    if (at == null) return;
-    _emit(
-      WordTapped(
-        word: target.text.substring(start, end),
-        at: at,
-        sentence: sentenceAround(_analyzer, target.text, start, end),
-      ),
     );
   }
 

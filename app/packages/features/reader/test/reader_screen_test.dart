@@ -450,12 +450,12 @@ void main() {
     await close(tester);
   });
 
-  macTest('a tapped word is passed to the lookup with place and sentence', (
+  macTest('a selected word is passed to the lookup with place and sentence', (
     tester,
   ) async {
     await open(tester);
     engines.single.emit(
-      WordTapped(word: 'sand', at: at(1, 0.25), sentence: 'The sand moves.'),
+      TextSelected(text: 'sand', at: at(1, 0.25), sentence: 'The sand moves.'),
     );
     await tester.pump();
     expect(lookups, [
@@ -464,12 +464,14 @@ void main() {
     await close(tester);
   });
 
-  macTest('the tapped word is marked while its lookup is open', (tester) async {
+  macTest('the selected word is marked while its lookup is open', (
+    tester,
+  ) async {
     await open(tester);
     final engine = engines.single;
     lookupOpen = Completer<void>();
     engine.emit(
-      WordTapped(word: 'sand', at: at(1, 0.25), sentence: 'The sand moves.'),
+      TextSelected(text: 'sand', at: at(1, 0.25), sentence: 'The sand moves.'),
     );
     await tester.pump();
     expect(engine.highlights, [
@@ -494,7 +496,7 @@ void main() {
 
     lookupOpen = Completer<void>();
     engine.emit(
-      WordTapped(word: 'sand', at: at(2, 0.75), sentence: 'The sand moves.'),
+      TextSelected(text: 'sand', at: at(2, 0.75), sentence: 'The sand moves.'),
     );
     await tester.pump();
     expect(engine.highlights.last, [target, at(2, 0.75)]);
@@ -505,7 +507,9 @@ void main() {
     await close(tester);
   });
 
-  macTest('a selection is passed to the lookup the same way', (tester) async {
+  macTest('a selected phrase is passed to the lookup the same way', (
+    tester,
+  ) async {
     await open(tester);
     engines.single.emit(
       TextSelected(
@@ -542,7 +546,7 @@ void main() {
     );
     await tester.pump();
     await tester.pump();
-    engines.last.emit(WordTapped(word: 'x', at: at(0, 0), sentence: 'x.'));
+    engines.last.emit(TextSelected(text: 'x', at: at(0, 0), sentence: 'x.'));
     await tester.pump();
     expect(find.text('engine view'), findsOneWidget);
     expect(tester.takeException(), isNull);

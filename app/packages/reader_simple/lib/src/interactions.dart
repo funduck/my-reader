@@ -19,11 +19,9 @@ final class TextTarget {
 
 /// What the text widgets of a block report to the engine.
 abstract interface class TextInteractions {
-  /// A single tap landed at [offset] in `target.text`.
-  void wordTapped(TextTarget target, int offset);
-
-  /// The user chose "Translate" with `target.text.substring(start, end)`
-  /// selected.
+  /// The selection `target.text.substring(start, end)` is ready (T-088): the
+  /// pointer went up after a hold, a drag or a double click and the engine
+  /// translates it at once, or the user chose "Translate" in the toolbar.
   void textSelected(TextTarget target, int start, int end);
 
   /// The text of [target] got a non-empty selection ([active]) or lost it.
@@ -31,26 +29,6 @@ abstract interface class TextInteractions {
   /// A tap while any text is selected only clears the selection and is not a
   /// `ViewTapped`.
   void selectionChanged(TextTarget target, {required bool active});
-}
-
-final RegExp _word = RegExp(
-  r"[\p{L}\p{N}]+(?:['’\-][\p{L}\p{N}]+)*",
-  unicode: true,
-);
-
-/// The word of [text] under the caret [offset] as `[start, end)`, or `null`.
-///
-/// The caret of a tap sits on the nearest edge between two characters, so a
-/// tap on the right half of the last letter gives the end of the word: the
-/// character before the caret is tried too. A word is letters and digits,
-/// joined by an inner apostrophe or hyphen; punctuation is not part of it.
-(int, int)? wordRangeAt(String text, int offset) {
-  for (final at in [offset, offset - 1]) {
-    for (final m in _word.allMatches(text)) {
-      if (at >= m.start && at < m.end) return (m.start, m.end);
-    }
-  }
-  return null;
 }
 
 /// The sentence of [text] that holds `text.substring(start, end)`, trimmed.
