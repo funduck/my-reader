@@ -34,11 +34,12 @@ void main() {
     }
   });
 
-  test('mean brightness is near 50% grey with a small spread', () {
+  test('mean brightness is 0.5 +- 0.03 with a small spread', () {
     for (final entry in first.entries) {
       final all = _pixels(entry.value).expand((r) => r).toList();
       final mean = all.reduce((a, b) => a + b) / all.length;
-      expect(mean, inInclusiveRange(118, 138), reason: entry.key);
+      // Overlay leaves the page unchanged on average only for mean 0.5.
+      expect(mean / 255, closeTo(0.5, 0.03), reason: entry.key);
       final range =
           all.reduce((a, b) => a > b ? a : b) -
           all.reduce((a, b) => a < b ? a : b);

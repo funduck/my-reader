@@ -506,7 +506,6 @@ class _TextureEditorState extends ConsumerState<_TextureEditor> {
     final display = widget.display;
     final theme = Theme.of(context);
     final palette = display.palette;
-    final night = display.mode == DisplayMode.night;
     final current = display.texture;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -521,7 +520,6 @@ class _TextureEditorState extends ConsumerState<_TextureEditor> {
               key: const Key('texture-none'),
               label: 'None',
               background: palette.background,
-              night: night,
               opacity: display.textureOpacity,
               image: null,
               selected: current is NoTexture,
@@ -532,7 +530,6 @@ class _TextureEditorState extends ConsumerState<_TextureEditor> {
                 key: Key('texture-$id'),
                 label: '${id[0].toUpperCase()}${id.substring(1)}',
                 background: palette.background,
-                night: night,
                 opacity: display.textureOpacity,
                 image: AssetImage(builtInTextureAsset(id)),
                 selected: current == BuiltInTexture(id),
@@ -542,7 +539,6 @@ class _TextureEditorState extends ConsumerState<_TextureEditor> {
               key: const Key('texture-own'),
               label: 'Own…',
               background: palette.background,
-              night: night,
               opacity: display.textureOpacity,
               image: switch (current) {
                 FileTexture(:final path) => FileImage(File(path)),
@@ -583,12 +579,11 @@ class _TextureEditorState extends ConsumerState<_TextureEditor> {
 }
 
 /// A square sample of a texture over the current page background, with its
-/// name below; blended like the reader does (multiply by day, screen by night).
+/// name below; blended like the reader does (`overlay`).
 class _TextureSample extends StatelessWidget {
   const new({
     required this.label,
     required this.background,
-    required this.night,
     required this.opacity,
     required this.image,
     required this.selected,
@@ -598,7 +593,6 @@ class _TextureSample extends StatelessWidget {
 
   final String label;
   final int background;
-  final bool night;
   final double opacity;
   final ImageProvider? image;
   final bool selected;
@@ -633,10 +627,7 @@ class _TextureSample extends StatelessWidget {
               child: image == null
                   ? null
                   : ColorFiltered(
-                      colorFilter: ColorFilter.mode(
-                        color,
-                        night ? BlendMode.screen : BlendMode.multiply,
-                      ),
+                      colorFilter: ColorFilter.mode(color, BlendMode.overlay),
                       child: DecoratedBox(
                         decoration: BoxDecoration(
                           image: DecorationImage(
