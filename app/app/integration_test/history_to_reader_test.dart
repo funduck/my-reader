@@ -58,7 +58,7 @@ void main() {
 
     // The lookup of a word selected at `place`, through the real scenario.
     final profiles = FakeProfileRepository();
-    await LookupSelection(
+    final scenario = LookupSelection(
       chain: ProviderChain(
         providers: [
           FakeLookupProvider(
@@ -80,7 +80,14 @@ void main() {
       profiles: profiles,
       clock: FakeClock(),
       ids: SeqIdGenerator(),
-    )(text: 'Gamma', sentence: 'Gamma chapter text.', locator: place);
+    );
+    await scenario.record(
+      await scenario(
+        text: 'Gamma',
+        sentence: 'Gamma chapter text.',
+        locator: place,
+      ),
+    );
 
     await tester.pumpWidget(
       bootstrap(

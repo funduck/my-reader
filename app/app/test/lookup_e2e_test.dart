@@ -4,6 +4,7 @@ import 'package:core/domain_books.dart';
 import 'package:core/ports.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lookup_sheet/lookup_sheet.dart';
 import 'package:my_reader_app/bootstrap.dart';
 import 'package:reader_api/reader_api.dart';
 
@@ -76,6 +77,22 @@ void main() {
 
     await settle(() => find.byType(Text).evaluate().isNotEmpty);
 
+    // An accidental tap: the sheet is closed before the threshold, so the
+    // lookup reaches neither the journal nor the term (T-086).
+    engine.emit(
+      WordTapped(word: 'Child', at: at(0.05), sentence: fixtureParagraph),
+    );
+    await settle(shown);
+    await tester.pump(
+      minLookupViewDuration - const Duration(milliseconds: 500),
+    );
+    await tester.tapAt(const Offset(10, 10));
+    await settle(() => !shown());
+    await tester.pump(const Duration(seconds: 5));
+    await settle();
+    expect(await tester.runAsync(() => journalOf(fixture)), isEmpty);
+    expect(await tester.runAsync(() => termsOf(fixture)), isEmpty);
+
     for (final taps in [1, 2]) {
       engine.emit(
         WordTapped(
@@ -87,6 +104,9 @@ void main() {
       await settle();
       await settle(shown);
       expect(find.textContaining(fixtureDefinition), findsOneWidget);
+      // Written after the result has been on screen for 2 s.
+      await tester.pump(minLookupViewDuration);
+      await settle();
       final events = await tester.runAsync(() => journalOf(fixture));
       expect(events!.first.query.locator, at(0.1 * taps));
       final terms = await tester.runAsync(() => termsOf(fixture));

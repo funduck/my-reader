@@ -39,16 +39,79 @@ void main() {
     ids: CountingIds(),
   );
 
+  /// Looks up and records, as the sheet does after 2 s.
+  Future<LookupOutcome> recorded(
+    LookupSelection s, {
+    required String text,
+    String? sentence,
+    Locator? locator,
+    LookupMode? mode,
+    ProviderId? provider,
+  }) async {
+    final out = await s(
+      text: text,
+      sentence: sentence,
+      locator: locator,
+      mode: mode,
+      provider: provider,
+    );
+    await s.record(out);
+    return out;
+  }
+
   const locator = Locator(
     book: BookId('b1'),
     chapter: ChapterRef(href: 'c1.xhtml', index: 0),
     progression: 0.5,
   );
 
+  group('record', () {
+    test('a lookup alone writes nothing', () async {
+      final a = ScriptedProvider('a', answer: result('a'));
+      final out = await selection([a])(text: 'run');
+      expect(out.event.query.text, 'run');
+      expect(journal.events, isEmpty);
+      expect(terms.terms, isEmpty);
+    });
+
+    test('record writes the event and counts the term once', () async {
+      final a = ScriptedProvider('a', answer: result('a'));
+      final s = selection([a]);
+      final out = await s(text: 'run');
+      final term = await s.record(out);
+      expect(journal.events, [out.event]);
+      expect(term.lookupCount, 1);
+      expect(term.eventIds, [out.event.id]);
+      expect(terms.terms.values.single, term);
+    });
+
+    test('a second record of the same event does nothing', () async {
+      final a = ScriptedProvider('a', answer: result('a'));
+      final s = selection([a]);
+      final out = await s(text: 'run');
+      final first = await s.record(out);
+      final again = await s.record(out);
+      expect(again, first);
+      expect(journal.events, hasLength(1));
+      expect(terms.terms.values.single.lookupCount, 1);
+    });
+
+    test('an unrecorded lookup does not count, a recorded one does', () async {
+      final a = ScriptedProvider('a', answer: result('a'));
+      final s = selection([a]);
+      await s(text: 'run');
+      final kept = await s(text: 'run');
+      await s.record(kept);
+      expect(journal.events, [kept.event]);
+      expect(terms.terms.values.single.lookupCount, 1);
+    });
+  });
+
   group('answered', () {
     test('records an event with query, result and time', () async {
       final a = ScriptedProvider('a', answer: result('a'));
-      final out = await selection([a])(
+      final out = await recorded(
+        selection([a]),
         text: '  Running ',
         sentence: 'He is Running.',
         locator: locator,
@@ -76,7 +139,7 @@ void main() {
 
     test('creates a term keyed by lemma with the level', () async {
       final a = ScriptedProvider('a', answer: result('a'));
-      final out = await selection([a])(text: 'Runs');
+      final out = await recorded(selection([a]), text: 'Runs');
       final term = terms.terms.values.single;
       expect(term.normalized, 'run');
       expect(term.language, 'en');
@@ -84,14 +147,13 @@ void main() {
       expect(term.eventIds, [out.event.id]);
       expect(term.level, CefrLevel.a2);
       expect(term.status, TermStatus.learning);
-      expect(out.term, term);
       expect(out.level, CefrLevel.a2);
       expect(out.wordLevel, const WordLevel(CefrLevel.a2));
     });
 
     test('the level is asked by the lemma, not the surface form', () async {
       final a = ScriptedProvider('a', answer: result('a'));
-      await selection([a])(text: '  Runs ');
+      await recorded(selection([a]), text: '  Runs ');
       expect(levels.asked, ['run']);
     });
 
@@ -119,11 +181,11 @@ void main() {
     test('repeat lookup updates the same term, keeps status', () async {
       final a = ScriptedProvider('a', answer: result('a'));
       final s = selection([a]);
-      final first = await s(text: 'run');
+      final first = await recorded(s, text: 'run');
       final id = terms.terms.values.single.id;
       terms.terms[id] = terms.terms[id]!.copyWith(status: TermStatus.known);
       clock.time = clock.time.add(const Duration(minutes: 1));
-      final second = await s(text: 'runs');
+      final second = await recorded(s, text: 'runs');
       final term = terms.terms.values.single;
       expect(terms.terms, hasLength(1));
       expect(term.id, id);
@@ -135,7 +197,7 @@ void main() {
 
     test('a phrase is keyed by its lower-cased, collapsed text', () async {
       final a = ScriptedProvider('a', answer: result('a'));
-      await selection([a])(text: 'Give   UP');
+      await recorded(selection([a]), text: 'Give   UP');
       expect(terms.terms.values.single.normalized, 'give up');
       expect(terms.terms.values.single.level, CefrLevel.unknown);
     });
@@ -154,8 +216,12 @@ void main() {
       final a = ScriptedProvider('a', answer: result('a'));
       final b = ScriptedProvider('b', answer: result('b'));
       final s = selection([a, b]);
-      await s(text: 'run');
-      final out = await s(text: 'run', provider: const ProviderId('b'));
+      await recorded(s, text: 'run');
+      final out = await recorded(
+        s,
+        text: 'run',
+        provider: const ProviderId('b'),
+      );
       expect((out as LookupAnswered).result.provider, const ProviderId('b'));
       expect(a.calls, hasLength(1));
       expect(b.calls, hasLength(1));
@@ -168,7 +234,11 @@ void main() {
     test('event is recorded with an empty result', () async {
       final a = ScriptedProvider('a', failure: const ProviderUnavailable());
       final b = ScriptedProvider('b', hang: true);
-      final out = await selection([a, b])(text: 'run', locator: locator);
+      final out = await recorded(
+        selection([a, b]),
+        text: 'run',
+        locator: locator,
+      );
       final failed = out as LookupUnanswered;
       expect(failed.isNotFound, isFalse);
       expect(journal.events, [failed.event]);
@@ -185,8 +255,8 @@ void main() {
     test('term is upserted too, so it matches the journal', () async {
       final a = ScriptedProvider('a', failure: const LookupNotFound());
       final s = selection([a]);
-      final first = await s(text: 'run');
-      final second = await s(text: 'run');
+      final first = await recorded(s, text: 'run');
+      final second = await recorded(s, text: 'run');
       final term = terms.terms.values.single;
       expect(term.lookupCount, 2);
       expect(term.eventIds, [first.event.id, second.event.id]);
@@ -196,7 +266,8 @@ void main() {
 
     test('no provider supports the mode: event names "none"', () async {
       final a = ScriptedProvider('a', modes: {LookupMode.enRu});
-      final out = await selection([a])(text: 'run') as LookupUnanswered;
+      final out =
+          await recorded(selection([a]), text: 'run') as LookupUnanswered;
       expect(out.event.result.provider, noProvider);
       expect(out.failure.attempts, isEmpty);
       expect(journal.events, hasLength(1));
@@ -205,7 +276,8 @@ void main() {
     test('explicit provider fails: event is recorded', () async {
       final a = ScriptedProvider('a', answer: result('a'));
       final b = ScriptedProvider('b', failure: const ProviderUnavailable());
-      final out = await selection([a, b])(
+      final out = await recorded(
+        selection([a, b]),
         text: 'run',
         provider: const ProviderId('b'),
       ) as LookupUnanswered;

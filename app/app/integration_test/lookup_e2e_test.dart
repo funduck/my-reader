@@ -6,6 +6,7 @@ import 'package:core/ports.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
+import 'package:lookup_sheet/lookup_sheet.dart';
 import 'package:my_reader_app/bootstrap.dart';
 import 'package:reader_api/reader_api.dart';
 import 'package:reader_simple/reader_simple.dart';
@@ -95,6 +96,13 @@ void main() {
     return (lookup: eventWatch.elapsed, total: total.elapsed);
   }
 
+  /// Keeps the sheet open past the threshold of T-086 so the lookup is written.
+  Future<void> holdSheetOpen(WidgetTester tester) async {
+    await tester.pump(
+      minLookupViewDuration + const Duration(milliseconds: 300),
+    );
+  }
+
   Future<void> closeSheet(WidgetTester tester) async {
     await tester.tapAt(const Offset(10, 10));
     await tester.pumpAndSettle();
@@ -121,7 +129,7 @@ void main() {
       'finger to frame ${first.total.inMilliseconds} ms',
     );
     expect(first.lookup, lessThan(_limit));
-    await tester.pumpAndSettle();
+    await holdSheetOpen(tester);
 
     final events = await journalOf(fixture);
     final locator = events.single.query.locator!;
@@ -133,7 +141,7 @@ void main() {
     await closeSheet(tester);
     final second = await tapAndWait(tester, eventWatch, definition);
     expect(second.lookup, lessThan(_limit));
-    await tester.pumpAndSettle();
+    await holdSheetOpen(tester);
     await expectLookups(fixture, taps: 2, sentence: fixtureParagraph);
   });
 
