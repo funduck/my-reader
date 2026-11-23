@@ -161,6 +161,7 @@ class _TermTile extends ConsumerWidget {
       ..showSnackBar(
         SnackBar(
           content: Text('«Знаю» снято: $word'),
+          persist: false,
           action: SnackBarAction(
             label: 'Undo',
             onPressed: () => unawaited(set(TermStatus.known)),

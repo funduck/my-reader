@@ -286,6 +286,7 @@ class _ItemTile extends ConsumerWidget {
       ..showSnackBar(
         SnackBar(
           content: Text('«Знаю»: ${item.text}'),
+          persist: false,
           action: SnackBarAction(
             label: 'Undo',
             onPressed: () => unawaited(known.undo(item)),
