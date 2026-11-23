@@ -851,6 +851,326 @@ void main() {
     _viewTapTests(mouse: true);
   });
 
+  group('selecting does not scroll (T-107)', () {
+    // Long wrapped paragraphs, so that there is something to scroll and a
+    // drag down a line stays inside the text.
+    const body =
+        'the quick brown fox jumps over the lazy dog and keeps running '
+        'through the long grass until the sun goes down behind the hills, '
+        'and then it sleeps.';
+    final chapter = [for (var i = 0; i < 30; i++) 'Paragraph $i: $body']
+        .join('\n\n');
+
+    double top(WidgetTester tester) =>
+        tester.getTopLeft(_paragraph('Paragraph 2:')).dy;
+
+    Future<_Harness> open(WidgetTester tester, {bool translate = false}) =>
+        _open(
+          tester,
+          FakeOpenedBook(chapters: [chapter]),
+          translate: translate,
+        );
+
+    String selected(WidgetTester tester) {
+      final editable = tester.state<EditableTextState>(
+        find.descendant(
+          of: _paragraph('Paragraph 2:'),
+          matching: find.byType(EditableText),
+        ),
+      );
+      final value = editable.textEditingValue;
+      return value.selection.isValid
+          ? value.selection.textInside(value.text)
+          : '';
+    }
+
+    // The word is in the third paragraph, well away from the screen edges.
+    Offset word(WidgetTester tester, String w) =>
+        _centerOf(tester, 'Paragraph 2:', w);
+
+    testWidgets('a hold then a drag along the line extends the selection, '
+        'the list stays', (tester) async {
+      final h = await open(tester);
+      final before = top(tester);
+      final gesture = await tester.startGesture(word(tester, 'brown'));
+      await tester.pump(_held);
+      for (var i = 1; i <= 8; i++) {
+        await gesture.moveBy(const Offset(15, 4));
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      await gesture.up();
+      await tester.pump(kDoubleTapTimeout * 2);
+
+      expect(top(tester), before);
+      expect(selected(tester), startsWith('brown'));
+      expect(selected(tester).length, greaterThan('brown'.length));
+      expect(h.taps, isEmpty);
+    });
+
+    testWidgets('a hold then a drag down the lines extends the selection, '
+        'the list stays', (tester) async {
+      await open(tester);
+      final before = top(tester);
+      final gesture = await tester.startGesture(word(tester, 'brown'));
+      await tester.pump(_held);
+      for (var i = 1; i <= 10; i++) {
+        await gesture.moveBy(const Offset(0, 12));
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      await gesture.up();
+      await tester.pump(kDoubleTapTimeout * 2);
+
+      expect(top(tester), before);
+      expect(selected(tester).length, greaterThan('brown'.length));
+    });
+
+    testWidgets('dragging a handle moves the selection, the list stays', (
+      tester,
+    ) async {
+      await open(tester);
+      await _hold(tester, word(tester, 'brown'));
+      final before = top(tester);
+      final end = _endHandle(tester);
+      final gesture = await tester.startGesture(end);
+      for (var i = 1; i <= 8; i++) {
+        await gesture.moveBy(const Offset(12, 10));
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      await gesture.up();
+      await tester.pump(kDoubleTapTimeout * 2);
+
+      expect(top(tester), before);
+      expect(selected(tester).length, greaterThan('brown'.length));
+    });
+
+    testWidgets('a mouse drag selects and does not scroll', (tester) async {
+      await open(tester);
+      final before = top(tester);
+      final gesture = await tester.startGesture(
+        word(tester, 'quick'),
+        kind: PointerDeviceKind.mouse,
+      );
+      for (var i = 1; i <= 10; i++) {
+        await gesture.moveBy(const Offset(10, 12));
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      await gesture.up();
+      await tester.pump(kDoubleTapTimeout * 2);
+
+      expect(top(tester), before);
+      expect(selected(tester), isNotEmpty);
+    }, variant: _macOS);
+
+    testWidgets('a drag with a finger without a hold scrolls', (tester) async {
+      final h = await open(tester);
+      final before = top(tester);
+      final gesture = await tester.startGesture(word(tester, 'brown'));
+      await tester.pump(const Duration(milliseconds: 50));
+      for (var i = 1; i <= 8; i++) {
+        await gesture.moveBy(const Offset(0, -12));
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      await gesture.up();
+      await tester.pump(kDoubleTapTimeout * 2);
+
+      expect(top(tester), lessThan(before - 60));
+      expect(selected(tester), isEmpty);
+      expect(h.taps, isEmpty);
+    });
+
+    testWidgets('a screen reader can still show a paragraph on screen', (
+      tester,
+    ) async {
+      await open(tester);
+      final gesture = await tester.startGesture(const Offset(300, 500));
+      await gesture.moveBy(const Offset(0, -30));
+      await tester.pump(const Duration(milliseconds: 16));
+      await gesture.moveBy(const Offset(0, -30));
+      await tester.pump(const Duration(milliseconds: 16));
+      await gesture.up();
+      await tester.pumpAndSettle();
+      final before = tester.getTopLeft(_paragraph('Paragraph 0:')).dy;
+      expect(before, lessThan(0));
+
+      // A request without a rect is the accessibility "show this node".
+      _findEditable(tester.renderObject(_paragraph('Paragraph 0:')))!
+          .showOnScreen();
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.getTopLeft(_paragraph('Paragraph 0:')).dy,
+        greaterThan(before),
+      );
+    });
+
+    testWidgets('the mouse wheel scrolls', (tester) async {
+      await open(tester);
+      final before = top(tester);
+      final mouse = TestPointer(1, PointerDeviceKind.mouse);
+      await tester.sendEventToBinding(mouse.hover(const Offset(300, 300)));
+      await tester.sendEventToBinding(mouse.scroll(const Offset(0, 100)));
+      await tester.pumpAndSettle();
+
+      expect(top(tester), lessThan(before - 60));
+    }, variant: _macOS);
+  });
+
+  group('selecting in a tall paragraph does not scroll (T-107)', () {
+    // One paragraph of 300 numbered words, much taller than the screen, then
+    // a filler paragraph.
+    final tall = [for (var i = 0; i < 300; i++) 'w$i'].join(' ');
+    final chapter = '$tall\n\nThe end of the tall chapter.';
+
+    Finder tallText() => _paragraph('w299');
+
+    double top(WidgetTester tester) => tester.getTopLeft(tallText()).dy;
+
+    Future<_Harness> open(WidgetTester tester, {bool translate = false}) async {
+      final h = await _open(
+        tester,
+        FakeOpenedBook(chapters: [chapter]),
+        translate: translate,
+      );
+      // Scroll with a finger until the start of the paragraph is above the
+      // screen.
+      final gesture = await tester.startGesture(const Offset(300, 500));
+      for (var i = 0; i < 10; i++) {
+        await gesture.moveBy(const Offset(0, -30));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(top(tester), lessThan(-200));
+      return h;
+    }
+
+    /// The first word whose centre is at or below [y] (global), in the
+    /// middle of the screen horizontally.
+    Offset wordAt(WidgetTester tester, double y) {
+      final editable = _findEditable(tester.renderObject(tallText()))!;
+      var at = 0;
+      for (var i = 0; i < 300; i++) {
+        final length = 'w$i'.length;
+        final box = editable
+            .getBoxesForSelection(
+              TextSelection(baseOffset: at, extentOffset: at + length),
+            )
+            .first;
+        final c = editable.localToGlobal(box.toRect().center);
+        if (c.dy >= y && c.dx > 100 && c.dx < 400) return c;
+        at += length + 1;
+      }
+      throw StateError('no word at $y');
+    }
+
+    String selected(WidgetTester tester) {
+      final value = tester
+          .state<EditableTextState>(
+            find.descendant(
+              of: tallText(),
+              matching: find.byType(EditableText),
+            ),
+          )
+          .textEditingValue;
+      return value.selection.isValid
+          ? value.selection.textInside(value.text)
+          : '';
+    }
+
+    testWidgets('a hold mid-screen with translate on does not scroll back to '
+        'the start of the paragraph', (tester) async {
+      final h = await open(tester, translate: true);
+      final before = top(tester);
+      final gesture = await tester.startGesture(wordAt(tester, 250));
+      await tester.pump(_held);
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(h.taps, hasLength(1));
+      expect(top(tester), before);
+    });
+
+    testWidgets('Translate in the toolbar does not scroll', (tester) async {
+      final h = await open(tester);
+      await _hold(tester, wordAt(tester, 250));
+      await tester.pumpAndSettle();
+      final before = top(tester);
+      await tester.tap(find.text('Translate'));
+      await tester.pumpAndSettle();
+
+      expect(h.taps, hasLength(1));
+      expect(top(tester), before);
+    });
+
+    testWidgets('a hold near the bottom edge does not scroll', (tester) async {
+      await open(tester);
+      final before = top(tester);
+      final gesture = await tester.startGesture(wordAt(tester, 560));
+      await tester.pump(_held);
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(selected(tester), isNotEmpty);
+      expect(top(tester), before);
+    });
+
+    testWidgets('dragging the handle past the bottom edge does not scroll', (
+      tester,
+    ) async {
+      await open(tester);
+      await _hold(tester, wordAt(tester, 450));
+      await tester.pumpAndSettle();
+      final before = top(tester);
+      final gesture = await tester.startGesture(_endHandle(tester));
+      for (var i = 0; i < 12; i++) {
+        await gesture.moveBy(const Offset(0, 20));
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(selected(tester).length, greaterThan(20));
+      expect(top(tester), before);
+    });
+
+    testWidgets('a hold then a drag past the bottom edge does not scroll', (
+      tester,
+    ) async {
+      await open(tester);
+      final before = top(tester);
+      final gesture = await tester.startGesture(wordAt(tester, 450));
+      await tester.pump(_held);
+      for (var i = 0; i < 12; i++) {
+        await gesture.moveBy(const Offset(0, 20));
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(selected(tester).length, greaterThan(20));
+      expect(top(tester), before);
+    });
+
+    testWidgets('a mouse drag past the bottom edge selects and does not '
+        'scroll', (tester) async {
+      await open(tester);
+      final before = top(tester);
+      final gesture = await tester.startGesture(
+        wordAt(tester, 450),
+        kind: PointerDeviceKind.mouse,
+      );
+      for (var i = 0; i < 12; i++) {
+        await gesture.moveBy(const Offset(0, 20));
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(selected(tester).length, greaterThan(20));
+      expect(top(tester), before);
+    }, variant: _macOS);
+  });
+
   group('sentence at a paragraph boundary', () {
     // The first paragraph does not end with a sentence mark; the second
     // continues the thought. A splitter run over both would glue them.
