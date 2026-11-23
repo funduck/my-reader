@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:core/domain_books.dart';
+import 'package:core/domain_lookup.dart';
 import 'package:core/ports.dart';
 import 'package:core_testing/core_testing.dart';
 import 'package:features_common/features_common.dart';
@@ -14,6 +15,7 @@ class _FakeEngine implements ReaderEngine {
   final _events = StreamController<ReaderEvent>.broadcast();
   final List<({OpenedBook book, BookId bookId, Locator? at})> loads = [];
   final List<Locator> goTos = [];
+  final List<ReaderSettings> settingsApplied = [];
   bool disposed = false;
 
   void emit(ReaderEvent event) => _events.add(event);
@@ -32,7 +34,7 @@ class _FakeEngine implements ReaderEngine {
   Future<void> goTo(Locator locator) async => goTos.add(locator);
 
   @override
-  void applySettings(ReaderSettings settings) {}
+  void applySettings(ReaderSettings settings) => settingsApplied.add(settings);
 
   @override
   void highlight(List<Locator> ranges) {}
@@ -51,6 +53,7 @@ void main() {
   const id = BookId('b1');
   late FakeBookRepository books;
   late FakeProgressRepository progress;
+  late FakeProfileRepository profiles;
   late FakeBookFormatAdapter adapter;
   late List<_FakeEngine> engines;
   late List<({String text, Locator at, String sentence})> lookups;
@@ -64,6 +67,7 @@ void main() {
   setUp(() async {
     books = FakeBookRepository();
     progress = FakeProgressRepository();
+    profiles = FakeProfileRepository();
     adapter = FakeBookFormatAdapter()
       ..register(
         '/x/b1.epub',
@@ -93,6 +97,7 @@ void main() {
     overrides: [
       bookRepositoryProvider.overrideWithValue(books),
       progressRepositoryProvider.overrideWithValue(progress),
+      profileRepositoryProvider.overrideWithValue(profiles),
       bookFormatsProvider.overrideWithValue([adapter]),
       clockProvider.overrideWithValue(FakeClock()),
       lookupPresenterProvider.overrideWithValue(
@@ -274,6 +279,7 @@ void main() {
         overrides: [
           bookRepositoryProvider.overrideWithValue(books),
           progressRepositoryProvider.overrideWithValue(progress),
+          profileRepositoryProvider.overrideWithValue(profiles),
           bookFormatsProvider.overrideWithValue([adapter]),
           clockProvider.overrideWithValue(FakeClock()),
           readerEngineFactoryProvider.overrideWithValue(() {
@@ -316,4 +322,123 @@ void main() {
       expect(parseLocatorParam('not json'), isNull);
     });
   });
+
+  group('display settings', () {
+    testWidgets('are applied after load and on every profile change', (
+      tester,
+    ) async {
+      await profiles.save(
+        const UserProfile(
+          display: DisplayPrefs(
+            fontSize: 22,
+            mode: DisplayMode.night,
+            dim: 0.3,
+          ),
+        ),
+      );
+      await open(tester);
+      final applied = engines.single.settingsApplied;
+      expect(applied, isNotEmpty);
+      final first = applied.last;
+      expect(first.fontSize, 22);
+      expect(first.theme, ReaderTheme.dark);
+      expect(first.background, const Color(0xFF121212));
+      expect(first.text, const Color(0xFFE0E0E0));
+      expect(first.dim, 0.3);
+      final before = applied.length;
+      await profiles.save(
+        const UserProfile(display: DisplayPrefs(fontSize: 30)),
+      );
+      await tester.pump();
+      expect(applied.length, before + 1);
+      expect(applied.last.fontSize, 30);
+      expect(applied.last.theme, ReaderTheme.light);
+      await close(tester);
+    });
+
+    testWidgets('the day/night button saves the other mode', (tester) async {
+      await open(tester);
+      expect(find.byIcon(Icons.light_mode), findsOneWidget);
+      await tester.tap(find.byTooltip('Day / Night'));
+      await tester.pump();
+      await tester.pump();
+      expect((await profiles.get()).display.mode, DisplayMode.night);
+      expect(engines.single.settingsApplied.last.theme, ReaderTheme.dark);
+      expect(find.byIcon(Icons.dark_mode), findsOneWidget);
+      await close(tester);
+    });
+
+    testWidgets('a slider saves once after the debounce', (tester) async {
+      var saves = 0;
+      final counting = _CountingProfiles(profiles, () => saves++);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            bookRepositoryProvider.overrideWithValue(books),
+            progressRepositoryProvider.overrideWithValue(progress),
+            profileRepositoryProvider.overrideWithValue(counting),
+            bookFormatsProvider.overrideWithValue([adapter]),
+            clockProvider.overrideWithValue(FakeClock()),
+            readerEngineFactoryProvider.overrideWithValue(() {
+              final engine = _FakeEngine();
+              engines.add(engine);
+              return engine;
+            }),
+          ],
+          child: const MaterialApp(home: ReaderScreen(bookId: id)),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      await tester.tap(find.byTooltip('Text'));
+      await tester.pumpAndSettle();
+      final slider = find.byKey(const Key('dim'));
+      final rect = tester.getRect(slider);
+      for (final f in [0.2, 0.4, 0.6]) {
+        await tester.tapAt(Offset(rect.left + rect.width * f, rect.center.dy));
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(saves, 0);
+      expect(engines.single.settingsApplied.last.dim, greaterThan(0));
+      await tester.pump(displaySaveDebounce);
+      await tester.pump();
+      expect(saves, 1);
+      expect((await profiles.get()).display.dim, greaterThan(0));
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+    });
+
+    testWidgets('A+ in the panel grows the font by one', (tester) async {
+      await open(tester);
+      await tester.tap(find.byTooltip('Text'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('A+'));
+      await tester.pump(displaySaveDebounce);
+      await tester.pump();
+      expect((await profiles.get()).display.fontSize, 19);
+      expect(engines.single.settingsApplied.last.fontSize, 19);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+    });
+  });
+}
+
+/// Profile repository that counts saves.
+class _CountingProfiles implements ProfileRepository {
+  new(this._inner, this._onSave);
+
+  final ProfileRepository _inner;
+  final void Function() _onSave;
+
+  @override
+  Future<UserProfile> get() => _inner.get();
+
+  @override
+  Stream<UserProfile> watch() => _inner.watch();
+
+  @override
+  Future<void> save(UserProfile profile) {
+    _onSave();
+    return _inner.save(profile);
+  }
 }

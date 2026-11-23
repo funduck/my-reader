@@ -8,6 +8,7 @@ import 'package:material_ui/material_ui.dart';
 
 import 'dictionaries_section.dart';
 import 'packs_controller.dart';
+import 'reading_section.dart';
 
 final Logger _log = Logger('SettingsScreen');
 
@@ -46,6 +47,8 @@ class SettingsScreen extends ConsumerWidget {
         data: (p) => ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            ReadingSection(display: p.display),
+            const SizedBox(height: 24),
             _ServiceUrlField(initial: p.serviceUrl),
             const SizedBox(height: 24),
             _ModeSetting(profile: p),
@@ -120,6 +123,7 @@ class _ServiceUrlFieldState extends ConsumerState<_ServiceUrlField> {
       children: [
         Expanded(
           child: TextField(
+            key: const Key('service-url'),
             controller: _controller,
             keyboardType: TextInputType.url,
             autocorrect: false,

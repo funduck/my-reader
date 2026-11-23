@@ -2,6 +2,7 @@
 /// restores and saves the reading position.
 library;
 
+export 'src/display_settings.dart' show readerSettingsFrom;
 export 'src/locator_param.dart' show encodeLocatorParam, parseLocatorParam;
 export 'src/providers.dart'
     show
@@ -9,4 +10,5 @@ export 'src/providers.dart'
         lookupPresenterProvider,
         openBookProvider,
         saveProgressProvider;
-export 'src/reader_screen.dart' show ReaderScreen, saveDebounce;
+export 'src/reader_screen.dart'
+    show ReaderScreen, displaySaveDebounce, saveDebounce;
