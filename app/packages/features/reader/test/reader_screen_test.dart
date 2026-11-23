@@ -16,6 +16,7 @@ class _FakeEngine implements ReaderEngine {
   final List<({OpenedBook book, BookId bookId, Locator? at})> loads = [];
   final List<Locator> goTos = [];
   final List<ReaderSettings> settingsApplied = [];
+  final List<List<Locator>> highlights = [];
   bool disposed = false;
 
   void emit(ReaderEvent event) => _events.add(event);
@@ -37,7 +38,7 @@ class _FakeEngine implements ReaderEngine {
   void applySettings(ReaderSettings settings) => settingsApplied.add(settings);
 
   @override
-  void highlight(List<Locator> ranges) {}
+  void highlight(List<Locator> ranges) => highlights.add(ranges);
 
   @override
   Stream<ReaderEvent> get events => _events.stream;
@@ -58,6 +59,9 @@ void main() {
   late List<_FakeEngine> engines;
   late List<({String text, Locator at, String sentence})> lookups;
 
+  /// When set, the lookup stays open until it completes.
+  Completer<void>? lookupOpen;
+
   Locator at(int chapter, double progression) => Locator(
     book: id,
     chapter: ChapterRef(href: 'chapter${chapter + 1}.xhtml', index: chapter),
@@ -76,6 +80,7 @@ void main() {
       );
     engines = [];
     lookups = [];
+    lookupOpen = null;
     await books.save(
       Book(
         id: id,
@@ -100,10 +105,15 @@ void main() {
       profileRepositoryProvider.overrideWithValue(profiles),
       bookFormatsProvider.overrideWithValue([adapter]),
       clockProvider.overrideWithValue(FakeClock()),
-      lookupPresenterProvider.overrideWithValue(
-        (context, {required text, required at, required sentence}) async =>
-            lookups.add((text: text, at: at, sentence: sentence)),
-      ),
+      lookupPresenterProvider.overrideWithValue((
+        context, {
+        required text,
+        required at,
+        required sentence,
+      }) async {
+        lookups.add((text: text, at: at, sentence: sentence));
+        await lookupOpen?.future;
+      }),
       readerEngineFactoryProvider.overrideWithValue(() {
         final engine = _FakeEngine();
         engines.add(engine);
@@ -251,6 +261,49 @@ void main() {
     expect(lookups, [
       (text: 'sand', at: at(1, 0.25), sentence: 'The sand moves.'),
     ]);
+    await close(tester);
+  });
+
+  testWidgets('the tapped word is marked while its lookup is open', (
+    tester,
+  ) async {
+    await open(tester);
+    final engine = engines.single;
+    lookupOpen = Completer<void>();
+    engine.emit(
+      WordTapped(word: 'sand', at: at(1, 0.25), sentence: 'The sand moves.'),
+    );
+    await tester.pump();
+    expect(engine.highlights, [
+      [at(1, 0.25)],
+    ]);
+
+    lookupOpen!.complete();
+    await tester.pump();
+    expect(engine.highlights.last, isEmpty);
+    await close(tester);
+  });
+
+  testWidgets('after the lookup the place from history stays marked', (
+    tester,
+  ) async {
+    final target = at(2, 0.5);
+    await open(tester, locator: target);
+    final engine = engines.single;
+    expect(engine.highlights, [
+      [target],
+    ]);
+
+    lookupOpen = Completer<void>();
+    engine.emit(
+      WordTapped(word: 'sand', at: at(2, 0.75), sentence: 'The sand moves.'),
+    );
+    await tester.pump();
+    expect(engine.highlights.last, [target, at(2, 0.75)]);
+
+    lookupOpen!.complete();
+    await tester.pump();
+    expect(engine.highlights.last, [target]);
     await close(tester);
   });
 

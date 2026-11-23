@@ -83,6 +83,10 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   /// The last known position: reported by the engine, else where it opened.
   Locator? _current;
 
+  /// Ranges marked in the text apart from the word being looked up: the
+  /// place opened from a route link (history).
+  List<Locator> _marks = const [];
+
   @override
   void initState() {
     super.initState();
@@ -150,7 +154,10 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     engine.applySettings(readerSettingsFrom(_display.value));
     // A place opened from a route link (history) is marked in the text.
     final target = widget.locator;
-    if (target != null) engine.highlight([target]);
+    if (target != null) {
+      _marks = [target];
+      engine.highlight(_marks);
+    }
     setState(() => _book = outcome.book);
   }
 
@@ -240,7 +247,10 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     unawaited(_showLookup(text, at, sentence));
   }
 
+  /// Shows the lookup of [text]; while it is open, [at] is marked in the
+  /// text so that the reader sees which word the tap hit.
   Future<void> _showLookup(String text, Locator at, String sentence) async {
+    _engine?.highlight([..._marks, at]);
     try {
       await ref.read(lookupPresenterProvider)(
         context,
@@ -250,6 +260,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
       );
     } on Object catch (e, s) {
       _log.severe('Showing the lookup of "$text" failed', e, s);
+    } finally {
+      if (mounted) _engine?.highlight(_marks);
     }
   }
 

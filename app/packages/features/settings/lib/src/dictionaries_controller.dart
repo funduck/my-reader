@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:core/domain_lookup.dart';
 import 'package:features_common/features_common.dart';
-import 'package:file_selector/file_selector.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
@@ -14,12 +14,22 @@ final Logger _log = Logger('DictionariesController');
 /// `.dict` or `.dict.dz`) and returns their paths; empty when cancelled.
 ///
 /// A port of its own so that tests do not open a system dialog.
+///
+/// `file_picker`, not `file_selector`: on Android both copy the picked files
+/// into the cache, but `file_selector` replaces the extension with one
+/// guessed from the MIME type, and `.ifo`/`.idx`/`.dict.dz` have none, so
+/// the import could not tell the files apart. `file_picker` keeps the name.
 final Provider<Future<List<String>> Function()> dictionaryFilePickerProvider =
     Provider<Future<List<String>> Function()>((ref) => _pickDictionaryFiles);
 
 Future<List<String>> _pickDictionaryFiles() async {
-  final files = await openFiles(confirmButtonText: 'Import');
-  return [for (final file in files) file.path];
+  final result = await FilePicker.platform.pickFiles(
+    dialogTitle: 'Choose the dictionary files',
+    allowMultiple: true,
+  );
+  return [
+    for (final file in result?.files ?? const <PlatformFile>[]) ?file.path,
+  ];
 }
 
 /// State of the dictionaries section.
