@@ -28,7 +28,7 @@ class _Provider implements LookupProvider {
   final ProviderInfo info;
 
   @override
-  bool supports(LookupMode mode) => true;
+  bool supports(LookupMode mode) => mode == LookupMode.enEn;
 
   @override
   Future<LookupResult> lookup(LookupQuery query, {CancelToken? cancel}) =>

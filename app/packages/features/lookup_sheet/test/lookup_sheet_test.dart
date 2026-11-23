@@ -25,7 +25,7 @@ class _FakeProvider implements LookupProvider {
   );
 
   @override
-  bool supports(LookupMode mode) => true;
+  bool supports(LookupMode mode) => mode == LookupMode.enEn;
 
   @override
   Future<LookupResult> lookup(LookupQuery query, {CancelToken? cancel}) =>
@@ -256,21 +256,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(selection.calls, ['ephemeral', 'ephemeral']);
-    expect(find.text('1. lasting a very short time'), findsOneWidget);
-  });
-
-  testWidgets('the mode switch repeats the lookup with the other mode', (
-    tester,
-  ) async {
-    final selection = await _open(tester, () async => _answered());
-    await tester.pumpAndSettle();
-    expect(selection.modes, [LookupMode.enEn]);
-
-    await tester.tap(find.text('EN → RU'));
-    await tester.pumpAndSettle();
-
-    expect(selection.calls, ['ephemeral', 'ephemeral']);
-    expect(selection.modes, [LookupMode.enEn, LookupMode.enRu]);
     expect(find.text('1. lasting a very short time'), findsOneWidget);
   });
 

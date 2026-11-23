@@ -88,19 +88,22 @@ void main() {
       _Provider(ruB, 'Dict B', LookupMode.enRu),
       _Provider(en, 'Wiktionary', LookupMode.enEn),
     ]);
-    expect(selection.providers, [null]);
+    // The first call is the chain; the second is the background look at the
+    // other mode, offline providers only.
+    expect(selection.providers, [null, en]);
 
     await tester.tap(find.byKey(const Key('lookup-provider')));
     await tester.pumpAndSettle();
     expect(find.text('Wiktionary'), findsNothing);
     await tester.tap(find.text('Dict B').last);
     await tester.pump();
-    expect(selection.providers, [null, ruB]);
+    expect(selection.providers, [null, en, ruB]);
 
-    // Switching the mode drops a pick that does not serve it.
-    await tester.tap(find.text('EN → EN'));
+    // Switching the mode drops a pick that does not serve it: the picker of
+    // the single English provider is gone and no new lookup is made.
+    await tester.tap(find.byKey(const Key('lookup-mode-toggle')));
     await tester.pump();
-    expect(selection.providers.last, isNull);
-    expect(selection.modes.last, LookupMode.enEn);
+    expect(find.byKey(const Key('lookup-provider')), findsNothing);
+    expect(selection.providers, [null, en, ruB]);
   });
 }
