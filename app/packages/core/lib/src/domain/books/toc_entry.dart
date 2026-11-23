@@ -46,3 +46,26 @@ final class TocEntry {
   @override
   String toString() => 'TocEntry($title, $chapter)';
 }
+
+/// Returns the entry of [toc] the reader is in while on chapter
+/// [chapterIndex], or `null` before the first entry or for an empty [toc].
+///
+/// Entries are walked in reading order (a parent, then its children); the
+/// result is the last one whose `chapter.index` is at most [chapterIndex].
+/// So when several entries point to one chapter the deepest or last wins, and
+/// a chapter missing from the table of contents (a cover between entries)
+/// belongs to the entry before it.
+TocEntry? currentTocEntry(List<TocEntry> toc, int chapterIndex) {
+  TocEntry? current;
+  void visit(List<TocEntry> entries) {
+    for (final entry in entries) {
+      if (entry.chapter.index <= chapterIndex) {
+        current = entry;
+      }
+      visit(entry.children);
+    }
+  }
+
+  visit(toc);
+  return current;
+}

@@ -101,6 +101,10 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   /// The last known position: reported by the engine, else where it opened.
   Locator? _current;
 
+  /// Chapter index of the last [PositionChanged]; `null` until there is one.
+  /// Read by the table of contents, which does not rebuild with the screen.
+  final ValueNotifier<int?> _chapter = ValueNotifier(null);
+
   /// Ranges marked in the text apart from the word being looked up: the
   /// place opened from a route link (history).
   List<Locator> _marks = const [];
@@ -322,6 +326,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
         break;
     }
     _current = event.locator;
+    _chapter.value = event.locator.chapter.index;
     _pending = event.locator;
     _debounce?.cancel();
     _debounce = Timer(saveDebounce, _flush);
@@ -391,6 +396,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     _flushDisplay();
     unawaited(_profileSub?.cancel());
     _display.dispose();
+    _chapter.dispose();
     unawaited(_events?.cancel());
     unawaited(_release(_engine, _opened));
     super.dispose();
@@ -544,6 +550,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
 
   Widget _drawer() => _TocDrawer(
     toc: _opened?.toc ?? const [],
+    chapter: _chapter,
     onSelect: (entry) {
       Navigator.of(context).pop();
       unawaited(_goTo(entry));
@@ -582,11 +589,34 @@ class _SlidingAppBar extends StatelessWidget implements PreferredSizeWidget {
   );
 }
 
-class _TocDrawer extends StatelessWidget {
-  const new({required this.toc, required this.onSelect});
+/// The table of contents; the entry of the current chapter is selected and
+/// scrolled into view when the drawer opens.
+class _TocDrawer extends StatefulWidget {
+  const new({required this.toc, required this.chapter, required this.onSelect});
 
   final List<TocEntry> toc;
+
+  /// Index of the chapter being read, `null` while the position is unknown.
+  final ValueListenable<int?> chapter;
   final void Function(TocEntry entry) onSelect;
+
+  @override
+  State<_TocDrawer> createState() => _TocDrawerState();
+}
+
+class _TocDrawerState extends State<_TocDrawer> {
+  final GlobalKey _currentKey = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final current = _currentKey.currentContext;
+      if (current != null) {
+        Scrollable.ensureVisible(current, alignment: 0.5);
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -598,24 +628,34 @@ class _TocDrawer extends StatelessWidget {
       }
     }
 
-    collect(toc, 0);
+    collect(widget.toc, 0);
+    final index = widget.chapter.value;
+    final current = index == null ? null : currentTocEntry(widget.toc, index);
     return Drawer(
       child: SafeArea(
         child: rows.isEmpty
             ? const Center(child: Text('No table of contents.'))
-            : ListView.builder(
-                itemCount: rows.length,
-                itemBuilder: (_, i) {
-                  final (entry, depth) = rows[i];
-                  return ListTile(
-                    contentPadding: EdgeInsetsDirectional.only(
-                      start: 16.0 + 16.0 * depth,
-                      end: 16,
-                    ),
-                    title: Text(entry.title),
-                    onTap: () => onSelect(entry),
-                  );
-                },
+            : SingleChildScrollView(
+                child: Column(
+                  children: [
+                    for (final (entry, depth) in rows)
+                      ListTile(
+                        key: identical(entry, current) ? _currentKey : null,
+                        contentPadding: EdgeInsetsDirectional.only(
+                          start: 16.0 + 16.0 * depth,
+                          end: 16,
+                        ),
+                        selected: identical(entry, current),
+                        title: Text(
+                          entry.title,
+                          style: identical(entry, current)
+                              ? const TextStyle(fontWeight: FontWeight.bold)
+                              : null,
+                        ),
+                        onTap: () => widget.onSelect(entry),
+                      ),
+                  ],
+                ),
               ),
       ),
     );
