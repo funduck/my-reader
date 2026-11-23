@@ -450,6 +450,77 @@ void main() {
     await close(tester);
   });
 
+  group('current chapter in the table of contents', () {
+    Future<void> openToc(WidgetTester tester) async {
+      tester.state<ScaffoldState>(find.byType(Scaffold)).openDrawer();
+      await tester.pumpAndSettle();
+    }
+
+    ListTile tile(WidgetTester tester, String title) => tester.widget<ListTile>(
+      find.ancestor(of: find.text(title), matching: find.byType(ListTile)),
+    );
+
+    macTest('is selected and bold after a position change', (tester) async {
+      await open(tester);
+      engines.single.emit(PositionChanged(at(2, 0.5)));
+      await tester.pump();
+      await openToc(tester);
+      expect(tile(tester, 'Chapter 3').selected, isTrue);
+      final style = tester.widget<Text>(find.text('Chapter 3')).style;
+      expect(style?.fontWeight, FontWeight.bold);
+      expect(tile(tester, 'Chapter 2').selected, isFalse);
+      expect(tester.widget<Text>(find.text('Chapter 2')).style, isNull);
+      await close(tester);
+    });
+
+    macTest('follows the position between openings', (tester) async {
+      await open(tester);
+      engines.single.emit(PositionChanged(at(1, 0.1)));
+      await tester.pump();
+      await openToc(tester);
+      expect(tile(tester, 'Chapter 2').selected, isTrue);
+      navigator.currentState!.pop();
+      await tester.pumpAndSettle();
+      engines.single.emit(PositionChanged(at(3, 0.1)));
+      await tester.pump();
+      await openToc(tester);
+      expect(tile(tester, 'Chapter 4').selected, isTrue);
+      expect(tile(tester, 'Chapter 2').selected, isFalse);
+      await close(tester);
+    });
+
+    macTest('nothing is selected before the first position', (tester) async {
+      await open(tester);
+      await openToc(tester);
+      for (final title in ['Chapter 1', 'Chapter 2', 'Chapter 3']) {
+        expect(tile(tester, title).selected, isFalse);
+      }
+      await close(tester);
+    });
+
+    macTest('is scrolled into view in a long table of contents', (
+      tester,
+    ) async {
+      adapter.register(
+        '/x/b1.epub',
+        const BookMetadata(title: 'Dune'),
+        chapters: [for (var i = 0; i < 60; i++) 'Text $i.'],
+      );
+      await open(tester);
+      engines.single.emit(PositionChanged(at(50, 0.5)));
+      await tester.pump();
+      await openToc(tester);
+      final finder = find.text('Chapter 51');
+      expect(finder, findsOneWidget);
+      expect(tile(tester, 'Chapter 51').selected, isTrue);
+      final drawer = tester.getRect(find.byType(Drawer));
+      expect(drawer.contains(tester.getCenter(finder)), isTrue);
+      final first = tester.getCenter(find.text('Chapter 1'));
+      expect(drawer.contains(first), isFalse);
+      await close(tester);
+    });
+  });
+
   macTest('a selected word is passed to the lookup with place and sentence', (
     tester,
   ) async {
