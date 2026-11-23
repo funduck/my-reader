@@ -90,9 +90,7 @@ void main() {
     expect(find.text('No lookups yet.'), findsOneWidget);
   });
 
-  testWidgets('lists terms newest first with count, gloss and book', (
-    tester,
-  ) async {
+  testWidgets('lists terms newest first with count and book', (tester) async {
     await books.save(book('a', 'Dune'));
     await lookup('e1', 'sand', at: DateTime.utc(2024), bookId: 'a');
     await lookup('e2', 'worm', at: DateTime.utc(2024, 3), bookId: 'a');
@@ -108,8 +106,48 @@ void main() {
     expect(titles, ['worm', 'sand']);
     expect(find.text('×2'), findsOneWidget);
     expect(find.text('×1'), findsOneWidget);
-    expect(find.text('a gloss of sand · Dune'), findsOneWidget);
-    expect(find.text('a gloss of worm · Dune'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(ExpansionTile),
+        matching: find.text('Dune'),
+      ),
+      findsNWidgets(2),
+    );
+  });
+
+  testWidgets('word row shows word, book and counter, never the sense', (
+    tester,
+  ) async {
+    await books.save(book('a', 'Dune'));
+    await lookup(
+      'e1',
+      'sand',
+      at: DateTime.utc(2024),
+      bookId: 'a',
+      gloss: '<p>loose <b>grains</b></p>',
+    );
+    await lookup('e2', 'worm', at: DateTime.utc(2024, 2));
+    await term('sand', ['e1']);
+    await term('worm', ['e2']);
+    await pumpHistory(tester);
+
+    expect(find.text('sand'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.widgetWithText(ExpansionTile, 'sand'),
+        matching: find.text('Dune'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('×1'), findsNWidgets(2));
+    expect(find.textContaining('grains'), findsNothing);
+    expect(find.textContaining('<'), findsNothing);
+    expect(find.textContaining('a gloss'), findsNothing);
+    // A word without a book has no subtitle.
+    final worm = tester.widget<ExpansionTile>(
+      find.widgetWithText(ExpansionTile, 'worm'),
+    );
+    expect(worm.subtitle, isNull);
   });
 
   testWidgets('expanding a term shows all contexts with dates', (tester) async {

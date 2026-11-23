@@ -7,8 +7,9 @@ import 'phrases_tab.dart';
 import 'providers.dart';
 
 /// History of lookups. The "Words" tab lists terms, the most recently looked
-/// up first, with a counter, a short gloss and the book; a term expands to all
-/// its contexts. The "Phrases" tab lists translated phrases.
+/// up first, with a counter and the book (no translation: dictionary senses
+/// may hold markup); a term expands to all its contexts. The "Phrases" tab
+/// lists translated phrases.
 class HistoryScreen extends ConsumerStatefulWidget {
   /// Creates the screen; [onOpenLocation], if given, is called when a context
   /// with a place in a book is tapped.
@@ -108,13 +109,9 @@ class _TermTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final term = entry.term;
     final book = entry.book;
-    final subtitle = [
-      if (entry.gloss.isNotEmpty) entry.gloss,
-      if (book != null) book.metadata.title,
-    ].join(' · ');
     return ExpansionTile(
       title: Text(term.normalized),
-      subtitle: subtitle.isEmpty ? null : Text(subtitle),
+      subtitle: book == null ? null : Text(book.metadata.title),
       trailing: Text('×${term.lookupCount}'),
       children: [
         for (final c in entry.contexts)

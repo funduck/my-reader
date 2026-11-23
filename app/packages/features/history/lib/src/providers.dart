@@ -34,15 +34,6 @@ class HistoryEntry {
   /// Time of the last lookup, `null` if no entry of the journal is left.
   DateTime? get lastAt => contexts.isEmpty ? null : contexts.first.event.at;
 
-  /// Short gloss: the first sense of the latest answer, empty if none.
-  String get gloss {
-    for (final c in contexts) {
-      final senses = c.event.result.senses;
-      if (senses.isNotEmpty) return senses.first.text;
-    }
-    return '';
-  }
-
   /// Book of the latest lookup that has one.
   Book? get book {
     for (final c in contexts) {
