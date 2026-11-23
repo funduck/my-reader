@@ -2,10 +2,13 @@ import 'package:core/domain_books.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import 'format.dart';
+import 'phrases_tab.dart';
 import 'providers.dart';
 
-/// History of lookups: terms, the most recently looked up first, with a
-/// counter, a short gloss and the book. A term expands to all its contexts.
+/// History of lookups. The "Words" tab lists terms, the most recently looked
+/// up first, with a counter, a short gloss and the book; a term expands to all
+/// its contexts. The "Phrases" tab lists translated phrases.
 class HistoryScreen extends ConsumerStatefulWidget {
   /// Creates the screen; [onOpenLocation], if given, is called when a context
   /// with a place in a book is tapped.
@@ -25,42 +28,61 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   Widget build(BuildContext context) {
     final entries = ref.watch(historyProvider(_book));
     final books = ref.watch(historyBooksProvider).value ?? const <Book>[];
-    return Scaffold(
-      appBar: AppBar(title: const Text('History')),
-      body: Column(
-        children: [
-          if (books.isNotEmpty)
-            SizedBox(
-              height: 56,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                children: [
-                  _chip('All books', _book == null, () => _select(null)),
-                  for (final b in books)
-                    _chip(b.metadata.title, _book == b.id, () => _select(b.id)),
-                ],
-              ),
-            ),
-          Expanded(
-            child: entries.when(
-              data: (items) => items.isEmpty
-                  ? const Center(child: Text('No lookups yet.'))
-                  : ListView.builder(
-                      itemCount: items.length,
-                      itemBuilder: (_, i) => _TermTile(
-                        key: ValueKey(items[i].term.id),
-                        entry: items[i],
-                        onOpenLocation: widget.onOpenLocation,
-                      ),
-                    ),
-              error: (e, _) =>
-                  Center(child: Text('History is unavailable: $e')),
-              loading: () => const Center(child: CircularProgressIndicator()),
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('History'),
+          bottom: const TabBar(
+            tabs: [
+              Tab(text: 'Words'),
+              Tab(text: 'Phrases'),
+            ],
+          ),
+        ),
+        body: TabBarView(
+          children: [
+            _words(entries, books),
+            PhrasesTab(onOpenLocation: widget.onOpenLocation),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _words(AsyncValue<List<HistoryEntry>> entries, List<Book> books) {
+    return Column(
+      children: [
+        if (books.isNotEmpty)
+          SizedBox(
+            height: 56,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              children: [
+                _chip('All books', _book == null, () => _select(null)),
+                for (final b in books)
+                  _chip(b.metadata.title, _book == b.id, () => _select(b.id)),
+              ],
             ),
           ),
-        ],
-      ),
+        Expanded(
+          child: entries.when(
+            data: (items) => items.isEmpty
+                ? const Center(child: Text('No lookups yet.'))
+                : ListView.builder(
+                    itemCount: items.length,
+                    itemBuilder: (_, i) => _TermTile(
+                      key: ValueKey(items[i].term.id),
+                      entry: items[i],
+                      onOpenLocation: widget.onOpenLocation,
+                    ),
+                  ),
+            error: (e, _) => Center(child: Text('History is unavailable: $e')),
+            loading: () => const Center(child: CircularProgressIndicator()),
+          ),
+        ),
+      ],
     );
   }
 
@@ -99,7 +121,7 @@ class _TermTile extends StatelessWidget {
           ListTile(
             dense: true,
             title: Text(c.sentence),
-            subtitle: Text(_formatDate(c.event.at)),
+            subtitle: Text(formatHistoryDate(c.event.at)),
             onTap: switch ((onOpenLocation, c.event.query.locator)) {
               (final open?, final locator?) => () => open(locator),
               _ => null,
@@ -108,11 +130,4 @@ class _TermTile extends StatelessWidget {
       ],
     );
   }
-}
-
-String _formatDate(DateTime at) {
-  final t = at.toLocal();
-  String two(int n) => n.toString().padLeft(2, '0');
-  return '${t.year}-${two(t.month)}-${two(t.day)} '
-      '${two(t.hour)}:${two(t.minute)}';
 }

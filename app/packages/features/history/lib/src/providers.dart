@@ -119,3 +119,10 @@ final StreamProvider<List<LookupEvent>> _eventsProvider =
       (ref) => ref.watch(lookupJournalProvider).watch(),
       name: 'historyEventsProvider',
     );
+
+/// Translated phrases, the newest first.
+final StreamProvider<List<PhraseLookup>> historyPhrasesProvider =
+    StreamProvider<List<PhraseLookup>>(
+      (ref) => ref.watch(phraseJournalProvider).watchAll(),
+      name: 'historyPhrasesProvider',
+    );
