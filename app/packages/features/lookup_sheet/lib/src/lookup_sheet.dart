@@ -67,6 +67,9 @@ class _LookupSheetState extends ConsumerState<LookupSheet> {
   @override
   Widget build(BuildContext context) {
     final source = widget.query;
+    final original = source.mode;
+    final other = _otherMode(original);
+    final inOriginal = _mode == original;
     final query = LookupQuery(
       text: source.text,
       mode: _mode,
@@ -74,17 +77,55 @@ class _LookupSheetState extends ConsumerState<LookupSheet> {
       locator: source.locator,
     );
     final onOpenSettings = widget.onOpenSettings;
+    final all = ref.watch(lookupProvidersProvider);
     final candidates = [
-      for (final p in ref.watch(lookupProvidersProvider))
+      for (final p in all)
         if (p.supports(_mode)) p,
     ];
     // A pick that does not serve the mode (after a switch) falls back to auto.
     final provider = candidates.any((p) => p.id == _provider)
         ? _provider
         : null;
-    final outcome = ref.watch(
-      lookupOutcomeProvider((query: query, provider: provider)),
+
+    // The chain of the opening mode stays watched, so switching back and
+    // forth never repeats it.
+    final base = ref.watch(
+      lookupOutcomeProvider((query: source, provider: null)),
     );
+    final otherQuery = LookupQuery(
+      text: source.text,
+      mode: other,
+      sentence: source.sentence,
+      locator: source.locator,
+    );
+    final hasOther = all.any((p) => p.supports(other));
+    final probe = hasOther
+        ? ref.watch(otherModeProbeProvider(otherQuery))
+        : null;
+
+    final AsyncValue<LookupOutcome> outcome;
+    if (provider != null) {
+      outcome = ref.watch(
+        lookupOutcomeProvider((query: query, provider: provider)),
+      );
+    } else if (inOriginal) {
+      outcome = base;
+    } else {
+      outcome = switch (probe) {
+        AsyncData<LookupOutcome?>(value: final ready?) => AsyncData(ready),
+        AsyncLoading<LookupOutcome?>() => const AsyncLoading(),
+        // Nothing offline to ask, or the probe was inconclusive: ask for real.
+        _ => ref.watch(
+          lookupOutcomeProvider((query: otherQuery, provider: null)),
+        ),
+      };
+    }
+    final nothingInOther = switch (probe) {
+      AsyncData<LookupOutcome?>(value: LookupUnanswered(isNotFound: true)) =>
+        true,
+      _ => false,
+    };
+    final level = (outcome.value ?? base.value)?.wordLevel;
     return SafeArea(
       child: ConstrainedBox(
         constraints: BoxConstraints(
@@ -96,30 +137,31 @@ class _LookupSheetState extends ConsumerState<LookupSheet> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                query.text,
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
-              const SizedBox(height: 12),
-              SegmentedButton<LookupMode>(
-                segments: const [
-                  ButtonSegment(value: LookupMode.enRu, label: Text('EN → RU')),
-                  ButtonSegment(value: LookupMode.enEn, label: Text('EN → EN')),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      query.text,
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                  ),
+                  if (level != null) LevelBadge(level: level),
+                  if (hasOther) ...[
+                    const SizedBox(width: 8),
+                    _ModeToggle(
+                      mode: _mode,
+                      // Going back is always possible; going on is not when
+                      // the other mode is known to have nothing.
+                      onPressed: inOriginal && nothingInOther
+                          ? null
+                          : () => setState(
+                              () => _mode = inOriginal ? other : original,
+                            ),
+                    ),
+                  ],
                 ],
-                selected: {_mode},
-                showSelectedIcon: false,
-                onSelectionChanged: (modes) =>
-                    setState(() => _mode = modes.single),
               ),
-              if (candidates.length > 1) ...[
-                const SizedBox(height: 8),
-                _ProviderPicker(
-                  providers: candidates,
-                  selected: provider,
-                  onChanged: (id) => setState(() => _provider = id),
-                ),
-              ],
-              const SizedBox(height: 12),
+              const SizedBox(height: 4),
               switch (outcome) {
                 AsyncLoading() => const _Skeleton(),
                 AsyncError() => _Message(
@@ -149,8 +191,54 @@ class _LookupSheetState extends ConsumerState<LookupSheet> {
                   },
                 ),
               },
+              if (candidates.length > 1) ...[
+                const SizedBox(height: 8),
+                _ProviderPicker(
+                  providers: candidates,
+                  selected: provider,
+                  onChanged: (id) => setState(() => _provider = id),
+                ),
+              ],
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+LookupMode _otherMode(LookupMode mode) =>
+    mode == LookupMode.enRu ? LookupMode.enEn : LookupMode.enRu;
+
+/// Compact button with the current mode (`RU` / `EN`); a press switches to the
+/// other one. `onPressed: null` makes it inactive.
+class _ModeToggle extends StatelessWidget {
+  const new({required this.mode, required this.onPressed});
+
+  final LookupMode mode;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final (short, full) = switch (mode) {
+      LookupMode.enRu => ('RU', 'English → Russian'),
+      LookupMode.enEn => ('EN', 'English → English'),
+    };
+    return Tooltip(
+      message: full,
+      excludeFromSemantics: true,
+      child: OutlinedButton(
+        key: const Key('lookup-mode-toggle'),
+        style: OutlinedButton.styleFrom(
+          visualDensity: VisualDensity.compact,
+          minimumSize: const Size(44, 32),
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+        ),
+        onPressed: onPressed,
+        child: Semantics(
+          label: full,
+          excludeSemantics: true,
+          child: Text(short),
         ),
       ),
     );
@@ -328,16 +416,10 @@ class _Answer extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Wrap(
-          spacing: 12,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            if (transcription != null)
-              Text(transcription, style: theme.textTheme.titleMedium),
-            LevelBadge(level: outcome.wordLevel),
-          ],
-        ),
-        const SizedBox(height: 8),
+        if (transcription != null) ...[
+          Text(transcription, style: theme.textTheme.titleMedium),
+          const SizedBox(height: 8),
+        ],
         for (final (i, sense) in result.senses.indexed)
           Padding(
             padding: const EdgeInsets.only(bottom: 12),

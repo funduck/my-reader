@@ -47,3 +47,45 @@ final FutureProviderFamily<LookupOutcome, LookupRequest> lookupOutcomeProvider =
         cancel: cancel,
       );
     }, retry: (_, _) => null);
+
+/// Looks the word up in the other mode in the background, only in offline
+/// providers (no network use, no cost), one by one in registration order.
+///
+/// Gives the first [LookupAnswered]; the last "nothing found" when every one
+/// of them found nothing; `null` when nothing was asked or the answer is
+/// unclear (no offline provider, a provider unavailable). Nothing is written
+/// to the history: the sheet records the outcome only if it shows it (T-086).
+final FutureProviderFamily<LookupOutcome?, LookupQuery> otherModeProbeProvider =
+    FutureProvider.autoDispose.family<LookupOutcome?, LookupQuery>((
+      ref,
+      query,
+    ) async {
+      final cancel = CancelToken();
+      ref.onDispose(cancel.cancel);
+      final selection = ref.watch(lookupSelectionProvider);
+      final offline = [
+        for (final p in ref.watch(lookupProvidersProvider))
+          if (!p.info.isOnline && p.supports(query.mode)) p,
+      ];
+      LookupOutcome? notFound;
+      var unclear = false;
+      for (final p in offline) {
+        final outcome = await selection(
+          text: query.text,
+          mode: query.mode,
+          sentence: query.sentence,
+          locator: query.locator,
+          provider: p.id,
+          cancel: cancel,
+        );
+        switch (outcome) {
+          case LookupAnswered():
+            return outcome;
+          case LookupUnanswered(isNotFound: true):
+            notFound = outcome;
+          case LookupUnanswered():
+            unclear = true;
+        }
+      }
+      return unclear ? null : notFound;
+    }, retry: (_, _) => null);
