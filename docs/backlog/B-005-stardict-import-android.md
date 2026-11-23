@@ -1,6 +1,6 @@
 # B-005. Импорт StarDict не работает на Android
 
-**Статус:** backlog  
+**Статус:** done (2026-11-23, вариант 1: `file_picker`; проверено на Pixel)  
 **Тип:** баг  
 **Связано с:** [B-002](B-002-android-build-debt.md)
 
