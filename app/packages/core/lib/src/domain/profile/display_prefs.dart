@@ -185,6 +185,7 @@ final class DisplayPrefs {
     double textureOpacity = 0.5,
     double dim = 0,
     this.edgeTaps = true,
+    this.translateOnSelect = false,
     this.font,
     this.fontFolder,
   }) : fontSize = fontSize < minFontSize
@@ -217,6 +218,7 @@ final class DisplayPrefs {
       textureOpacity: number('textureOpacity', 0.5),
       dim: number('dim', 0),
       edgeTaps: edgeTaps is! bool || edgeTaps,
+      translateOnSelect: json['translateOnSelect'] == true,
       font: FontChoice.fromJson(json['font']),
       fontFolder: switch (json['fontFolder']) {
         final String folder when folder.isNotEmpty => folder,
@@ -279,6 +281,11 @@ final class DisplayPrefs {
   /// Whether a tap on the screen edge turns the page.
   final bool edgeTaps;
 
+  /// Whether a finished selection opens the translation at once.
+  ///
+  /// Off by default; an old profile without the field reads as `false`.
+  final bool translateOnSelect;
+
   /// The chosen font, or `null` for the system font.
   final FontChoice? font;
 
@@ -301,6 +308,7 @@ final class DisplayPrefs {
     double? textureOpacity,
     double? dim,
     bool? edgeTaps,
+    bool? translateOnSelect,
     FontChoice? Function()? font,
     String? Function()? fontFolder,
   }) => DisplayPrefs(
@@ -313,6 +321,7 @@ final class DisplayPrefs {
     textureOpacity: textureOpacity ?? this.textureOpacity,
     dim: dim ?? this.dim,
     edgeTaps: edgeTaps ?? this.edgeTaps,
+    translateOnSelect: translateOnSelect ?? this.translateOnSelect,
     font: font == null ? this.font : font(),
     fontFolder: fontFolder == null ? this.fontFolder : fontFolder(),
   );
@@ -328,6 +337,7 @@ final class DisplayPrefs {
     'textureOpacity': textureOpacity,
     'dim': dim,
     'edgeTaps': edgeTaps,
+    'translateOnSelect': translateOnSelect,
     'font': font?.toJson(),
     'fontFolder': fontFolder,
   };
@@ -344,6 +354,7 @@ final class DisplayPrefs {
       other.textureOpacity == textureOpacity &&
       other.dim == dim &&
       other.edgeTaps == edgeTaps &&
+      other.translateOnSelect == translateOnSelect &&
       other.font == font &&
       other.fontFolder == fontFolder;
 
@@ -358,6 +369,7 @@ final class DisplayPrefs {
     textureOpacity,
     dim,
     edgeTaps,
+    translateOnSelect,
     font,
     fontFolder,
   );

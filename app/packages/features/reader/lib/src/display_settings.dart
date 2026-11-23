@@ -29,6 +29,7 @@ ReaderSettings readerSettingsFrom(DisplayPrefs prefs) {
     textureOpacity: prefs.textureOpacity,
     dim: prefs.dim,
     edgeTaps: prefs.edgeTaps,
+    translateOnSelect: prefs.translateOnSelect,
   );
 }
 

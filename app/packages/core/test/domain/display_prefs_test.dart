@@ -19,6 +19,7 @@ void main() {
       expect(d.textureOpacity, 0.5);
       expect(d.dim, 0);
       expect(d.edgeTaps, isTrue);
+      expect(d.translateOnSelect, isFalse);
       expect(d.palette, d.day);
     });
 
@@ -38,6 +39,7 @@ void main() {
           textureOpacity: 0.25,
           dim: 0.4,
           edgeTaps: false,
+          translateOnSelect: true,
         );
         final back = DisplayPrefs.fromJson(_roundTrip(prefs.toJson()));
         expect(back, prefs);
@@ -83,6 +85,24 @@ void main() {
       expect(p.day.text, 0xFF111111);
       expect(p.day.background, DisplayPrefs.defaultDay.background);
       expect(p.edgeTaps, isFalse);
+    });
+
+    test('translateOnSelect: old JSON reads as false, true survives', () {
+      expect(
+        DisplayPrefs.fromJson(const {'fontSize': 20}).translateOnSelect,
+        isFalse,
+      );
+      expect(
+        DisplayPrefs.fromJson(const {'translateOnSelect': 'yes'})
+            .translateOnSelect,
+        isFalse,
+      );
+      final on = const DisplayPrefs().copyWith(translateOnSelect: true);
+      expect(
+        DisplayPrefs.fromJson(_roundTrip(on.toJson())).translateOnSelect,
+        isTrue,
+      );
+      expect(on == const DisplayPrefs(), isFalse);
     });
 
     test('out-of-range values are clamped', () {

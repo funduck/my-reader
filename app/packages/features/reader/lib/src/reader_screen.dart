@@ -288,6 +288,14 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     );
   }
 
+  void _toggleTranslate() {
+    final prefs = _display.value;
+    _changeDisplay(
+      prefs.copyWith(translateOnSelect: !prefs.translateOnSelect),
+      immediate: true,
+    );
+  }
+
   void _openQuickSettings() {
     showModalBottomSheet<void>(
       context: context,
@@ -447,6 +455,29 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
             ),
             tooltip: 'Day / Night',
             onPressed: _toggleMode,
+          ),
+        ),
+        ValueListenableBuilder<DisplayPrefs>(
+          valueListenable: _display,
+          builder: (context, prefs, _) => IconButton(
+            // On: filled button with a check mark; off: plain icon.
+            isSelected: prefs.translateOnSelect,
+            icon: const Icon(Icons.translate),
+            selectedIcon: const Badge(
+              label: Icon(Icons.check, size: 10),
+              child: Icon(Icons.translate),
+            ),
+            style: prefs.translateOnSelect
+                ? IconButton.styleFrom(
+                    backgroundColor: Theme.of(context)
+                        .colorScheme
+                        .secondaryContainer,
+                  )
+                : null,
+            tooltip: prefs.translateOnSelect
+                ? 'Translate: on'
+                : 'Translate: off',
+            onPressed: _toggleTranslate,
           ),
         ),
         IconButton(
