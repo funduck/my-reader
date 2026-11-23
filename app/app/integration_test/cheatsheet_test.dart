@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:core/domain_books.dart';
 import 'package:core/domain_lookup.dart';
 import 'package:core_testing/core_testing.dart';
@@ -11,11 +9,7 @@ import 'package:my_reader_app/router.dart';
 import 'package:reader_simple/reader_simple.dart';
 import 'package:text_en/text_en.dart';
 
-/// Mini `en-levels` pack of the service fixtures (`ephemeral` is C2,
-/// `ubiquitous` C1, `cat` A1). The path is relative to `app/app`, where
-/// `flutter test integration_test -d macos` runs.
-const _levelsFixture =
-    '../../service/fixtures/packs/en-levels-20260101.1.sqlite';
+import '../test/support/lookup_e2e.dart';
 
 /// Runs on macOS by a human (`flutter test integration_test/cheatsheet_test.dart
 /// -d macos`): book -> "Разминка" -> words -> tap -> definition, with the real
@@ -30,9 +24,10 @@ void main() {
   testWidgets('book -> "Разминка" -> words -> tap -> definition', (
     tester,
   ) async {
-    final packs = Directory.systemTemp.createTempSync('my-reader-packs');
-    addTearDown(() => packs.deleteSync(recursive: true));
-    File(_levelsFixture).copySync('${packs.path}/en-levels.sqlite');
+    // Mini `en-levels` pack embedded in the test (`ephemeral` is C2,
+    // `ubiquitous` C1, `cat` A1): the sandboxed macOS app cannot read
+    // `service/fixtures` from disk.
+    final packs = installPacks(only: {'en-levels'});
 
     final books = FakeBookRepository();
     await books.save(
