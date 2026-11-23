@@ -1,6 +1,6 @@
 # B-011. Шпаргалка: короткие цитаты, «знаю», уровень и частотность
 
-**Статус:** открыт  
+**Статус:** в задачах: [T-097](../tasks/T-097.md), [T-098](../tasks/T-098.md), [T-099](../tasks/T-099.md), проверка [U-8](../tasks/U-8.md); п. 6 — с [B-013](B-013-spaced-repetition.md)  
 **Тип:** доработка  
 **Связано с:** S-5, S-6, S-7 в [Requirements.md](../Requirements.md), [B-013](B-013-spaced-repetition.md), `features/cheatsheet`, `core/.../cheatsheet`
 
