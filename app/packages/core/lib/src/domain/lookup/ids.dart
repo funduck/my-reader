@@ -61,3 +61,23 @@ final class LookupEventId {
   @override
   String toString() => 'LookupEventId($value)';
 }
+
+/// Identifier of a phrase journal entry (`PhraseLookup`).
+@immutable
+final class PhraseLookupId {
+  /// Creates an id from its string [value].
+  const new(this.value);
+
+  /// Raw id string.
+  final String value;
+
+  @override
+  bool operator ==(Object other) =>
+      other is PhraseLookupId && other.value == value;
+
+  @override
+  int get hashCode => value.hashCode;
+
+  @override
+  String toString() => 'PhraseLookupId($value)';
+}

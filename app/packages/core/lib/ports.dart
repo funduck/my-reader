@@ -9,5 +9,6 @@ export 'src/ports/id_generator.dart';
 export 'src/ports/level_dictionary.dart';
 export 'src/ports/lookup_provider.dart';
 export 'src/ports/pack_store.dart';
+export 'src/ports/phrase_journal.dart';
 export 'src/ports/repositories.dart';
 export 'src/ports/text_analyzer.dart';

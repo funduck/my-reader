@@ -28,6 +28,15 @@ void main() {
     );
   });
 
+  test('the phrase journal port is unwired until bootstrap', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    expect(
+      () => container.read(phraseJournalProvider),
+      throwsA(anyOf(isA<PortNotWiredError>(), isA<ProviderException>())),
+    );
+  });
+
   test('an override supplies the port', () {
     final container = ProviderContainer(
       overrides: [clockProvider.overrideWithValue(_Clock())],

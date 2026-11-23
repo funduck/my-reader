@@ -39,6 +39,7 @@ void main() {
   profileRepositoryContract(() => _inMemory().profileRepository);
   lookupJournalContract(() => _inMemory().lookupJournal);
   termRepositoryContract(() => _inMemory().termRepository);
+  phraseJournalContract(() => _inMemory().phraseJournal);
 
   group('storage_drift', () {
     test(
