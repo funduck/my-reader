@@ -1,6 +1,6 @@
 # B-009. Перевод фраз через DeepL
 
-**Статус:** в задачах: [T-091](../tasks/T-091.md)…[T-095](../tasks/T-095.md)  
+**Статус:** done в M8 (T-091…T-095, 2026-11-23), кроме раздела «Потом»; настоящий DeepL не проверен руками  
 **Тип:** новая функция  
 **Связано с:** [B-008](B-008-selection-translate.md), P-2 в [Requirements.md](../Requirements.md), [Data-sources.md](../Data-sources.md) (DeepL API)
 
