@@ -157,6 +157,20 @@ void main() {
     expect(await phrases.byBook(const BookId('a')), hasLength(1));
   });
 
+  testWidgets('the Undo snack bar goes away on its own', (tester) async {
+    await phrases.record(phrase('p1', 'gave up', at: DateTime.utc(2024)));
+    await pumpPhrases(tester);
+    await openPhrasesTab(tester);
+
+    await tester.drag(find.text('gave up'), const Offset(800, 0));
+    await tester.pumpAndSettle(const Duration(seconds: 1));
+    expect(find.text('Undo'), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('Undo'), findsNothing);
+  });
+
   testWidgets('shows a hint when there are no phrases', (tester) async {
     await pumpPhrases(tester);
     await openPhrasesTab(tester);

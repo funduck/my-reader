@@ -441,6 +441,19 @@ void main() {
       expect(generator.calls, hasLength(1));
     });
 
+    testWidgets('the Undo snack bar goes away on its own', (tester) async {
+      await limitTo(2);
+      await open(tester, from: at(0, 0));
+      await tester.tap(find.byKey(const Key('cheatsheet-known-w1')));
+      await settle(tester);
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.text('Undo'), findsOneWidget);
+
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.text('Undo'), findsNothing);
+    });
+
     testWidgets('a failed mark puts the row back', (tester) async {
       await limitTo(2);
       terms = _FailingTerms();

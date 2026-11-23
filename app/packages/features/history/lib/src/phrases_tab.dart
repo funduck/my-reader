@@ -37,6 +37,7 @@ class _PhrasesTabState extends ConsumerState<PhrasesTab> {
       ..showSnackBar(
         SnackBar(
           content: const Text('Phrase deleted'),
+          persist: false,
           action: SnackBarAction(
             label: 'Undo',
             onPressed: () => _undo(journal, phrase),

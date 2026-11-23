@@ -162,6 +162,25 @@ void main() {
     expect((await terms.find('worm', 'en'))?.lookupCount, 1);
   });
 
+  testWidgets('the Undo snack bar goes away on its own', (tester) async {
+    await seed();
+    await pumpHistory(tester);
+    await tester.tap(filter);
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(
+        of: find.widgetWithText(ExpansionTile, 'worm'),
+        matching: unmark,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Undo'), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('Undo'), findsNothing);
+  });
+
   testWidgets('a term with no lookups leaves the history when unmarked, '
       'Undo brings it back', (tester) async {
     await seed();
