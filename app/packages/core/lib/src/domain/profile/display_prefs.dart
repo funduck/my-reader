@@ -134,6 +134,40 @@ final class FileTexture extends BackgroundTexture {
   int get hashCode => Object.hash(FileTexture, path);
 }
 
+/// A font the user picked: the copy kept by the app and its family name.
+@immutable
+final class FontChoice {
+  /// Creates a choice of the font file at [path] registered as [family].
+  const new({required this.path, required this.family});
+
+  /// Reads a choice; a missing or malformed value gives `null` (the system
+  /// font).
+  static FontChoice? fromJson(Object? json) {
+    if (json is! Map<String, Object?>) return null;
+    final path = json['path'];
+    final family = json['family'];
+    if (path is! String || path.isEmpty) return null;
+    if (family is! String || family.isEmpty) return null;
+    return FontChoice(path: path, family: family);
+  }
+
+  /// Absolute path of the copy in the application support directory.
+  final String path;
+
+  /// Family name the font is registered under; also shown in the list.
+  final String family;
+
+  /// JSON form: `{path, family}`.
+  Map<String, Object?> toJson() => {'path': path, 'family': family};
+
+  @override
+  bool operator ==(Object other) =>
+      other is FontChoice && other.path == path && other.family == family;
+
+  @override
+  int get hashCode => Object.hash(FontChoice, path, family);
+}
+
 /// How the reader looks: size, spacing, colours, texture, dimming, paging.
 ///
 /// Numbers outside their range are clamped by the constructor and
@@ -151,6 +185,8 @@ final class DisplayPrefs {
     double textureOpacity = 0.5,
     double dim = 0,
     this.edgeTaps = true,
+    this.font,
+    this.fontFolder,
   }) : fontSize = fontSize < minFontSize
            ? minFontSize
            : (fontSize > maxFontSize ? maxFontSize : fontSize),
@@ -181,6 +217,11 @@ final class DisplayPrefs {
       textureOpacity: number('textureOpacity', 0.5),
       dim: number('dim', 0),
       edgeTaps: edgeTaps is! bool || edgeTaps,
+      font: FontChoice.fromJson(json['font']),
+      fontFolder: switch (json['fontFolder']) {
+        final String folder when folder.isNotEmpty => folder,
+        _ => null,
+      },
     );
   }
 
@@ -238,10 +279,18 @@ final class DisplayPrefs {
   /// Whether a tap on the screen edge turns the page.
   final bool edgeTaps;
 
+  /// The chosen font, or `null` for the system font.
+  final FontChoice? font;
+
+  /// The last folder fonts were looked for in, or `null`.
+  final String? fontFolder;
+
   /// The palette of the active [mode].
   Palette get palette => mode == DisplayMode.day ? day : night;
 
   /// Copy with some fields replaced.
+  ///
+  /// [font] and [fontFolder] take a function so that `() => null` clears them.
   DisplayPrefs copyWith({
     double? fontSize,
     double? lineHeight,
@@ -252,6 +301,8 @@ final class DisplayPrefs {
     double? textureOpacity,
     double? dim,
     bool? edgeTaps,
+    FontChoice? Function()? font,
+    String? Function()? fontFolder,
   }) => DisplayPrefs(
     fontSize: fontSize ?? this.fontSize,
     lineHeight: lineHeight ?? this.lineHeight,
@@ -262,6 +313,8 @@ final class DisplayPrefs {
     textureOpacity: textureOpacity ?? this.textureOpacity,
     dim: dim ?? this.dim,
     edgeTaps: edgeTaps ?? this.edgeTaps,
+    font: font == null ? this.font : font(),
+    fontFolder: fontFolder == null ? this.fontFolder : fontFolder(),
   );
 
   /// JSON form.
@@ -275,6 +328,8 @@ final class DisplayPrefs {
     'textureOpacity': textureOpacity,
     'dim': dim,
     'edgeTaps': edgeTaps,
+    'font': font?.toJson(),
+    'fontFolder': fontFolder,
   };
 
   @override
@@ -288,7 +343,9 @@ final class DisplayPrefs {
       other.texture == texture &&
       other.textureOpacity == textureOpacity &&
       other.dim == dim &&
-      other.edgeTaps == edgeTaps;
+      other.edgeTaps == edgeTaps &&
+      other.font == font &&
+      other.fontFolder == fontFolder;
 
   @override
   int get hashCode => Object.hash(
@@ -301,5 +358,7 @@ final class DisplayPrefs {
     textureOpacity,
     dim,
     edgeTaps,
+    font,
+    fontFolder,
   );
 }

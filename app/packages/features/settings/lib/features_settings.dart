@@ -15,6 +15,18 @@ export 'src/background_texture.dart'
         maxBackgroundBytes;
 export 'src/dictionaries_controller.dart';
 export 'src/dictionaries_section.dart';
+export 'src/font_choice.dart'
+    show
+        FontEntry,
+        deleteFontCopy,
+        findFonts,
+        fontExtensions,
+        fontFilesPickerProvider,
+        fontFolderPickerProvider,
+        fontPickByFilesProvider,
+        fontsDirectoryProvider,
+        fontsFromFiles,
+        importFont;
 export 'src/packs_controller.dart';
 export 'src/reading_section.dart';
 export 'src/settings_screen.dart';

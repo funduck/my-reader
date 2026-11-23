@@ -10,11 +10,14 @@ final Logger _log = Logger('DisplaySettings');
 /// Converts the profile's [DisplayPrefs] to the engine's [ReaderSettings].
 ///
 /// `theme` follows `mode`; `text` and `background` come from the palette of
-/// the active mode (the theme does not derive them). `fontFamily` is left to
-/// the engine. A [FileTexture] whose file is gone gives no texture.
+/// the active mode (the theme does not derive them). `fontFamily` is the family
+/// of [DisplayPrefs.font]; the font must be registered first (see
+/// `loadUserFont`), and a font whose file is gone gives `null`. A
+/// [FileTexture] whose file is gone gives no texture.
 ReaderSettings readerSettingsFrom(DisplayPrefs prefs) {
   final palette = prefs.palette;
   return ReaderSettings(
+    fontFamily: _fontFamily(prefs.font),
     fontSize: prefs.fontSize,
     lineHeight: prefs.lineHeight,
     theme: prefs.mode == DisplayMode.night
@@ -44,4 +47,13 @@ ImageProvider? _fileTexture(String path) {
     return null;
   }
   return FileImage(file);
+}
+
+String? _fontFamily(FontChoice? font) {
+  if (font == null) return null;
+  if (!File(font.path).existsSync()) {
+    _log.warning('Font file is missing, using the system font: ${font.path}');
+    return null;
+  }
+  return font.family;
 }

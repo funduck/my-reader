@@ -125,6 +125,43 @@ void main() {
     });
   });
 
+  group('DisplayPrefs.font', () {
+    test('JSON without the font fields reads as the system font', () {
+      final json = _roundTrip(const DisplayPrefs().toJson())
+        ..remove('font')
+        ..remove('fontFolder');
+      final prefs = DisplayPrefs.fromJson(json);
+      expect(prefs.font, isNull);
+      expect(prefs.fontFolder, isNull);
+      expect(prefs, const DisplayPrefs());
+    });
+
+    test('round-trips and can be cleared', () {
+      const font = FontChoice(path: '/fonts/a.ttf', family: 'Lora Regular');
+      final prefs = const DisplayPrefs().copyWith(
+        font: () => font,
+        fontFolder: () => '/home/fonts',
+      );
+      final back = DisplayPrefs.fromJson(_roundTrip(prefs.toJson()));
+      expect(back, prefs);
+      expect(back.font, font);
+      expect(back.fontFolder, '/home/fonts');
+      expect(back.copyWith(font: () => null).font, isNull);
+      expect(back.copyWith(fontSize: 20).font, font);
+    });
+
+    test('a malformed font gives the system font', () {
+      for (final bad in <Object?>[
+        5,
+        {'path': '', 'family': 'x'},
+        {'path': '/a.ttf'},
+        {'path': '/a.ttf', 'family': ''},
+      ]) {
+        expect(DisplayPrefs.fromJson({'font': bad}).font, isNull);
+      }
+    });
+  });
+
   group('UserProfile.display', () {
     test('defaults and a profile without display', () {
       expect(const UserProfile().display, const DisplayPrefs());

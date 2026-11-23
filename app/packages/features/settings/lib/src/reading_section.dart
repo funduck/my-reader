@@ -9,6 +9,7 @@ import 'package:logging/logging.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'background_texture.dart';
+import 'font_editor.dart';
 
 final Logger _log = Logger('ReadingSection');
 
@@ -152,6 +153,8 @@ class ReadingSection extends ConsumerWidget {
             _updateDisplay(ref, (d) => d.copyWith(dim: (v * 20).round() / 20)),
           ),
         ),
+        const SizedBox(height: 16),
+        FontEditor(display: display),
         const SizedBox(height: 8),
         SegmentedButton<DisplayMode>(
           segments: const [
