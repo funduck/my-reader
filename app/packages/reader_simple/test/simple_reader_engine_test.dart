@@ -400,6 +400,18 @@ void main() {
           const ColorFilter.mode(Color(0xFF123456), BlendMode.overlay),
           reason: '$theme',
         );
+        // `overlay` also paints transparent pixels: without a clip right
+        // above it the filter floods past the view.
+        Widget? parent;
+        tester
+            .element(
+              find.ancestor(of: tiled, matching: find.byType(ColorFiltered)),
+            )
+            .visitAncestorElements((e) {
+              parent = e.widget;
+              return false;
+            });
+        expect(parent, isA<ClipRect>(), reason: '$theme');
       }
     });
 

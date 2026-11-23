@@ -82,17 +82,21 @@ class _TextureLayer extends StatelessWidget {
   final double opacity;
   final Color background;
 
+  // `overlay` paints transparent pixels with [background] too, so without the
+  // clip the filter floods everything up to the nearest clip.
   @override
   Widget build(BuildContext context) => Positioned.fill(
     child: RepaintBoundary(
-      child: ColorFiltered(
-        colorFilter: ColorFilter.mode(background, BlendMode.overlay),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            image: DecorationImage(
-              image: texture,
-              repeat: ImageRepeat.repeat,
-              opacity: opacity,
+      child: ClipRect(
+        child: ColorFiltered(
+          colorFilter: ColorFilter.mode(background, BlendMode.overlay),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              image: DecorationImage(
+                image: texture,
+                repeat: ImageRepeat.repeat,
+                opacity: opacity,
+              ),
             ),
           ),
         ),

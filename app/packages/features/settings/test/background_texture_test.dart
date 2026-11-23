@@ -216,6 +216,24 @@ void main() {
     );
   });
 
+  // `overlay` also paints transparent pixels, so an unclipped filter floods
+  // the whole settings list with the sample's background (U-7).
+  testWidgets('every texture filter is clipped right above it', (tester) async {
+    await pump(tester);
+    await tester.tap(find.byKey(const Key('texture-paper')));
+    await tester.pumpAndSettle();
+    final filters = find.byType(ColorFiltered);
+    expect(filters, findsWidgets);
+    for (final element in filters.evaluate()) {
+      Widget? parent;
+      element.visitAncestorElements((e) {
+        parent = e.widget;
+        return false;
+      });
+      expect(parent, isA<ClipRect>());
+    }
+  });
+
   testWidgets('choosing a texture is logged at info level', (tester) async {
     final records = <LogRecord>[];
     final previous = Logger.root.level;
