@@ -6,10 +6,21 @@ import 'package:core/ports.dart';
 import 'package:core_testing/core_testing.dart';
 import 'package:features_common/features_common.dart';
 import 'package:features_reader/features_reader.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:reader_api/reader_api.dart';
+
+/// What the fake engines draw; the default is a short text.
+Widget Function(BuildContext)? _engineView;
+
+class _FakeChrome implements SystemChromeGateway {
+  final List<SystemUiMode> modes = [];
+
+  @override
+  Future<void> setMode(SystemUiMode mode) async => modes.add(mode);
+}
 
 class _FakeEngine implements ReaderEngine {
   final _events = StreamController<ReaderEvent>.broadcast();
@@ -22,7 +33,8 @@ class _FakeEngine implements ReaderEngine {
   void emit(ReaderEvent event) => _events.add(event);
 
   @override
-  Widget buildView(BuildContext context) => const Text('engine view');
+  Widget buildView(BuildContext context) =>
+      _engineView?.call(context) ?? const Text('engine view');
 
   @override
   Future<void> load(
@@ -50,6 +62,13 @@ class _FakeEngine implements ReaderEngine {
   }
 }
 
+final _macOS = TargetPlatformVariant.only(TargetPlatform.macOS);
+
+/// A test on a desktop: the app bar is always shown (without T-087 the old
+/// tests run unchanged).
+void macTest(String description, Future<void> Function(WidgetTester) body) =>
+    testWidgets(description, body, variant: _macOS);
+
 void main() {
   const id = BookId('b1');
   late FakeBookRepository books;
@@ -57,6 +76,8 @@ void main() {
   late FakeProfileRepository profiles;
   late FakeBookFormatAdapter adapter;
   late List<_FakeEngine> engines;
+  late _FakeChrome chrome;
+  final navigator = GlobalKey<NavigatorState>();
   late List<({String text, Locator at, String sentence})> lookups;
 
   /// When set, the lookup stays open until it completes.
@@ -79,6 +100,8 @@ void main() {
         chapters: ['One.', 'Two.', 'Three.', 'Four.'],
       );
     engines = [];
+    chrome = _FakeChrome();
+    _engineView = null;
     lookups = [];
     lookupOpen = null;
     await books.save(
@@ -98,6 +121,7 @@ void main() {
     BookId bookId = id,
     Key? key,
     void Function(Locator)? onOpenCheatSheet,
+    VoidCallback? onOpenHistory,
   }) => ProviderScope(
     overrides: [
       bookRepositoryProvider.overrideWithValue(books),
@@ -105,6 +129,7 @@ void main() {
       profileRepositoryProvider.overrideWithValue(profiles),
       bookFormatsProvider.overrideWithValue([adapter]),
       clockProvider.overrideWithValue(FakeClock()),
+      systemChromeProvider.overrideWithValue(chrome),
       lookupPresenterProvider.overrideWithValue((
         context, {
         required text,
@@ -121,11 +146,13 @@ void main() {
       }),
     ],
     child: MaterialApp(
+      navigatorKey: navigator,
       home: ReaderScreen(
         key: key,
         bookId: bookId,
         locator: locator,
         onOpenCheatSheet: onOpenCheatSheet,
+        onOpenHistory: onOpenHistory,
       ),
     ),
   );
@@ -141,7 +168,182 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets('the warm-up button passes the current position', (tester) async {
+  group('fullscreen on a phone', () {
+    final android = TargetPlatformVariant.only(TargetPlatform.android);
+    const tap = ViewTapped(position: Offset.zero, size: Size.zero);
+
+    void phoneTest(
+      String description,
+      Future<void> Function(WidgetTester) body, {
+      TargetPlatformVariant? variant,
+    }) => testWidgets(description, body, variant: variant ?? android);
+
+    bool barShown(WidgetTester tester) =>
+        tester.getRect(find.byType(AppBar)).bottom > 0;
+
+    Future<void> toggle(WidgetTester tester) async {
+      engines.single.emit(tap);
+      await tester.pumpAndSettle();
+    }
+
+    phoneTest('opens with the app bar hidden and immersive bars', (
+      tester,
+    ) async {
+      await open(tester);
+      expect(barShown(tester), isFalse);
+      expect(chrome.modes, [SystemUiMode.immersiveSticky]);
+      await close(tester);
+    });
+
+    phoneTest('ViewTapped shows the bar and the system bars, again hides', (
+      tester,
+    ) async {
+      await open(tester);
+      await toggle(tester);
+      expect(barShown(tester), isTrue);
+      expect(chrome.modes.last, SystemUiMode.edgeToEdge);
+      await toggle(tester);
+      expect(barShown(tester), isFalse);
+      expect(chrome.modes.last, SystemUiMode.immersiveSticky);
+      await close(tester);
+    });
+
+    phoneTest('starting to scroll hides the menu', (tester) async {
+      _engineView = (_) => ListView.builder(
+        itemCount: 100,
+        itemBuilder: (_, i) => SizedBox(height: 50, child: Text('row $i')),
+      );
+      await open(tester);
+      await toggle(tester);
+      expect(barShown(tester), isTrue);
+      await tester.drag(find.byType(ListView), const Offset(0, -100));
+      await tester.pumpAndSettle();
+      expect(barShown(tester), isFalse);
+      expect(chrome.modes.last, SystemUiMode.immersiveSticky);
+      await close(tester);
+    });
+
+    phoneTest('going to the history restores the normal bars', (tester) async {
+      await tester.pumpWidget(
+        app(
+          onOpenHistory: () => navigator.currentState!.push(
+            MaterialPageRoute<void>(builder: (_) => const Text('history')),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      await toggle(tester);
+      chrome.modes.clear();
+      await tester.tap(find.byTooltip('History'));
+      await tester.pumpAndSettle();
+      expect(find.text('history'), findsOneWidget);
+      expect(chrome.modes, [SystemUiMode.edgeToEdge]);
+
+      navigator.currentState!.pop();
+      await tester.pumpAndSettle();
+      expect(chrome.modes.last, SystemUiMode.edgeToEdge);
+      await close(tester);
+    });
+
+    phoneTest('closing the screen restores the normal bars', (tester) async {
+      await open(tester);
+      expect(chrome.modes.last, SystemUiMode.immersiveSticky);
+      await close(tester);
+      expect(chrome.modes.last, SystemUiMode.edgeToEdge);
+    });
+
+    phoneTest('resumed with the menu hidden hides the bars again', (
+      tester,
+    ) async {
+      await open(tester);
+      chrome.modes.clear();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      expect(chrome.modes, [SystemUiMode.immersiveSticky]);
+      await close(tester);
+    });
+
+    phoneTest('resumed with the menu shown leaves the bars', (tester) async {
+      await open(tester);
+      await toggle(tester);
+      chrome.modes.clear();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      expect(chrome.modes, isEmpty);
+      await close(tester);
+    });
+
+    phoneTest('the reading position does not move with the menu', (
+      tester,
+    ) async {
+      _engineView = (_) => ListView.builder(
+        itemCount: 200,
+        itemBuilder: (_, i) => SizedBox(height: 50, child: Text('row $i')),
+      );
+      await open(tester);
+      await tester.drag(find.byType(ListView), const Offset(0, -400));
+      await tester.pumpAndSettle();
+      final row = find.text('row 10');
+      final before = tester.getTopLeft(row);
+      final offset = tester
+          .state<ScrollableState>(find.byType(Scrollable))
+          .position
+          .pixels;
+
+      await toggle(tester);
+      expect(tester.getTopLeft(row), before);
+      await toggle(tester);
+      expect(tester.getTopLeft(row), before);
+      expect(
+        tester.state<ScrollableState>(find.byType(Scrollable)).position.pixels,
+        offset,
+      );
+      await close(tester);
+    });
+
+    phoneTest('the text keeps the top inset of the cutout in both states', (
+      tester,
+    ) async {
+      tester.view.viewPadding = const FakeViewPadding(top: 30);
+      tester.view.padding = FakeViewPadding.zero;
+      addTearDown(tester.view.resetPadding);
+      addTearDown(tester.view.resetViewPadding);
+      final seen = <double>[];
+      _engineView = (context) {
+        seen.add(MediaQuery.paddingOf(context).top);
+        return const Text('engine view');
+      };
+      await open(tester);
+      await toggle(tester);
+      await toggle(tester);
+      expect(seen, isNotEmpty);
+      expect(seen.toSet(), {30.0 / tester.view.devicePixelRatio});
+      await close(tester);
+    });
+
+    phoneTest('the same on iOS', (tester) async {
+      await open(tester);
+      expect(barShown(tester), isFalse);
+      expect(chrome.modes, [SystemUiMode.immersiveSticky]);
+      await close(tester);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
+    phoneTest('macOS: the bar is always shown and chrome is not touched', (
+      tester,
+    ) async {
+      await open(tester);
+      expect(barShown(tester), isTrue);
+      await toggle(tester);
+      await toggle(tester);
+      expect(barShown(tester), isTrue);
+      expect(find.text('Dune'), findsOneWidget);
+      await close(tester);
+      expect(chrome.modes, isEmpty);
+    }, variant: _macOS);
+  });
+
+  macTest('the warm-up button passes the current position', (tester) async {
     final opened = <Locator>[];
     await tester.pumpWidget(app(onOpenCheatSheet: opened.add));
     await tester.pump();
@@ -157,13 +359,13 @@ void main() {
     await close(tester);
   });
 
-  testWidgets('no warm-up button without a callback', (tester) async {
+  macTest('no warm-up button without a callback', (tester) async {
     await open(tester);
     expect(find.byTooltip('Разминка'), findsNothing);
     await close(tester);
   });
 
-  testWidgets('shows the engine view and the title', (tester) async {
+  macTest('shows the engine view and the title', (tester) async {
     await open(tester);
     expect(find.text('engine view'), findsOneWidget);
     expect(find.text('Dune'), findsOneWidget);
@@ -171,7 +373,7 @@ void main() {
     expect(engines.single.loads.single.bookId, id);
   });
 
-  testWidgets('saves the position one second after the last change', (
+  macTest('saves the position one second after the last change', (
     tester,
   ) async {
     await open(tester);
@@ -188,7 +390,7 @@ void main() {
     await close(tester);
   });
 
-  testWidgets('saves at once when the app is paused', (tester) async {
+  macTest('saves at once when the app is paused', (tester) async {
     await open(tester);
     engines.single.emit(PositionChanged(at(2, 0.5)));
     await tester.pump(const Duration(milliseconds: 100));
@@ -199,7 +401,7 @@ void main() {
     await close(tester);
   });
 
-  testWidgets('saves when the screen is closed and releases the engine', (
+  macTest('saves when the screen is closed and releases the engine', (
     tester,
   ) async {
     await open(tester);
@@ -210,7 +412,7 @@ void main() {
     expect(engines.single.disposed, isTrue);
   });
 
-  testWidgets('a new screen resumes from the saved position', (tester) async {
+  macTest('a new screen resumes from the saved position', (tester) async {
     await open(tester);
     engines.single.emit(PositionChanged(at(2, 0.25)));
     await tester.pump(saveDebounce);
@@ -222,9 +424,7 @@ void main() {
     await close(tester);
   });
 
-  testWidgets('an explicit locator wins over the saved position', (
-    tester,
-  ) async {
+  macTest('an explicit locator wins over the saved position', (tester) async {
     await progress.save(
       ReadingProgress(
         locator: at(0, 0.9),
@@ -237,7 +437,7 @@ void main() {
     await close(tester);
   });
 
-  testWidgets('the table of contents opens a chapter', (tester) async {
+  macTest('the table of contents opens a chapter', (tester) async {
     await open(tester);
     tester.state<ScaffoldState>(find.byType(Scaffold)).openDrawer();
     await tester.pumpAndSettle();
@@ -250,7 +450,7 @@ void main() {
     await close(tester);
   });
 
-  testWidgets('a tapped word is passed to the lookup with place and sentence', (
+  macTest('a tapped word is passed to the lookup with place and sentence', (
     tester,
   ) async {
     await open(tester);
@@ -264,9 +464,7 @@ void main() {
     await close(tester);
   });
 
-  testWidgets('the tapped word is marked while its lookup is open', (
-    tester,
-  ) async {
+  macTest('the tapped word is marked while its lookup is open', (tester) async {
     await open(tester);
     final engine = engines.single;
     lookupOpen = Completer<void>();
@@ -284,7 +482,7 @@ void main() {
     await close(tester);
   });
 
-  testWidgets('after the lookup the place from history stays marked', (
+  macTest('after the lookup the place from history stays marked', (
     tester,
   ) async {
     final target = at(2, 0.5);
@@ -307,9 +505,7 @@ void main() {
     await close(tester);
   });
 
-  testWidgets('a selection is passed to the lookup the same way', (
-    tester,
-  ) async {
+  macTest('a selection is passed to the lookup the same way', (tester) async {
     await open(tester);
     engines.single.emit(
       TextSelected(
@@ -325,7 +521,7 @@ void main() {
     await close(tester);
   });
 
-  testWidgets('a failing lookup does not break the reader', (tester) async {
+  macTest('a failing lookup does not break the reader', (tester) async {
     // Not wired in this scope: the presenter throws on read.
     await tester.pumpWidget(
       ProviderScope(
@@ -353,7 +549,7 @@ void main() {
     await close(tester);
   });
 
-  testWidgets('an unknown book shows a message', (tester) async {
+  macTest('an unknown book shows a message', (tester) async {
     await tester.pumpWidget(app(bookId: const BookId('nope')));
     await tester.pump();
     await tester.pump();
@@ -377,7 +573,7 @@ void main() {
   });
 
   group('display settings', () {
-    testWidgets('are applied after load and on every profile change', (
+    macTest('are applied after load and on every profile change', (
       tester,
     ) async {
       await profiles.save(
@@ -409,7 +605,7 @@ void main() {
       await close(tester);
     });
 
-    testWidgets('the day/night button saves the other mode', (tester) async {
+    macTest('the day/night button saves the other mode', (tester) async {
       await open(tester);
       expect(find.byIcon(Icons.light_mode), findsOneWidget);
       await tester.tap(find.byTooltip('Day / Night'));
@@ -421,7 +617,7 @@ void main() {
       await close(tester);
     });
 
-    testWidgets('a slider saves once after the debounce', (tester) async {
+    macTest('a slider saves once after the debounce', (tester) async {
       var saves = 0;
       final counting = _CountingProfiles(profiles, () => saves++);
       await tester.pumpWidget(
@@ -461,7 +657,7 @@ void main() {
       await tester.pump();
     });
 
-    testWidgets('A+ in the panel grows the font by one', (tester) async {
+    macTest('A+ in the panel grows the font by one', (tester) async {
       await open(tester);
       await tester.tap(find.byTooltip('Text'));
       await tester.pumpAndSettle();

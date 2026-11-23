@@ -25,6 +25,12 @@ abstract interface class TextInteractions {
   /// The user chose "Translate" with `target.text.substring(start, end)`
   /// selected.
   void textSelected(TextTarget target, int start, int end);
+
+  /// The text of [target] got a non-empty selection ([active]) or lost it.
+  ///
+  /// A tap while any text is selected only clears the selection and is not a
+  /// `ViewTapped`.
+  void selectionChanged(TextTarget target, {required bool active});
 }
 
 final RegExp _word = RegExp(

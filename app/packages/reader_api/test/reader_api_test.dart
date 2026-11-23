@@ -13,6 +13,7 @@ String describe(ReaderEvent event) => switch (event) {
   PositionChanged() => 'position',
   TextSelected(:final text) => 'selected $text',
   WordTapped(:final word) => 'tapped $word',
+  ViewTapped(:final position) => 'view tapped ${position.dx}',
   ChapterFinished(:final chapter) => 'finished ${chapter.index}',
 };
 
@@ -49,6 +50,17 @@ void main() {
   test('ReaderEvent switch is exhaustive and distinguishes variants', () {
     expect(describe(const ChapterFinished(_chapter)), 'finished 0');
     expect(describe(const ChapterFinished(_chapter)), isNot('position'));
+  });
+
+  test('ViewTapped has value equality and carries point and size', () {
+    const tap = ViewTapped(position: Offset(3, 4), size: Size(100, 200));
+    expect(tap, const ViewTapped(position: Offset(3, 4), size: Size(100, 200)));
+    expect(tap.hashCode, tap.hashCode);
+    expect(
+      tap,
+      isNot(const ViewTapped(position: Offset(3, 5), size: Size(100, 200))),
+    );
+    expect(describe(tap), 'view tapped 3.0');
   });
 
   test('ChapterFinished has value equality', () {

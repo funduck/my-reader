@@ -11,6 +11,7 @@ import 'package:reader_api/reader_api.dart';
 import 'package:reader_simple/reader_simple.dart';
 import 'package:reader_simple/src/block_view.dart' show PressMarkPainter;
 import 'package:reader_simple/src/interactions.dart';
+import 'package:reader_simple/src/reader_view.dart' show ReaderView;
 
 import 'fake_text_analyzer.dart';
 
@@ -190,6 +191,172 @@ Future<void> _select(
   editable.showToolbar();
   await tester.pump();
 }
+
+/// The single-tap events (T-087).
+List<ViewTapped> _viewTaps(_Harness h) =>
+    h.events.whereType<ViewTapped>().toList();
+
+/// A quick touch tap on [at]; waits out the double-tap window.
+Future<void> _touchTap(WidgetTester tester, Offset at) async {
+  final gesture = await tester.startGesture(at);
+  await tester.pump(const Duration(milliseconds: 50));
+  await gesture.up();
+  await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 10));
+}
+
+/// A quick click of the primary mouse button on [at]; waits out the
+/// double-click window.
+Future<void> _quickClick(WidgetTester tester, Offset at) async {
+  await _click(tester, at);
+  await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 10));
+}
+
+void _viewTapTests({required bool mouse}) {
+  Future<void> tap(WidgetTester tester, Offset at) =>
+      mouse ? _quickClick(tester, at) : _touchTap(tester, at);
+
+  Size viewSize(WidgetTester tester) => tester.getSize(find.byType(ReaderView));
+
+  testWidgets('a tap on a word gives one ViewTapped with point and size', (
+    tester,
+  ) async {
+    final h = await _openText(tester, _fox);
+    final at = _centerOf(tester, 'quick', 'brown');
+    await tap(tester, at);
+
+    expect(h.taps, isEmpty);
+    expect(_viewTaps(h), [ViewTapped(position: at, size: viewSize(tester))]);
+  });
+
+  testWidgets('a tap on empty space under the chapter gives ViewTapped', (
+    tester,
+  ) async {
+    final h = await _openText(tester, _fox);
+    const at = Offset(300, 450);
+    expect(find.byType(SelectableText).hitTestable(), findsOneWidget);
+    await tap(tester, at);
+
+    expect(_viewTaps(h), [ViewTapped(position: at, size: viewSize(tester))]);
+  });
+
+  testWidgets('a tap on the margin gives ViewTapped', (tester) async {
+    final h = await _openText(tester, _fox);
+    final text = tester.getRect(find.byType(SelectableText));
+    final at = Offset(4, text.center.dy);
+    await tap(tester, at);
+
+    expect(_viewTaps(h), [ViewTapped(position: at, size: viewSize(tester))]);
+  });
+
+  testWidgets('the event comes after the double-tap window', (tester) async {
+    final h = await _openText(tester, _fox);
+    final gesture = await tester.startGesture(
+      _centerOf(tester, 'quick', 'brown'),
+      kind: mouse ? PointerDeviceKind.mouse : PointerDeviceKind.touch,
+    );
+    await gesture.up();
+    await tester.pump(kDoubleTapTimeout - const Duration(milliseconds: 10));
+    expect(_viewTaps(h), isEmpty);
+    await tester.pump(const Duration(milliseconds: 20));
+    expect(_viewTaps(h), hasLength(1));
+  });
+
+  testWidgets('a hold of 500 ms gives WordTapped and no ViewTapped', (
+    tester,
+  ) async {
+    final h = await _openText(tester, _fox);
+    final at = _centerOf(tester, 'quick', 'brown');
+    if (mouse) {
+      await _mouseHold(
+        tester,
+        at,
+        lookupHoldDuration + const Duration(milliseconds: 10),
+      );
+    } else {
+      await _tap(tester, at);
+    }
+
+    expect((h.taps.single as WordTapped).word, 'brown');
+    expect(_viewTaps(h), isEmpty);
+  });
+
+  testWidgets('a double tap gives no ViewTapped', (tester) async {
+    final h = await _openText(tester, _fox);
+    final at = _centerOf(tester, 'quick', 'brown');
+    if (mouse) {
+      await _click(tester, at);
+      await tester.pump(kDoubleTapMinTime);
+      await _click(tester, at);
+    } else {
+      await tester.tapAt(at);
+      await tester.pump(kDoubleTapMinTime);
+      await tester.tapAt(at);
+    }
+    await tester.pump(kDoubleTapTimeout * 2);
+
+    expect(_viewTaps(h), isEmpty);
+    expect(h.taps, isEmpty);
+  });
+
+  testWidgets('a drag gives no ViewTapped', (tester) async {
+    final h = await _openText(tester, _fox);
+    final gesture = await tester.startGesture(
+      _centerOf(tester, 'quick', 'quick'),
+      kind: mouse ? PointerDeviceKind.mouse : PointerDeviceKind.touch,
+    );
+    await tester.pump(const Duration(milliseconds: 50));
+    await gesture.moveBy(const Offset(40, 0));
+    await gesture.up();
+    await tester.pump(kDoubleTapTimeout * 2);
+
+    expect(_viewTaps(h), isEmpty);
+  });
+
+  testWidgets('a scroll gives no ViewTapped', (tester) async {
+    final h = await _open(tester, FakeOpenedBook(chapters: [_longChapter()]));
+    final gesture = await tester.startGesture(const Offset(300, 450));
+    await gesture.moveBy(const Offset(0, -200));
+    await tester.pump(const Duration(milliseconds: 50));
+    await gesture.up();
+    await tester.pump(kDoubleTapTimeout * 2);
+
+    expect(_viewTaps(h), isEmpty);
+  });
+
+  testWidgets('a tap that only clears a selection gives no ViewTapped', (
+    tester,
+  ) async {
+    final h = await _openText(tester, _fox);
+    await _select(tester, 'quick', 4, 9);
+    await tap(tester, const Offset(300, 450));
+    expect(_viewTaps(h), isEmpty);
+
+    // The selection is gone: the next tap counts.
+    await tap(tester, const Offset(300, 450));
+    expect(_viewTaps(h), hasLength(1));
+  });
+
+  testWidgets('a tap on Next chapter opens it and gives no ViewTapped', (
+    tester,
+  ) async {
+    final h = await _open(
+      tester,
+      FakeOpenedBook(chapters: ['First chapter text.', 'Second chapter text.']),
+    );
+    await tap(tester, tester.getCenter(find.text('Next chapter')));
+    await tester.pump();
+
+    expect(find.textContaining('Second chapter text.'), findsOneWidget);
+    expect(_viewTaps(h), isEmpty);
+
+    // The next tap is not swallowed.
+    await tap(tester, const Offset(300, 450));
+    expect(_viewTaps(h), hasLength(1));
+  });
+}
+
+String _longChapter() =>
+    List.filled(60, 'A paragraph of the long chapter.').join('\n\n');
 
 final _macOS = TargetPlatformVariant.only(TargetPlatform.macOS);
 
@@ -552,6 +719,12 @@ void main() {
         isFalse,
       );
     }, variant: _macOS);
+  });
+
+  group('single tap on the view, touch', () => _viewTapTests(mouse: false));
+
+  group('single tap on the view, mouse', () {
+    _viewTapTests(mouse: true);
   });
 
   group('sentence at a paragraph boundary', () {
