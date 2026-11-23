@@ -218,7 +218,7 @@ LookupPresenter _buildLookupPresenter(Ref ref) {
         sentence: sentence,
         locator: at,
       ),
-      onOpenSettings: () => context.go(Routes.settings),
+      onOpenSettings: () => context.push(Routes.settings),
     );
   };
 }

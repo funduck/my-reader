@@ -27,6 +27,8 @@ class ReaderScreen extends ConsumerStatefulWidget {
     required this.bookId,
     this.locator,
     this.onOpenCheatSheet,
+    this.onOpenHistory,
+    this.onOpenSettings,
     super.key,
   });
 
@@ -39,6 +41,12 @@ class ReaderScreen extends ConsumerStatefulWidget {
   /// Called by the "Разминка" button with the current position; without it
   /// the button is not shown.
   final void Function(Locator at)? onOpenCheatSheet;
+
+  /// Called by the "History" button; without it the button is not shown.
+  final VoidCallback? onOpenHistory;
+
+  /// Called by the "Settings" button; without it the button is not shown.
+  final VoidCallback? onOpenSettings;
 
   @override
   ConsumerState<ReaderScreen> createState() => _ReaderScreenState();
@@ -256,6 +264,18 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
               icon: const Icon(Icons.lightbulb_outline),
               tooltip: 'Разминка',
               onPressed: _openCheatSheet,
+            ),
+          if (widget.onOpenHistory != null)
+            IconButton(
+              icon: const Icon(Icons.history),
+              tooltip: 'History',
+              onPressed: widget.onOpenHistory,
+            ),
+          if (widget.onOpenSettings != null)
+            IconButton(
+              icon: const Icon(Icons.settings_outlined),
+              tooltip: 'Settings',
+              onPressed: widget.onOpenSettings,
             ),
         ],
       ),
