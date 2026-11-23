@@ -5,7 +5,8 @@ import 'package:material_ui/material_ui.dart';
 import 'providers.dart';
 
 /// History of lookups: terms, the most recently looked up first, with a
-/// counter, a short gloss and the book. A term expands to all its contexts.
+/// counter and the book (no translation: dictionary senses may hold markup).
+/// A term expands to all its contexts.
 class HistoryScreen extends ConsumerStatefulWidget {
   /// Creates the screen; [onOpenLocation], if given, is called when a context
   /// with a place in a book is tapped.
@@ -86,13 +87,9 @@ class _TermTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final term = entry.term;
     final book = entry.book;
-    final subtitle = [
-      if (entry.gloss.isNotEmpty) entry.gloss,
-      if (book != null) book.metadata.title,
-    ].join(' · ');
     return ExpansionTile(
       title: Text(term.normalized),
-      subtitle: subtitle.isEmpty ? null : Text(subtitle),
+      subtitle: book == null ? null : Text(book.metadata.title),
       trailing: Text('×${term.lookupCount}'),
       children: [
         for (final c in entry.contexts)
