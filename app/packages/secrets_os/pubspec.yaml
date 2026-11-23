@@ -9,7 +9,7 @@ dependencies:
   core: any
   flutter:
     sdk: flutter
-  flutter_secure_storage: ^9.2.4
+  flutter_secure_storage: ^10.0.0
   logging: ^1.3.0
 dev_dependencies:
   core_testing: any
