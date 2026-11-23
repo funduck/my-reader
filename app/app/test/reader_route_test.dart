@@ -90,6 +90,7 @@ void main() {
         overrides: [
           ...buildOverrides(),
           bookRepositoryProvider.overrideWithValue(database.bookRepository),
+          profileRepositoryProvider.overrideWithValue(FakeProfileRepository()),
           progressRepositoryProvider.overrideWithValue(
             database.progressRepository,
           ),

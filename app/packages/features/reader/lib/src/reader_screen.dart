@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:core/application.dart';
 import 'package:core/domain_books.dart';
+import 'package:core/domain_lookup.dart';
 import 'package:core/ports.dart';
 import 'package:features_common/features_common.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,12 +10,17 @@ import 'package:logging/logging.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:reader_api/reader_api.dart';
 
+import 'display_settings.dart';
 import 'providers.dart';
+import 'quick_settings_sheet.dart';
 
 final Logger _log = Logger('ReaderScreen');
 
 /// How long the position must stay unchanged before it is saved.
 const Duration saveDebounce = Duration(seconds: 1);
+
+/// How long display settings must stay unchanged before they are saved.
+const Duration displaySaveDebounce = Duration(milliseconds: 300);
 
 /// Shows a book: the engine's view, the table of contents in a side drawer.
 ///
@@ -57,6 +63,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   late final OpenBook _openBook;
   late final SaveProgress _saveProgress;
   late final ReaderEngineFactory _factory;
+  late final ProfileRepository _profiles;
 
   ReaderEngine? _engine;
   OpenedBook? _opened;
@@ -65,6 +72,13 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   StreamSubscription<ReaderEvent>? _events;
   Timer? _debounce;
   Locator? _pending;
+
+  final ValueNotifier<DisplayPrefs> _display = ValueNotifier(
+    const DisplayPrefs(),
+  );
+  StreamSubscription<UserProfile>? _profileSub;
+  Timer? _displayDebounce;
+  bool _displayLoaded = false;
 
   /// The last known position: reported by the engine, else where it opened.
   Locator? _current;
@@ -76,6 +90,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     _openBook = ref.read(openBookProvider);
     _saveProgress = ref.read(saveProgressProvider);
     _factory = ref.read(readerEngineFactoryProvider);
+    _profiles = ref.read(profileRepositoryProvider);
+    _profileSub = _profiles.watch().listen(
+      _onProfile,
+      onError: (Object e, StackTrace s) =>
+          _log.warning('Watching the profile failed', e, s),
+    );
     unawaited(_start());
   }
 
@@ -122,10 +142,74 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
       at: widget.locator ?? outcome.resumeAt,
     );
     if (!mounted) return;
+    if (!_displayLoaded) {
+      _display.value = (await _profiles.get()).display;
+      _displayLoaded = true;
+      if (!mounted) return;
+    }
+    engine.applySettings(readerSettingsFrom(_display.value));
     // A place opened from a route link (history) is marked in the text.
     final target = widget.locator;
     if (target != null) engine.highlight([target]);
     setState(() => _book = outcome.book);
+  }
+
+  void _onProfile(UserProfile profile) {
+    // While the user is changing a value here, the stored one is older.
+    if (_displayDebounce != null) return;
+    _displayLoaded = true;
+    if (profile.display == _display.value) return;
+    _display.value = profile.display;
+    _engine?.applySettings(readerSettingsFrom(profile.display));
+  }
+
+  /// Applies [prefs] at once and saves them after [displaySaveDebounce], or
+  /// right away when [immediate].
+  void _changeDisplay(DisplayPrefs prefs, {bool immediate = false}) {
+    _display.value = prefs;
+    _engine?.applySettings(readerSettingsFrom(prefs));
+    _displayDebounce?.cancel();
+    if (immediate) {
+      _displayDebounce = null;
+      unawaited(_saveDisplay(prefs));
+    } else {
+      _displayDebounce = Timer(displaySaveDebounce, _flushDisplay);
+    }
+  }
+
+  void _flushDisplay() {
+    if (_displayDebounce == null) return;
+    _displayDebounce?.cancel();
+    _displayDebounce = null;
+    unawaited(_saveDisplay(_display.value));
+  }
+
+  Future<void> _saveDisplay(DisplayPrefs prefs) async {
+    try {
+      await _profiles.save((await _profiles.get()).copyWith(display: prefs));
+    } on Object catch (e, s) {
+      _log.severe('Saving the display settings failed', e, s);
+    }
+  }
+
+  void _toggleMode() {
+    final prefs = _display.value;
+    _changeDisplay(
+      prefs.copyWith(
+        mode: prefs.mode == DisplayMode.day
+            ? DisplayMode.night
+            : DisplayMode.day,
+      ),
+      immediate: true,
+    );
+  }
+
+  void _openQuickSettings() {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (_) =>
+          QuickSettingsSheet(display: _display, onChanged: _changeDisplay),
+    );
   }
 
   void _fail(String message) {
@@ -204,6 +288,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _flush();
+    _flushDisplay();
+    unawaited(_profileSub?.cancel());
+    _display.dispose();
     unawaited(_events?.cancel());
     unawaited(_release(_engine, _opened));
     super.dispose();
@@ -259,6 +346,23 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
       appBar: AppBar(
         title: Text(book.metadata.title),
         actions: [
+          ValueListenableBuilder<DisplayPrefs>(
+            valueListenable: _display,
+            builder: (context, prefs, _) => IconButton(
+              icon: Icon(
+                prefs.mode == DisplayMode.day
+                    ? Icons.light_mode
+                    : Icons.dark_mode,
+              ),
+              tooltip: 'Day / Night',
+              onPressed: _toggleMode,
+            ),
+          ),
+          IconButton(
+            icon: const Text('Аа'),
+            tooltip: 'Text',
+            onPressed: _openQuickSettings,
+          ),
           if (widget.onOpenCheatSheet != null)
             IconButton(
               icon: const Icon(Icons.lightbulb_outline),

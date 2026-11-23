@@ -5,4 +5,5 @@ library;
 export 'src/dictionaries_controller.dart';
 export 'src/dictionaries_section.dart';
 export 'src/packs_controller.dart';
+export 'src/reading_section.dart';
 export 'src/settings_screen.dart';

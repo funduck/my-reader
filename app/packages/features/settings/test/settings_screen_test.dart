@@ -154,7 +154,7 @@ void main() {
       await pump(tester, profile: profile, packs: FakePackStore());
 
       await tester.enterText(
-        find.byType(TextField),
+        find.byKey(const Key('service-url')),
         '  http://192.168.1.5:8080 ',
       );
       await tester.tap(find.text('Save address'));
@@ -171,7 +171,7 @@ void main() {
       );
       await pump(tester, profile: profile, packs: FakePackStore());
 
-      await tester.enterText(find.byType(TextField), 'not a url');
+      await tester.enterText(find.byKey(const Key('service-url')), 'not a url');
       await tester.tap(find.text('Save address'));
       await tester.pumpAndSettle();
 
@@ -185,7 +185,7 @@ void main() {
       );
       await pump(tester, profile: profile, packs: FakePackStore());
 
-      await tester.enterText(find.byType(TextField), '');
+      await tester.enterText(find.byKey(const Key('service-url')), '');
       await tester.tap(find.text('Save address'));
       await tester.pumpAndSettle();
 
