@@ -53,7 +53,8 @@ final class TextSelected extends ReaderEvent {
   int get hashCode => Object.hash(TextSelected, text, at, sentence);
 }
 
-/// The user tapped a word; it is selected whole (T-2).
+/// The user held a word (about 500 ms, T-085) to look it up; the word is
+/// taken whole.
 final class WordTapped extends ReaderEvent {
   /// Creates the event.
   const new({required this.word, required this.at, required this.sentence});
