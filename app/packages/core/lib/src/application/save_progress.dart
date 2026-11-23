@@ -4,6 +4,7 @@ import '../domain/books/locator.dart';
 import '../domain/books/reading_progress.dart';
 import '../ports/clock.dart';
 import '../ports/repositories.dart';
+import 'book_fraction.dart';
 
 final Logger _log = Logger('SaveProgress');
 
@@ -19,13 +20,19 @@ class SaveProgress {
   final Clock clock;
 
   /// Saves [at] as the position of its book. [chapterCount] is the number of
-  /// chapters of the book; the whole-book fraction is estimated as
-  /// `(chapter index + progression) / chapterCount`, clamped to 0..1.
-  Future<void> call(Locator at, {required int chapterCount}) {
-    final raw = chapterCount <= 0
-        ? 0.0
-        : (at.chapter.index + at.progression) / chapterCount;
-    final percent = raw.clamp(0.0, 1.0);
+  /// chapters of the book. The whole-book fraction is computed by
+  /// [bookFraction]: by the text lengths in [chapterLengths] when they are
+  /// known, else as `(chapter index + progression) / chapterCount`.
+  Future<void> call(
+    Locator at, {
+    required int chapterCount,
+    List<int>? chapterLengths,
+  }) {
+    final percent = bookFraction(
+      at,
+      chapterCount: chapterCount,
+      chapterLengths: chapterLengths,
+    );
     _log.fine('Save ${at.book}: $percent');
     return progress.save(
       ReadingProgress(locator: at, percent: percent, updatedAt: clock.now()),

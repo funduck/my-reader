@@ -105,6 +105,17 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   /// Read by the table of contents, which does not rebuild with the screen.
   final ValueNotifier<int?> _chapter = ValueNotifier(null);
 
+  /// The position shown in the progress panel: where the book opened, then
+  /// the last [PositionChanged].
+  final ValueNotifier<Locator?> _position = ValueNotifier(null);
+
+  /// Text length of every chapter, once measured in the background (T-104);
+  /// until then the fraction of the book is estimated by chapter count.
+  final ValueNotifier<List<int>?> _lengths = ValueNotifier(null);
+
+  /// The screen is being closed; the measuring stops.
+  bool _closing = false;
+
   /// Ranges marked in the text apart from the word being looked up: the
   /// place opened from a route link (history).
   List<Locator> _marks = const [];
@@ -202,6 +213,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
                 chapter: opened.spine.first,
                 progression: 0,
               ));
+    _position.value = _current;
     _events = engine.events.listen(_onEvent);
     await engine.load(
       opened,
@@ -227,6 +239,21 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
       engine.highlight(_marks);
     }
     setState(() => _book = outcome.book);
+    unawaited(_measure(opened));
+  }
+
+  /// Measures the chapters of [opened] in the background; the fraction of the
+  /// book then follows the text lengths. A failure keeps the estimate.
+  Future<void> _measure(OpenedBook opened) async {
+    try {
+      final lengths = await measureChapterLengths(
+        opened,
+        shouldStop: () => _closing,
+      );
+      if (lengths != null && !_closing) _lengths.value = lengths;
+    } on Object catch (e, s) {
+      if (!_closing) _log.warning('Measuring the chapters failed', e, s);
+    }
   }
 
   void _onProfile(UserProfile profile) {
@@ -326,6 +353,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
         break;
     }
     _current = event.locator;
+    _position.value = event.locator;
     _chapter.value = event.locator.chapter.index;
     _pending = event.locator;
     _debounce?.cancel();
@@ -364,10 +392,11 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     if (at == null || opened == null) return;
     _pending = null;
     unawaited(
-      _saveProgress(at, chapterCount: opened.spine.length).catchError((
-        Object e,
-        StackTrace s,
-      ) {
+      _saveProgress(
+        at,
+        chapterCount: opened.spine.length,
+        chapterLengths: _lengths.value,
+      ).catchError((Object e, StackTrace s) {
         _log.severe('Saving the position failed', e, s);
       }),
     );
@@ -391,12 +420,15 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _closing = true;
     _applyBars(visible: true);
     _flush();
     _flushDisplay();
     unawaited(_profileSub?.cancel());
     _display.dispose();
     _chapter.dispose();
+    _position.dispose();
+    _lengths.dispose();
     unawaited(_events?.cancel());
     unawaited(_release(_engine, _opened));
     super.dispose();
@@ -515,7 +547,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
       return Scaffold(
         appBar: appBar,
         drawer: _drawer(),
-        body: engine.buildView(context),
+        body: Stack(
+          children: [
+            Positioned.fill(child: engine.buildView(context)),
+            _progressPanel(visible: true),
+          ],
+        ),
       );
     }
     // Fullscreen: the app bar lies over the text and slides in, so the text
@@ -526,27 +563,54 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
       extendBodyBehindAppBar: true,
       appBar: _SlidingAppBar(visible: _menuVisible, child: appBar),
       drawer: _drawer(),
-      body: NotificationListener<ScrollStartNotification>(
-        onNotification: (n) {
-          if (n.dragDetails != null && _menuVisible) _setMenu(visible: false);
-          return false;
-        },
-        child: Builder(
-          builder: (context) {
-            final data = MediaQuery.of(context);
-            // The cutout of the camera stays free of text; the bars are
-            // hidden, so the body would otherwise start at the very top.
-            return MediaQuery(
-              data: data.copyWith(
-                padding: data.padding.copyWith(top: _hiddenTop),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: NotificationListener<ScrollStartNotification>(
+              onNotification: (n) {
+                if (n.dragDetails != null && _menuVisible) {
+                  _setMenu(visible: false);
+                }
+                return false;
+              },
+              child: Builder(
+                builder: (context) {
+                  final data = MediaQuery.of(context);
+                  // The cutout of the camera stays free of text; the bars
+                  // are hidden, so the body would otherwise start at the
+                  // very top.
+                  return MediaQuery(
+                    data: data.copyWith(
+                      padding: data.padding.copyWith(top: _hiddenTop),
+                    ),
+                    child: Builder(builder: engine.buildView),
+                  );
+                },
               ),
-              child: Builder(builder: engine.buildView),
-            );
-          },
-        ),
+            ),
+          ),
+          _progressPanel(visible: _menuVisible),
+        ],
       ),
     );
   }
+
+  /// The bottom panel with the progress of the book (T-104); it lies over the
+  /// text, so the text does not move.
+  Widget _progressPanel({required bool visible}) => Positioned(
+    left: 0,
+    right: 0,
+    bottom: 0,
+    child: _SlidingPanel(
+      visible: visible,
+      child: _ProgressPanel(
+        toc: _opened?.toc ?? const [],
+        chapterCount: _opened?.spine.length ?? 0,
+        position: _position,
+        lengths: _lengths,
+      ),
+    ),
+  );
 
   Widget _drawer() => _TocDrawer(
     toc: _opened?.toc ?? const [],
@@ -587,6 +651,103 @@ class _SlidingAppBar extends StatelessWidget implements PreferredSizeWidget {
       ),
     ),
   );
+}
+
+/// The bottom panel that slides down out of the screen while it is hidden.
+///
+/// Like [_SlidingAppBar], it stays in the tree; hidden, it takes no touches,
+/// focus or screen-reader reading.
+class _SlidingPanel extends StatelessWidget {
+  const new({required this.visible, required this.child});
+
+  final bool visible;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => ExcludeSemantics(
+    excluding: !visible,
+    child: ExcludeFocus(
+      excluding: !visible,
+      child: IgnorePointer(
+        ignoring: !visible,
+        child: AnimatedSlide(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          offset: visible ? Offset.zero : const Offset(0, 1),
+          child: child,
+        ),
+      ),
+    ),
+  );
+}
+
+/// The progress of the book: a bar and the caption `<chapter> · 37%`.
+///
+/// The fraction comes from [bookFraction] (by the chapter lengths when they
+/// are known); the chapter is the table of contents entry of the position.
+/// Without an entry the caption is only the percent. The bar only shows the
+/// progress: it cannot be dragged.
+class _ProgressPanel extends StatelessWidget {
+  const new({
+    required this.toc,
+    required this.chapterCount,
+    required this.position,
+    required this.lengths,
+  });
+
+  final List<TocEntry> toc;
+  final int chapterCount;
+  final ValueListenable<Locator?> position;
+  final ValueListenable<List<int>?> lengths;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    // Above the system navigation bar.
+    final bottom = MediaQuery.paddingOf(context).bottom;
+    return Material(
+      color: theme.colorScheme.surface,
+      elevation: 3,
+      child: Padding(
+        padding: EdgeInsetsDirectional.fromSTEB(16, 8, 16, 8 + bottom),
+        child: ListenableBuilder(
+          listenable: Listenable.merge([position, lengths]),
+          builder: (context, _) {
+            final at = position.value;
+            final fraction = at == null
+                ? 0.0
+                : bookFraction(
+                    at,
+                    chapterCount: chapterCount,
+                    chapterLengths: lengths.value,
+                  );
+            final percent = '${(fraction * 100).round()}%';
+            final title = at == null
+                ? null
+                : currentTocEntry(toc, at.chapter.index)?.title;
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title == null ? percent : '$title · $percent',
+                  style: theme.textTheme.labelMedium,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 6),
+                LinearProgressIndicator(
+                  value: fraction,
+                  semanticsLabel: 'Reading progress',
+                  semanticsValue: percent,
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
 }
 
 /// The table of contents; the entry of the current chapter is selected and
