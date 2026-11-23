@@ -479,6 +479,34 @@ void main() {
       expect(find.textContaining('c0-p0 '), findsNothing);
     });
 
+    testWidgets('the end of the chapter scrolls above the bottom inset', (
+      tester,
+    ) async {
+      const inset = 120.0;
+      final engine = SimpleReaderEngine(analyzer: FakeTextAnalyzer());
+      addTearDown(engine.dispose);
+      await engine.load(_fakeBook(), bookId: _bookId);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MediaQuery(
+            data: const MediaQueryData(
+              size: Size(800, 600),
+              padding: EdgeInsets.only(bottom: inset),
+            ),
+            child: Scaffold(body: Builder(builder: engine.buildView)),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await tester.drag(find.byType(Scrollable).first, const Offset(0, -8000));
+      await tester.pumpAndSettle();
+
+      final next = tester.getRect(find.text('Next chapter'));
+      final screen = tester.getRect(find.byType(Scaffold));
+      expect(next.bottom, lessThanOrEqualTo(screen.bottom - inset));
+    });
+
     testWidgets('the last chapter has no next control', (tester) async {
       await _open(
         tester,

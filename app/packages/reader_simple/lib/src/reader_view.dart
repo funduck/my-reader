@@ -226,6 +226,9 @@ class _ChapterListState extends State<_ChapterList> implements ViewportBridge {
       key: _listKey,
       itemScrollController: _scroll,
       itemPositionsListener: _positions,
+      // On Android 15+ the app draws under the navigation bar: the end of
+      // the chapter and the next-chapter control must scroll above it.
+      padding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       itemCount: blocks.length + 2,
       initialScrollIndex: chapter.startBlock + 1,
       itemBuilder: (context, i) {
