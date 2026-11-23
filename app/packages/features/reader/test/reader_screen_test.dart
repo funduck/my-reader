@@ -621,6 +621,29 @@ void main() {
       await close(tester);
     });
 
+    macTest('the translate toggle saves, applies and survives a restart', (
+      tester,
+    ) async {
+      await open(tester);
+      expect(engines.single.settingsApplied.last.translateOnSelect, isFalse);
+      expect(find.byTooltip('Translate: off'), findsOneWidget);
+      expect(find.byIcon(Icons.check), findsNothing);
+      await tester.tap(find.byTooltip('Translate: off'));
+      await tester.pump();
+      await tester.pump();
+      expect((await profiles.get()).display.translateOnSelect, isTrue);
+      expect(engines.single.settingsApplied.last.translateOnSelect, isTrue);
+      expect(find.byTooltip('Translate: on'), findsOneWidget);
+      expect(find.byIcon(Icons.check), findsOneWidget);
+      await close(tester);
+
+      // A new screen reads the stored profile.
+      await open(tester);
+      expect(engines.last.settingsApplied.last.translateOnSelect, isTrue);
+      expect(find.byTooltip('Translate: on'), findsOneWidget);
+      await close(tester);
+    });
+
     macTest('a slider saves once after the debounce', (tester) async {
       var saves = 0;
       final counting = _CountingProfiles(profiles, () => saves++);
