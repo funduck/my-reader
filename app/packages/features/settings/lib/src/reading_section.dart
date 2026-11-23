@@ -170,6 +170,8 @@ class ReadingSection extends ConsumerWidget {
           presets: dayPresets,
           fontSize: display.fontSize,
           lineHeight: display.lineHeight,
+          texture: _textureImage(display.texture),
+          textureOpacity: display.textureOpacity,
           onChanged: (p) =>
               unawaited(_updateDisplay(ref, (d) => d.copyWith(day: p))),
         ),
@@ -181,6 +183,8 @@ class ReadingSection extends ConsumerWidget {
           presets: nightPresets,
           fontSize: display.fontSize,
           lineHeight: display.lineHeight,
+          texture: _textureImage(display.texture),
+          textureOpacity: display.textureOpacity,
           onChanged: (p) =>
               unawaited(_updateDisplay(ref, (d) => d.copyWith(night: p))),
         ),
@@ -199,6 +203,8 @@ class _PaletteEditor extends StatelessWidget {
     required this.presets,
     required this.fontSize,
     required this.lineHeight,
+    required this.texture,
+    required this.textureOpacity,
     required this.onChanged,
   });
 
@@ -208,6 +214,10 @@ class _PaletteEditor extends StatelessWidget {
   final List<(int, int)> presets;
   final double fontSize;
   final double lineHeight;
+
+  /// Image of the chosen texture, drawn under the sample like in the reader.
+  final ImageProvider? texture;
+  final double textureOpacity;
   final ValueChanged<Palette> onChanged;
 
   @override
@@ -269,16 +279,31 @@ class _PaletteEditor extends StatelessWidget {
         Container(
           key: Key('$idPrefix-sample'),
           width: double.infinity,
-          padding: const EdgeInsets.all(12),
           color: Color(palette.background),
-          child: Text(
-            'The quick brown fox jumps over the lazy dog. '
-            'Reading in your own language of colours is easier on the eyes.',
-            style: TextStyle(
-              color: Color(palette.text),
-              fontSize: fontSize,
-              height: lineHeight,
-            ),
+          child: Stack(
+            children: [
+              if (texture != null)
+                Positioned.fill(
+                  child: _TextureLayer(
+                    image: texture!,
+                    background: Color(palette.background),
+                    opacity: textureOpacity,
+                  ),
+                ),
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Text(
+                  'The quick brown fox jumps over the lazy dog. '
+                  'Reading in your own language of colours is easier on the '
+                  'eyes.',
+                  style: TextStyle(
+                    color: Color(palette.text),
+                    fontSize: fontSize,
+                    height: lineHeight,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
         if (low)
@@ -463,6 +488,49 @@ Future<void> _setTexture(WidgetRef ref, BackgroundTexture texture) async {
   }
 }
 
+/// Image of [texture], or null when there is none to draw.
+ImageProvider? _textureImage(BackgroundTexture texture) => switch (texture) {
+  NoTexture() => null,
+  BuiltInTexture(:final id) => AssetImage(builtInTextureAsset(id)),
+  FileTexture(:final path) => FileImage(File(path)),
+};
+
+/// Short name of [texture] for the log.
+String _describe(BackgroundTexture texture) => switch (texture) {
+  NoTexture() => 'none',
+  BuiltInTexture(:final id) => id,
+  FileTexture() => 'own image',
+};
+
+/// The tiled [image] blended with [background] by `overlay`, like the reader
+/// draws it.
+class _TextureLayer extends StatelessWidget {
+  const new({
+    required this.image,
+    required this.background,
+    required this.opacity,
+  });
+
+  final ImageProvider image;
+  final Color background;
+  final double opacity;
+
+  @override
+  Widget build(BuildContext context) => ColorFiltered(
+    colorFilter: ColorFilter.mode(background, BlendMode.overlay),
+    child: DecoratedBox(
+      decoration: BoxDecoration(
+        image: DecorationImage(
+          image: image,
+          repeat: ImageRepeat.repeat,
+          opacity: opacity,
+          onError: (_, _) {},
+        ),
+      ),
+    ),
+  );
+}
+
 /// Row of texture samples and the "Texture visibility" slider.
 class _TextureEditor extends ConsumerStatefulWidget {
   const new({required this.display});
@@ -485,6 +553,7 @@ class _TextureEditorState extends ConsumerState<_TextureEditor> {
     if (!mounted) return;
     switch (result) {
       case BackgroundImported(:final path):
+        _log.info('Texture chosen: own image');
         setState(() => _error = null);
         await _setTexture(ref, FileTexture(path));
       case BackgroundTooLarge():
@@ -497,6 +566,7 @@ class _TextureEditorState extends ConsumerState<_TextureEditor> {
   }
 
   void _choose(BackgroundTexture texture) {
+    _log.info('Texture chosen: ${_describe(texture)}');
     setState(() => _error = null);
     unawaited(_setTexture(ref, texture));
   }
@@ -531,7 +601,7 @@ class _TextureEditorState extends ConsumerState<_TextureEditor> {
                 label: '${id[0].toUpperCase()}${id.substring(1)}',
                 background: palette.background,
                 opacity: display.textureOpacity,
-                image: AssetImage(builtInTextureAsset(id)),
+                image: _textureImage(BuiltInTexture(id)),
                 selected: current == BuiltInTexture(id),
                 onTap: () => _choose(BuiltInTexture(id)),
               ),
@@ -540,10 +610,7 @@ class _TextureEditorState extends ConsumerState<_TextureEditor> {
               label: 'Own…',
               background: palette.background,
               opacity: display.textureOpacity,
-              image: switch (current) {
-                FileTexture(:final path) => FileImage(File(path)),
-                _ => null,
-              },
+              image: _textureImage(current),
               selected: current is FileTexture,
               onTap: () => unawaited(_pickOwn()),
             ),
@@ -619,6 +686,10 @@ class _TextureSample extends StatelessWidget {
               decoration: BoxDecoration(
                 color: color,
                 borderRadius: BorderRadius.circular(8),
+              ),
+              // Above the picture, otherwise the texture covers the frame.
+              foregroundDecoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
                 border: Border.all(
                   color: selected ? outline : Colors.grey,
                   width: selected ? 3 : 1,
@@ -626,18 +697,10 @@ class _TextureSample extends StatelessWidget {
               ),
               child: image == null
                   ? null
-                  : ColorFiltered(
-                      colorFilter: ColorFilter.mode(color, BlendMode.overlay),
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          image: DecorationImage(
-                            image: image!,
-                            repeat: ImageRepeat.repeat,
-                            opacity: opacity,
-                            onError: (_, _) {},
-                          ),
-                        ),
-                      ),
+                  : _TextureLayer(
+                      image: image!,
+                      background: color,
+                      opacity: opacity,
                     ),
             ),
             const SizedBox(height: 4),

@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:image/image.dart' as img;
@@ -34,16 +35,17 @@ void main() {
     }
   });
 
-  test('mean brightness is 0.5 +- 0.03 with a small spread', () {
+  test('mean brightness is 0.5 +- 0.03, sigma 0.12..0.18', () {
     for (final entry in first.entries) {
       final all = _pixels(entry.value).expand((r) => r).toList();
       final mean = all.reduce((a, b) => a + b) / all.length;
       // Overlay leaves the page unchanged on average only for mean 0.5.
       expect(mean / 255, closeTo(0.5, 0.03), reason: entry.key);
-      final range =
-          all.reduce((a, b) => a > b ? a : b) -
-          all.reduce((a, b) => a < b ? a : b);
-      expect(range, lessThan(80), reason: entry.key);
+      final variance =
+          all.map((p) => (p - mean) * (p - mean)).reduce((a, b) => a + b) /
+          all.length;
+      final sigma = math.sqrt(variance) / 255;
+      expect(sigma, inInclusiveRange(0.12, 0.18), reason: entry.key);
     }
   });
 
