@@ -137,12 +137,17 @@ class _OneItemGenerator implements CheatSheetGenerator {
     required String text,
     required Locator from,
     required Locator to,
-    required CefrLevel userLevel,
     Set<String> knownTerms = const {},
     CancelToken? cancel,
   }) async => CheatSheet(
     from: from,
     to: to,
-    items: const [CheatSheetItem(text: 'spice', kind: CheatSheetItemKind.word)],
+    items: const [
+      CheatSheetItem(
+        text: 'spice',
+        kind: CheatSheetItemKind.word,
+        level: CefrLevel.c1,
+      ),
+    ],
   );
 }

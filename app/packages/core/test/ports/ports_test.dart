@@ -127,7 +127,6 @@ class _Generator implements CheatSheetGenerator {
     required String text,
     required Locator from,
     required Locator to,
-    required CefrLevel userLevel,
     Set<String> knownTerms = const {},
     CancelToken? cancel,
   }) async => CheatSheet(from: from, to: to, items: const []);
@@ -203,7 +202,6 @@ void main() {
         text: '',
         from: _locator,
         to: _locator,
-        userLevel: CefrLevel.b1,
       );
       expect(sheet.items, isEmpty);
     });

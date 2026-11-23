@@ -46,6 +46,7 @@ void main() {
       expect(profile.scope, const CheatSheetPages(10));
       expect(profile.providerOrder, isEmpty);
       expect(profile.serviceUrl, isNull);
+      expect(profile.cheatSheetLimit, 20);
     });
 
     test('empty JSON gives defaults', () {
@@ -57,6 +58,7 @@ void main() {
         mode: LookupMode.enRu,
         level: CefrLevel.c1,
         scope: CheatSheetChapter(),
+        cheatSheetLimit: 50,
         providerOrder: [
           ProviderId('stardict.freedict-eng-rus'),
           ProviderId('wiktionary.en'),
@@ -91,6 +93,35 @@ void main() {
       expect(profile.level, CefrLevel.c2);
       expect(profile.mode, LookupMode.enEn);
       expect(profile.scope, CheatSheetScope.defaultScope);
+    });
+
+    test('old profile without cheatSheetLimit reads 20', () {
+      final profile = UserProfile.fromJson(const {'level': 'c1'});
+      expect(profile.cheatSheetLimit, 20);
+    });
+
+    test('cheatSheetLimit: 20, 50 and null round-trip; others read 20', () {
+      for (final limit in <int?>[20, 50, null]) {
+        final profile = UserProfile(cheatSheetLimit: limit);
+        final back = UserProfile.fromJson(_roundTrip(profile.toJson()));
+        expect(back.cheatSheetLimit, limit);
+        expect(back, profile);
+      }
+      for (final bad in <Object?>[0, 30, -1, '50', 1.5, true]) {
+        expect(
+          UserProfile.fromJson({'cheatSheetLimit': bad}).cheatSheetLimit,
+          20,
+        );
+      }
+    });
+
+    test('copyWith can set cheatSheetLimit to null (all)', () {
+      const profile = UserProfile();
+      expect(
+        profile.copyWith(cheatSheetLimit: () => null).cheatSheetLimit,
+        isNull,
+      );
+      expect(profile.copyWith(level: CefrLevel.a1).cheatSheetLimit, 20);
     });
 
     test('copyWith replaces and can clear serviceUrl', () {

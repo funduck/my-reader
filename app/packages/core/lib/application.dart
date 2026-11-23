@@ -4,6 +4,8 @@ library;
 export 'src/application/cheatsheet/build_cheat_sheet.dart';
 export 'src/application/cheatsheet/cheat_sheet_config.dart';
 export 'src/application/cheatsheet/level_cheat_sheet_generator.dart';
+export 'src/application/cheatsheet/select_cheat_sheet_items.dart';
+export 'src/application/cheatsheet/short_quote.dart';
 export 'src/application/cheatsheet/text_range.dart';
 export 'src/application/import_book.dart';
 export 'src/application/lookup/lookup_outcome.dart';

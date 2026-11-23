@@ -61,8 +61,20 @@ cheatSheetProvider = FutureProvider.autoDispose
                 profiles: profiles,
                 terms: ref.watch(termRepositoryProvider),
               )(opened, from: from);
+        // T-097: the generator gives every candidate; until the screen does
+        // its own selection (T-099) cut by the level and limit of the profile.
         return CheatSheetLoad(
-          sheet: sheet,
+          sheet: sheet == null
+              ? null
+              : CheatSheet(
+                  from: sheet.from,
+                  to: sheet.to,
+                  items: selectCheatSheetItems(
+                    sheet.items,
+                    above: profile.level,
+                    limit: profile.cheatSheetLimit,
+                  ),
+                ),
           scope: profile.scope,
           mode: profile.mode,
         );

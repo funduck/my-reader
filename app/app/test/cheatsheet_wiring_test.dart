@@ -130,7 +130,16 @@ void main() {
               progression: 0,
             ),
           );
-      return [for (final item in sheet!.items) item.text];
+      // The screen picks from all candidates by the profile.
+      final profile = await profiles.get();
+      return [
+        for (final item in selectCheatSheetItems(
+          sheet!.items,
+          above: profile.level,
+          limit: profile.cheatSheetLimit,
+        ))
+          item.text,
+      ];
     }
 
     test('the level of the profile applies without a restart', () async {
