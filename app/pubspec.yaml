@@ -31,7 +31,11 @@ dev_dependencies:
   yaml: ^3.1.0
 # package:sqlite3 links the OS libsqlite3 instead of downloading a prebuilt one
 # from github.com (blocked in the agent sandbox). See docs/tasks/README.md.
+# Android has no public libsqlite3.so, so there the prebuilt one is bundled
+# (downloaded from github.com at build time).
 hooks:
   user_defines:
     sqlite3:
-      source: system
+      source:
+        android: sqlite3
+        default: system
