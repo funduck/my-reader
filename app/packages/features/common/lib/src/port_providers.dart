@@ -75,6 +75,11 @@ final Provider<List<LookupProvider>> lookupProvidersProvider =
 final Provider<ReaderEngineFactory> readerEngineFactoryProvider =
     _port<ReaderEngineFactory>('readerEngineFactoryProvider');
 
+/// Secure storage of API keys (DeepL).
+final Provider<SecretStore> secretStoreProvider = _port<SecretStore>(
+  'secretStoreProvider',
+);
+
 /// Library of dictionaries imported by the user (StarDict).
 final Provider<DictionaryLibrary> dictionaryLibraryProvider =
     _port<DictionaryLibrary>('dictionaryLibraryProvider');

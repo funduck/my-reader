@@ -9,6 +9,7 @@ import 'package:material_ui/material_ui.dart';
 import 'dictionaries_section.dart';
 import 'packs_controller.dart';
 import 'reading_section.dart';
+import 'translation_section.dart';
 
 final Logger _log = Logger('SettingsScreen');
 
@@ -56,6 +57,8 @@ class SettingsScreen extends ConsumerWidget {
             _LevelSetting(profile: p),
             const SizedBox(height: 24),
             _ScopeSetting(profile: p),
+            const SizedBox(height: 24),
+            const TranslationSection(),
             const SizedBox(height: 24),
             const PacksSection(),
             const SizedBox(height: 24),

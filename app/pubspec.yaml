@@ -22,6 +22,7 @@ workspace:
   - packages/lookup_stardict
   - packages/reader_api
   - packages/reader_simple
+  - packages/secrets_os
   - packages/storage_drift
   - packages/text_en
 dev_dependencies:

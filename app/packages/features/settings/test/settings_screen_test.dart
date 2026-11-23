@@ -53,6 +53,7 @@ void main() {
           packStoreProvider.overrideWithValue(packs),
           dictionaryLibraryProvider.overrideWithValue(FakeDictionaryLibrary()),
           lookupProvidersProvider.overrideWithValue(const []),
+          secretStoreProvider.overrideWithValue(FakeSecretStore()),
         ],
         child: const MaterialApp(home: SettingsScreen()),
       ),

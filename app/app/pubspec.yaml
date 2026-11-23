@@ -27,6 +27,7 @@ dependencies:
   packs_http: any
   path_provider: ^2.1.0
   reader_simple: any
+  secrets_os: any
   storage_drift: any
   text_en: any
 dev_dependencies:
