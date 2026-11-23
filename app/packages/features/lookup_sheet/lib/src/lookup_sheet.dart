@@ -1,18 +1,27 @@
+import 'dart:async';
+
 import 'package:core/application.dart';
 import 'package:core/domain_lookup.dart';
 import 'package:core/ports.dart';
 import 'package:features_common/features_common.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:logging/logging.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'level_badge.dart';
 import 'lookup_providers.dart';
 import 'simple_html.dart';
 
+/// How long a result must stay on screen before the lookup is written to the
+/// history and counted in the term (T-086).
+const Duration minLookupViewDuration = Duration(seconds: 2);
+
 /// Opens the lookup sheet for [query] and returns when it is closed.
 ///
 /// The sheet appears at once with a skeleton and fills in when the lookup
-/// finishes. The lookup is recorded in the history by `LookupSelection`.
+/// finishes. The lookup is recorded in the history by
+/// `LookupSelection.record` once the result has been on screen for
+/// [minLookupViewDuration]; closing the sheet earlier records nothing.
 /// [onOpenSettings] is called after the sheet closes when the user taps the
 /// settings button of the "dictionary unavailable" state.
 Future<void> showLookupSheet(
@@ -120,21 +129,25 @@ class _LookupSheetState extends ConsumerState<LookupSheet> {
                     child: const Text('Retry'),
                   ),
                 ),
-                AsyncData(:final value) => switch (value) {
-                  LookupAnswered() => _Answer(outcome: value),
-                  LookupUnanswered(isNotFound: true) => _Message(
-                    text: 'Nothing found for "${query.text}".',
-                  ),
-                  LookupUnanswered() => _Message(
-                    text:
-                        'No dictionary available. '
-                        'Install a dictionary pack in settings.',
-                    action: FilledButton(
-                      onPressed: onOpenSettings,
-                      child: const Text('Open settings'),
+                AsyncData(:final value) => _RecordAfterView(
+                  key: ValueKey(value.event.id),
+                  outcome: value,
+                  child: switch (value) {
+                    LookupAnswered() => _Answer(outcome: value),
+                    LookupUnanswered(isNotFound: true) => _Message(
+                      text: 'Nothing found for "${query.text}".',
                     ),
-                  ),
-                },
+                    LookupUnanswered() => _Message(
+                      text:
+                          'No dictionary available. '
+                          'Install a dictionary pack in settings.',
+                      action: FilledButton(
+                        onPressed: onOpenSettings,
+                        child: const Text('Open settings'),
+                      ),
+                    ),
+                  },
+                ),
               },
             ],
           ),
@@ -142,6 +155,77 @@ class _LookupSheetState extends ConsumerState<LookupSheet> {
       ),
     );
   }
+}
+
+/// Records [outcome] after it has been shown for [minLookupViewDuration].
+///
+/// Built only for a finished result, so the timer never runs during loading.
+/// Keyed by the event id: a new result (another provider or mode) gets a new
+/// timer, and leaving the tree cancels it.
+class _RecordAfterView extends ConsumerStatefulWidget {
+  const new({required this.outcome, required this.child, super.key});
+
+  final LookupOutcome outcome;
+  final Widget child;
+
+  @override
+  ConsumerState<_RecordAfterView> createState() => _RecordAfterViewState();
+}
+
+class _RecordAfterViewState extends ConsumerState<_RecordAfterView> {
+  static final Logger _log = Logger('LookupSheet');
+
+  Timer? _timer;
+  Animation<double>? _routeAnimation;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Closing the sheet starts an exit animation during which the content is
+    // still mounted; the result is no longer "on screen" from its start.
+    final animation = ModalRoute.of(context)?.animation;
+    if (animation != _routeAnimation) {
+      _routeAnimation?.removeStatusListener(_onRouteStatus);
+      animation?.addStatusListener(_onRouteStatus);
+      _routeAnimation = animation;
+    }
+  }
+
+  void _onRouteStatus(AnimationStatus status) {
+    if (status == AnimationStatus.reverse ||
+        status == AnimationStatus.dismissed) {
+      _timer?.cancel();
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    final selection = ref.read(lookupSelectionProvider);
+    final outcome = widget.outcome;
+    _timer = Timer(minLookupViewDuration, () {
+      unawaited(
+        selection
+            .record(outcome)
+            .then<void>(
+              (_) {},
+              onError: (Object error, StackTrace stack) {
+                _log.warning('Recording the lookup failed', error, stack);
+              },
+            ),
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _routeAnimation?.removeStatusListener(_onRouteStatus);
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 class _ProviderPicker extends StatelessWidget {

@@ -85,31 +85,38 @@ void main() {
 
     // The lookup of a word selected at `place`, through the real scenario.
     final profiles = FakeProfileRepository();
-    final outcome = await tester.runAsync(
-      () => LookupSelection(
-        chain: ProviderChain(
-          providers: [
-            FakeLookupProvider(
-              id: const ProviderId('fake'),
-              answers: {
-                'three': const LookupResult(
-                  provider: ProviderId('fake'),
-                  senses: [Sense(text: 'the number 3')],
-                ),
-              },
-            ),
-          ],
-          profiles: profiles,
-        ),
-        analyzer: const EnglishTextAnalyzer(),
-        levels: _Levels(),
-        journal: database.lookupJournal,
-        terms: database.termRepository,
+    final scenario = LookupSelection(
+      chain: ProviderChain(
+        providers: [
+          FakeLookupProvider(
+            id: const ProviderId('fake'),
+            answers: {
+              'three': const LookupResult(
+                provider: ProviderId('fake'),
+                senses: [Sense(text: 'the number 3')],
+              ),
+            },
+          ),
+        ],
         profiles: profiles,
-        clock: FakeClock(),
-        ids: SeqIdGenerator(),
-      )(text: 'Three', sentence: 'Three apples.', locator: place),
+      ),
+      analyzer: const EnglishTextAnalyzer(),
+      levels: _Levels(),
+      journal: database.lookupJournal,
+      terms: database.termRepository,
+      profiles: profiles,
+      clock: FakeClock(),
+      ids: SeqIdGenerator(),
     );
+    final outcome = await tester.runAsync(() async {
+      final found = await scenario(
+        text: 'Three',
+        sentence: 'Three apples.',
+        locator: place,
+      );
+      await scenario.record(found);
+      return found;
+    });
     expect(outcome, isA<LookupAnswered>());
 
     final engines = <_FakeEngine>[];

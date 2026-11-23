@@ -47,6 +47,9 @@ class _Selection implements LookupSelection {
     modes.add(mode);
     return Completer<LookupOutcome>().future;
   }
+
+  @override
+  Future<Term> record(LookupOutcome outcome) => throw UnimplementedError();
 }
 
 void main() {

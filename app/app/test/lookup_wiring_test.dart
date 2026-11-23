@@ -8,6 +8,7 @@ import 'package:core_testing/core_testing.dart';
 import 'package:features_common/features_common.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lookup_sheet/lookup_sheet.dart';
 import 'package:my_reader_app/bootstrap.dart';
 import 'package:my_reader_app/router.dart';
 import 'package:reader_api/reader_api.dart';
@@ -119,7 +120,10 @@ void main() {
   }
 
   Future<List<LookupEvent>> recorded(WidgetTester tester) async {
-    // Let the lookup and the journal write finish.
+    // Let the lookup finish, keep the sheet open past the threshold of T-086
+    // (the lookup is recorded only then), let the journal write finish.
+    await tester.pumpAndSettle();
+    await tester.pump(minLookupViewDuration);
     await tester.pumpAndSettle();
     final events = await tester.runAsync(() => journal.watch().first);
     return events!;

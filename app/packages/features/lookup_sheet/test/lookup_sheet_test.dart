@@ -39,6 +39,10 @@ class _FakeSelection implements LookupSelection {
   final Future<LookupOutcome> Function() answer;
   final calls = <String>[];
   final modes = <LookupMode?>[];
+  final providers = <ProviderId?>[];
+
+  /// Events passed to `record`, in order: what the journal would hold.
+  final recorded = <LookupEvent>[];
 
   @override
   Future<LookupOutcome> call({
@@ -51,7 +55,14 @@ class _FakeSelection implements LookupSelection {
   }) {
     calls.add(text);
     modes.add(mode);
+    providers.add(provider);
     return answer();
+  }
+
+  @override
+  Future<Term> record(LookupOutcome outcome) async {
+    recorded.add(outcome.event);
+    return _term(outcome.level);
   }
 }
 
@@ -89,14 +100,12 @@ LookupOutcome _answered({
       ],
     ),
   ),
-  term: _term(level),
   wordLevel: WordLevel(level, estimated: estimated),
   skipped: const [],
 );
 
 LookupOutcome _unanswered(List<ProviderAttempt> attempts) => LookupUnanswered(
   event: _event(const LookupResult(provider: _providerId, senses: [])),
-  term: _term(CefrLevel.unknown),
   wordLevel: const WordLevel(CefrLevel.unknown),
   failure: ChainFailure(attempts),
 );
@@ -315,4 +324,7 @@ class _CancelSpy implements LookupSelection {
     onCall(cancel);
     return Completer<LookupOutcome>().future;
   }
+
+  @override
+  Future<Term> record(LookupOutcome outcome) => throw UnimplementedError();
 }
