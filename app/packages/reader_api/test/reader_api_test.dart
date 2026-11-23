@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:core/domain_books.dart';
 import 'package:core/ports.dart';
@@ -70,6 +71,21 @@ void main() {
     expect(b.fontSize, 22);
     expect(b.theme, ReaderTheme.dark);
     expect(b.horizontalPadding, a.horizontalPadding);
+  });
+
+  test('ReaderSettings copyWith sets and clears the texture', () {
+    final image = MemoryImage(Uint8List(0));
+    final a = const ReaderSettings().copyWith(
+      texture: () => image,
+      lineHeight: 2,
+      dim: 0.3,
+    );
+    expect(a.texture, same(image));
+    expect(a.lineHeight, 2);
+    expect(a.dim, 0.3);
+    expect(a.copyWith(fontSize: 20).texture, same(image));
+    expect(a.copyWith(texture: () => null).texture, isNull);
+    expect(a, isNot(const ReaderSettings()));
   });
 
   test('ReaderEngineFactory produces an engine whose events can be listened '
