@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:core/domain_books.dart';
 import 'package:core/ports.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -79,12 +80,17 @@ void main() {
       ..stop()
       ..reset();
     final word = find.textContaining('Child', findRichText: true).first;
-    await tester.tapAt(tester.getTopLeft(word) + const Offset(6, 10));
-    // The engine reports the tap after the double-tap timeout.
+    // The lookup opens on a hold of `lookupHoldDuration` (T-085); on macOS
+    // it is a mouse press, so the press is a mouse one.
+    final press = await tester.startGesture(
+      tester.getTopLeft(word) + const Offset(6, 10),
+      kind: PointerDeviceKind.mouse,
+    );
     while (!eventWatch.isRunning) {
       await tester.pump(const Duration(milliseconds: 10));
       if (total.elapsed > const Duration(seconds: 5)) fail('no tap event');
     }
+    await press.up();
     while (shown.evaluate().isEmpty) {
       await tester.pump();
       if (eventWatch.elapsed > const Duration(seconds: 5)) {
@@ -110,6 +116,13 @@ void main() {
 
   testWidgets('tap -> definition offline -> journal and term; recount; '
       'under 300 ms on the mini pack', (tester) async {
+    // Opening the sheet during the hold makes the Navigator cancel the
+    // pointer. That cancel is a device event, which the live test binding
+    // does not pass to widgets by default; the text would then keep the press
+    // and take the next one for a second finger.
+    final binding = IntegrationTestWidgetsFlutterBinding.instance
+      ..shouldPropagateDevicePointerEvents = true;
+    addTearDown(() => binding.shouldPropagateDevicePointerEvents = false);
     final fixture = await LookupFixture.create();
     addTearDown(fixture.database.close);
     final eventWatch = Stopwatch();
