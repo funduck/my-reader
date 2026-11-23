@@ -140,6 +140,23 @@ const _fox = 'The quick brown fox jumps. It was over the lazy dog.';
 
 void main() {
   group('tap on a word', () {
+    testWidgets('still emits WordTapped through the dim layer', (tester) async {
+      final h = await _openText(tester, _fox);
+      h.engine.applySettings(const ReaderSettings(dim: 0.5));
+      await tester.pump();
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w is ColoredBox && w.color == Colors.black.withValues(alpha: 0.5),
+        ),
+        findsOneWidget,
+      );
+
+      await _tap(tester, _centerOf(tester, 'quick', 'brown'));
+
+      expect((h.taps.single as WordTapped).word, 'brown');
+    });
+
     testWidgets('emits WordTapped with word, Locator and sentence', (
       tester,
     ) async {

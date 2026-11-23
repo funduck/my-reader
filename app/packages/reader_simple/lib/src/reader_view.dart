@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:core/domain_books.dart';
 import 'package:flutter/rendering.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:reader_api/reader_api.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import 'block_view.dart';
@@ -31,19 +32,78 @@ class ReaderView extends StatelessWidget {
     builder: (context, _) {
       final style = engine.style.value;
       final chapter = engine.chapter.value;
+      final settings = style.settings;
+      final texture = settings.texture;
       return ColoredBox(
         color: style.background,
-        child: chapter == null
-            ? const SizedBox.expand()
-            : _ChapterList(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (texture != null)
+              _TextureLayer(
+                texture: texture,
+                opacity: settings.textureOpacity,
+                background: style.background,
+                night: settings.theme == ReaderTheme.dark,
+              ),
+            if (chapter != null)
+              _ChapterList(
                 key: ValueKey(chapter.generation),
                 engine: engine,
                 chapter: chapter,
                 style: style,
                 highlights: engine.highlightsIn(chapter),
               ),
+            if (settings.dim > 0)
+              IgnorePointer(
+                child: ColoredBox(
+                  color: Colors.black.withValues(alpha: settings.dim),
+                ),
+              ),
+          ],
+        ),
       );
     },
+  );
+}
+
+/// The tiled texture under the list, outside the scroll.
+///
+/// The image is tinted with the page background by `multiply` (day) or
+/// `screen` (night) and drawn with [opacity], so the result over the plain
+/// background is the texture blended with it.
+class _TextureLayer extends StatelessWidget {
+  const new({
+    required this.texture,
+    required this.opacity,
+    required this.background,
+    required this.night,
+  });
+
+  final ImageProvider texture;
+  final double opacity;
+  final Color background;
+  final bool night;
+
+  @override
+  Widget build(BuildContext context) => Positioned.fill(
+    child: RepaintBoundary(
+      child: ColorFiltered(
+        colorFilter: ColorFilter.mode(
+          background,
+          night ? BlendMode.screen : BlendMode.multiply,
+        ),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            image: DecorationImage(
+              image: texture,
+              repeat: ImageRepeat.repeat,
+              opacity: opacity,
+            ),
+          ),
+        ),
+      ),
+    ),
   );
 }
 

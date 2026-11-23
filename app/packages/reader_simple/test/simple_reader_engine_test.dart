@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:reader_api/reader_api.dart';
 import 'package:reader_simple/reader_simple.dart';
+import 'package:reader_simple/src/reader_style.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import 'fake_text_analyzer.dart';
@@ -228,6 +229,8 @@ void main() {
           fontSize: 24,
           theme: ReaderTheme.dark,
           horizontalPadding: 40,
+          text: Color(0xFFE0E0E0),
+          background: Color(0xFF121212),
         ),
       );
       await tester.pump();
@@ -260,6 +263,114 @@ void main() {
       engine.applySettings(const ReaderSettings());
       await tester.pump();
       expect(_text(tester, 'c0-p0').style!.color, const Color(0xFF212121));
+    });
+
+    test('ReaderStyle takes colours and line height from the settings', () {
+      final style = ReaderStyle.fromSettings(
+        const ReaderSettings(
+          lineHeight: 2,
+          text: Color(0xFF000000),
+          background: Color(0xFFFFFFFF),
+        ),
+      );
+      expect(style.text, const Color(0xFF000000));
+      expect(style.background, const Color(0xFFFFFFFF));
+      expect(style.body.height, 2);
+      expect(style.body.color, const Color(0xFF000000));
+      // Between text and background, closer to the text.
+      final muted = style.muted;
+      expect(muted.r, greaterThan(0));
+      expect(muted.r, lessThan(1));
+      expect(muted.r, closeTo(0.45, 0.01));
+      expect(
+        ReaderStyle.fromSettings(const ReaderSettings(theme: ReaderTheme.dark))
+            .link,
+        const Color(0xFF90CAF9),
+      );
+    });
+
+    testWidgets('line height and background change, position stays', (
+      tester,
+    ) async {
+      final engine = await _open(tester, _fakeBook(chapters: 1));
+      await _scrollTo(tester, find.textContaining('c0-p25'), 300);
+      expect(_text(tester, 'c0-p25').style!.height, 1.5);
+
+      engine.applySettings(
+        const ReaderSettings(lineHeight: 2, background: Color(0xFFCCDDEE)),
+      );
+      await tester.pump();
+
+      expect(_text(tester, 'c0-p25').style!.height, 2);
+      final background = tester.widget<ColoredBox>(
+        find
+            .descendant(
+              of: find.byType(Scaffold),
+              matching: find.byType(ColoredBox),
+            )
+            .first,
+      );
+      expect(background.color, const Color(0xFFCCDDEE));
+      expect(find.textContaining('c0-p25'), findsOneWidget);
+      expect(find.textContaining('c0-p0 '), findsNothing);
+    });
+
+    testWidgets('dim adds a layer only when positive', (tester) async {
+      final engine = await _open(tester, _fakeBook(chapters: 1));
+      final dimmed = find.byWidgetPredicate(
+        (w) =>
+            w is ColoredBox && w.color == Colors.black.withValues(alpha: 0.4),
+      );
+      expect(dimmed, findsNothing);
+
+      engine.applySettings(const ReaderSettings(dim: 0.4));
+      await tester.pump();
+      expect(dimmed, findsOneWidget);
+      expect(
+        find.ancestor(of: dimmed, matching: find.byType(IgnorePointer)),
+        findsWidgets,
+      );
+
+      engine.applySettings(const ReaderSettings());
+      await tester.pump();
+      expect(dimmed, findsNothing);
+    });
+
+    testWidgets('texture is tiled under the list with its opacity', (
+      tester,
+    ) async {
+      final engine = await _open(tester, _fakeBook(chapters: 1));
+      final tiled = find.byWidgetPredicate(
+        (w) =>
+            w is DecoratedBox &&
+            w.decoration is BoxDecoration &&
+            (w.decoration as BoxDecoration).image != null,
+      );
+      expect(tiled, findsNothing);
+
+      engine.applySettings(
+        ReaderSettings(texture: MemoryImage(_png), textureOpacity: 0.3),
+      );
+      await tester.pump();
+
+      expect(tiled, findsOneWidget);
+      final image =
+          (tester.widget<DecoratedBox>(tiled).decoration as BoxDecoration)
+              .image!;
+      expect(image.repeat, ImageRepeat.repeat);
+      expect(image.opacity, 0.3);
+      expect(
+        find.ancestor(of: tiled, matching: find.byType(Scrollable)),
+        findsNothing,
+      );
+      expect(
+        find.ancestor(of: tiled, matching: find.byType(RepaintBoundary)),
+        findsWidgets,
+      );
+
+      engine.applySettings(const ReaderSettings());
+      await tester.pump();
+      expect(tiled, findsNothing);
     });
 
     testWidgets('applying settings keeps the scroll position', (tester) async {

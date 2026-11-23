@@ -4,6 +4,7 @@ import '../lookup/cefr_level.dart';
 import '../lookup/ids.dart';
 import '../lookup/lookup_mode.dart';
 import 'cheat_sheet_scope.dart';
+import 'display_prefs.dart';
 
 /// User settings that the core needs.
 @immutable
@@ -15,6 +16,7 @@ final class UserProfile {
     this.scope = CheatSheetScope.defaultScope,
     this.providerOrder = const [],
     this.serviceUrl,
+    this.display = const DisplayPrefs(),
   });
 
   /// Reads a profile; missing or invalid fields take defaults.
@@ -33,6 +35,7 @@ final class UserProfile {
             ]
           : const [],
       serviceUrl: url is String && url.isNotEmpty ? url : null,
+      display: DisplayPrefs.fromJson(json['display']),
     );
   }
 
@@ -51,6 +54,9 @@ final class UserProfile {
   /// Address of the service, if configured.
   final String? serviceUrl;
 
+  /// How the reader looks.
+  final DisplayPrefs display;
+
   /// Copy with some fields replaced. [serviceUrl] takes a function so that
   /// `() => null` can clear it.
   UserProfile copyWith({
@@ -59,12 +65,14 @@ final class UserProfile {
     CheatSheetScope? scope,
     List<ProviderId>? providerOrder,
     String? Function()? serviceUrl,
+    DisplayPrefs? display,
   }) => UserProfile(
     mode: mode ?? this.mode,
     level: level ?? this.level,
     scope: scope ?? this.scope,
     providerOrder: providerOrder ?? this.providerOrder,
     serviceUrl: serviceUrl != null ? serviceUrl() : this.serviceUrl,
+    display: display ?? this.display,
   );
 
   /// JSON form.
@@ -74,6 +82,7 @@ final class UserProfile {
     'scope': scope.toJson(),
     'providerOrder': [for (final p in providerOrder) p.value],
     'serviceUrl': serviceUrl,
+    'display': display.toJson(),
   };
 
   @override
@@ -83,6 +92,7 @@ final class UserProfile {
         other.level != level ||
         other.scope != scope ||
         other.serviceUrl != serviceUrl ||
+        other.display != display ||
         other.providerOrder.length != providerOrder.length) {
       return false;
     }
@@ -98,6 +108,7 @@ final class UserProfile {
     level,
     scope,
     serviceUrl,
+    display,
     Object.hashAll(providerOrder),
   );
 }

@@ -9,10 +9,10 @@ final class ReaderStyle {
     final dark = settings.theme == ReaderTheme.dark;
     return ReaderStyle._(
       settings: settings,
-      background: dark ? const Color(0xFF121212) : const Color(0xFFFFFBF5),
-      text: dark ? const Color(0xFFE0E0E0) : const Color(0xFF212121),
+      background: settings.background,
+      text: settings.text,
       link: dark ? const Color(0xFF90CAF9) : const Color(0xFF1565C0),
-      muted: dark ? const Color(0xFF9E9E9E) : const Color(0xFF757575),
+      muted: Color.lerp(settings.text, settings.background, 0.45)!,
       highlight: dark ? const Color(0x66FFD54F) : const Color(0x80FFEB3B),
     );
   }
@@ -44,9 +44,6 @@ final class ReaderStyle {
   /// Background of text marked by `highlight`.
   final Color highlight;
 
-  /// Line height factor of body text.
-  static const double lineHeight = 1.5;
-
   /// Vertical padding above and below each block.
   static const double blockPadding = 8;
 
@@ -54,7 +51,7 @@ final class ReaderStyle {
   TextStyle get body => TextStyle(
     fontFamily: settings.fontFamily,
     fontSize: settings.fontSize,
-    height: lineHeight,
+    height: settings.lineHeight,
     color: text,
   );
 
