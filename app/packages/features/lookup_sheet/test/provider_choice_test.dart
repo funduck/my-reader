@@ -10,6 +10,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lookup_sheet/lookup_sheet.dart';
 import 'package:material_ui/material_ui.dart';
 
+import 'term_support.dart';
+
 const _query = LookupQuery(text: 'cat', mode: LookupMode.enRu);
 
 class _Provider implements LookupProvider {
@@ -63,6 +65,7 @@ void main() {
       ProviderScope(
         overrides: [
           lookupSelectionProvider.overrideWithValue(selection),
+          ...TermSupport().overrides(),
           lookupProvidersProvider.overrideWithValue(ps),
         ],
         child: const MaterialApp(

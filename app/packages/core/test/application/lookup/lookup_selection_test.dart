@@ -96,6 +96,45 @@ void main() {
       expect(terms.terms.values.single.lookupCount, 1);
     });
 
+    test('a new lookup keeps the status of a known term', () async {
+      final a = ScriptedProvider('a', answer: result('a'));
+      final s = selection([a]);
+      await recorded(s, text: 'run');
+      final known = terms.terms.values.single.copyWith(
+        status: TermStatus.known,
+      );
+      await terms.save(known);
+
+      final out = await recorded(s, text: 'runs');
+      final term = terms.terms.values.single;
+      expect(term.status, TermStatus.known);
+      expect(term.lookupCount, 2);
+      expect(term.eventIds, [known.eventIds.single, out.event.id]);
+    });
+
+    test('the first lookup of a term marked known counts it', () async {
+      final a = ScriptedProvider('a', answer: result('a'));
+      final s = selection([a]);
+      await SetTermStatus(terms: terms, levels: levels, ids: CountingIds())(
+        'run',
+        TermStatus.known,
+      );
+
+      final out = await recorded(s, text: 'run');
+      final term = terms.terms.values.single;
+      expect(term.status, TermStatus.known);
+      expect(term.lookupCount, 1);
+      expect(term.eventIds, [out.event.id]);
+    });
+
+    test('termKey is the key record writes', () async {
+      final a = ScriptedProvider('a', answer: result('a'));
+      await recorded(selection([a]), text: 'Runs');
+      expect(termKey(SimpleAnalyzer(), 'Runs'), 'run');
+      expect(termKey(SimpleAnalyzer(), 'Give   UP'), 'give up');
+      expect(terms.terms.values.single.normalized, 'run');
+    });
+
     test('an unrecorded lookup does not count, a recorded one does', () async {
       final a = ScriptedProvider('a', answer: result('a'));
       final s = selection([a]);

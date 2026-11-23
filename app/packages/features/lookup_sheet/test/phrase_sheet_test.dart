@@ -11,6 +11,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lookup_sheet/lookup_sheet.dart';
 import 'package:material_ui/material_ui.dart';
 
+import 'term_support.dart';
+
 const _deepl = ProviderId('deepl');
 const _dict = ProviderId('dict');
 const _place = Locator(
@@ -97,6 +99,7 @@ class _Fixture {
           clockProvider.overrideWithValue(FakeClock(DateTime.utc(2026, 3))),
           idGeneratorProvider.overrideWithValue(SeqIdGenerator()),
           lookupSelectionProvider.overrideWithValue(selection),
+          ...TermSupport().overrides(ids: false),
           lookupProvidersProvider.overrideWithValue([
             FakeLookupProvider(
               id: _dict,
@@ -141,6 +144,7 @@ void main() {
     expect(f.deepl.calls, isEmpty);
     expect(find.text('1. a pet'), findsOneWidget);
     expect(find.byKey(const Key('lookup-mode-toggle')), findsOneWidget);
+    expect(find.byKey(const Key('lookup-known-toggle')), findsOneWidget);
   });
 
   testWidgets('a phrase goes to DeepL; no toggle, no level, no dictionary '
@@ -154,6 +158,7 @@ void main() {
     expect(f.deepl.calls.single.sentence, 'Then he gave up.');
     expect(find.text(_phrase), findsOneWidget);
     expect(find.text('Он сдался'), findsOneWidget);
+    expect(find.byKey(const Key('lookup-known-toggle')), findsNothing);
     expect(find.text('DeepL'), findsOneWidget);
     expect(find.byKey(const Key('lookup-mode-toggle')), findsNothing);
     expect(find.text('A1'), findsNothing);

@@ -148,10 +148,16 @@ class LookupSelection {
     return term;
   }
 
-  /// Lemma for a single word; lower-cased, space-collapsed text for a phrase.
-  String _normalize(String text) {
-    final tokens = _analyzer.tokens(text);
-    if (tokens.length == 1) return _analyzer.lemma(tokens.single.text);
-    return text.toLowerCase().split(RegExp(r'\s+')).join(' ');
-  }
+  String _normalize(String text) => termKey(_analyzer, text);
+}
+
+/// Key of the `Term` for [text]: the lemma of a single word; the lower-cased,
+/// space-collapsed text of a phrase.
+///
+/// The same key `LookupSelection.record` writes into `Term.normalized`, so a
+/// caller that marks a word (`SetTermStatus`) finds the term the lookups made.
+String termKey(TextAnalyzer analyzer, String text) {
+  final tokens = analyzer.tokens(text);
+  if (tokens.length == 1) return analyzer.lemma(tokens.single.text);
+  return text.toLowerCase().split(RegExp(r'\s+')).join(' ');
 }
