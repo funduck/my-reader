@@ -19,7 +19,6 @@ class _FakeGenerator implements CheatSheetGenerator {
     required String text,
     required Locator from,
     required Locator to,
-    required CefrLevel userLevel,
     Set<String> knownTerms = const {},
     CancelToken? cancel,
   }) async {
@@ -50,7 +49,7 @@ void main() {
         const BookMetadata(title: 'Dune'),
         chapters: ['The spice must flow.', 'Second chapter.'],
       );
-    profiles = FakeProfileRepository();
+    profiles = FakeProfileRepository(const UserProfile(level: CefrLevel.b1));
     generator = _FakeGenerator(const [
       CheatSheetItem(
         text: 'spice',
@@ -158,7 +157,9 @@ void main() {
   });
 
   testWidgets('a chapter scope is titled "до конца главы"', (tester) async {
-    await profiles.save(const UserProfile(scope: CheatSheetChapter()));
+    await profiles.save(
+      const UserProfile(level: CefrLevel.b1, scope: CheatSheetChapter()),
+    );
     await open(tester, from: at(0, 0));
     expect(find.text('До конца главы'), findsOneWidget);
   });

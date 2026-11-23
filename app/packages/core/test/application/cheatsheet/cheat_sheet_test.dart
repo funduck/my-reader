@@ -52,21 +52,13 @@ const _to = Locator(book: _bookId, chapter: _ch0, progression: 1);
 Future<List<CheatSheetItem>> _run(
   String text,
   Map<String, WordLevel> levels, {
-  CefrLevel user = CefrLevel.b1,
   Set<String> known = const {},
   Map<String, String> lemmas = const {},
 }) async {
-  final sheet =
-      await LevelCheatSheetGenerator(
-        analyzer: _Analyzer(lemmas),
-        levels: _Levels(levels),
-      ).generate(
-        text: text,
-        from: _from,
-        to: _to,
-        userLevel: user,
-        knownTerms: known,
-      );
+  final sheet = await LevelCheatSheetGenerator(
+    analyzer: _Analyzer(lemmas),
+    levels: _Levels(levels),
+  ).generate(text: text, from: _from, to: _to, knownTerms: known);
   return sheet.items;
 }
 
@@ -138,7 +130,6 @@ class _RecordingGenerator implements CheatSheetGenerator {
   String? text;
   Locator? from;
   Locator? to;
-  CefrLevel? userLevel;
   Set<String>? knownTerms;
 
   @override
@@ -146,14 +137,12 @@ class _RecordingGenerator implements CheatSheetGenerator {
     required String text,
     required Locator from,
     required Locator to,
-    required CefrLevel userLevel,
     Set<String> knownTerms = const {},
     CancelToken? cancel,
   }) async {
     this.text = text;
     this.from = from;
     this.to = to;
-    this.userLevel = userLevel;
     this.knownTerms = knownTerms;
     return CheatSheet(from: from, to: to, items: const []);
   }
@@ -161,7 +150,7 @@ class _RecordingGenerator implements CheatSheetGenerator {
 
 void main() {
   group('LevelCheatSheetGenerator', () {
-    test('keeps only words strictly above the user level', () async {
+    test('keeps every word with a known level, hardest first', () async {
       final items = await _run('cat ephemeral sun ubiquitous window arcane', {
         'cat': _w(CefrLevel.a1),
         'sun': _w(CefrLevel.b1),
@@ -175,21 +164,17 @@ void main() {
         'ubiquitous',
         'arcane',
         'window',
+        'sun',
+        'cat',
       ]);
       expect(items.first.level, CefrLevel.c2);
       expect(items.first.kind, CheatSheetItemKind.word);
     });
 
-    test(
-      'drops words with unknown level and words equal to the level',
-      () async {
-        final items = await _run('equal mystery hard', {
-          'equal': _w(CefrLevel.b1),
-          'hard': _w(CefrLevel.c1),
-        });
-        expect(items.map((i) => i.text), ['hard']);
-      },
-    );
+    test('drops words with unknown level', () async {
+      final items = await _run('mystery hard', {'hard': _w(CefrLevel.c1)});
+      expect(items.map((i) => i.text), ['hard']);
+    });
 
     test('levels are looked up by lemma and forms are merged', () async {
       final items = await _run(
@@ -258,21 +243,22 @@ void main() {
       expect(items.map((i) => i.text), ['a', 'f', 'c', 'd', 'b', 'e']);
     });
 
-    test('takes at most cheatSheetMaxItems, the best ones', () async {
-      final words = [
-        for (var i = 0; i < 20; i++) 'w${String.fromCharCode(97 + i)}',
-      ];
-      // Analyzer tokens are letters only: use letter-only words.
-      final names = [for (var i = 0; i < 20; i++) 'x${'a' * i}'];
+    test('does not cut the list by count', () async {
+      final names = [for (var i = 0; i < 60; i++) 'x${'a' * i}'];
       final levels = {
         for (var i = 0; i < names.length; i++)
-          names[i]: _w(CefrLevel.c1, 1.0 + i / 10),
+          names[i]: _w(CefrLevel.c1, 1.0 + i / 100),
       };
-      expect(words, hasLength(20));
       final items = await _run(names.reversed.join(' '), levels);
-      expect(cheatSheetMaxItems, 15);
-      expect(items, hasLength(15));
-      expect(items.map((i) => i.text), names.take(15));
+      expect(items.map((i) => i.text), names);
+    });
+
+    test('items carry the Zipf frequency', () async {
+      final items = await _run('alpha beta', {
+        'alpha': _w(CefrLevel.c1, 3.5),
+        'beta': _w(CefrLevel.c1),
+      });
+      expect(items.map((i) => i.zipf), [null, 3.5]);
     });
 
     test('example is the first sentence of the text with the word', () async {
@@ -284,11 +270,28 @@ void main() {
       expect(items.single.translation, isNull);
     });
 
+    test(
+      'example is a short quote around the word form, not the lemma',
+      () async {
+        final items = await _run(
+          'One two three four five six seven eight ran nine ten eleven twelve '
+          'thirteen fourteen fifteen sixteen.',
+          {'run': _w(CefrLevel.c1)},
+          lemmas: {'ran': 'run'},
+        );
+        expect(
+          items.single.example,
+          '… two three four five six seven eight ran nine ten eleven twelve '
+          'thirteen fourteen fifteen …',
+        );
+      },
+    );
+
     test('result carries from and to; empty text gives no items', () async {
       final sheet = await const LevelCheatSheetGenerator(
         analyzer: _Analyzer(),
         levels: _Levels({}),
-      ).generate(text: '', from: _from, to: _to, userLevel: CefrLevel.b1);
+      ).generate(text: '', from: _from, to: _to);
       expect(sheet.items, isEmpty);
       expect(sheet.from, _from);
       expect(sheet.to, _to);
@@ -300,20 +303,14 @@ void main() {
         const LevelCheatSheetGenerator(
           analyzer: _Analyzer(),
           levels: _Levels({}),
-        ).generate(
-          text: 'x',
-          from: _from,
-          to: _to,
-          userLevel: CefrLevel.b1,
-          cancel: cancel,
-        ),
+        ).generate(text: 'x', from: _from, to: _to, cancel: cancel),
         throwsA(isA<CancelledException>()),
       );
     });
   });
 
   group('BuildCheatSheet', () {
-    test('passes the piece, level and looked-up lemmas to the '
+    test('passes the piece and looked-up lemmas to the '
         'generator', () async {
       final generator = _RecordingGenerator();
       final build = BuildCheatSheet(
@@ -333,7 +330,6 @@ void main() {
       );
       expect(sheet, isNotNull);
       expect(generator.text, 'First one.\n\nSecond one.');
-      expect(generator.userLevel, CefrLevel.c1);
       expect(generator.knownTerms, {'alpha', 'beta'});
       expect(generator.from!.chapter, _ch0);
       expect(generator.from!.progression, 0);
@@ -369,7 +365,7 @@ void main() {
       expect(generator.text, isNull);
     });
 
-    test('end to end: levels, history and names', () async {
+    test('end to end: all levels, history and names', () async {
       final build = BuildCheatSheet(
         generator: LevelCheatSheetGenerator(
           analyzer: const _Analyzer(),
@@ -390,7 +386,11 @@ void main() {
         ]),
         from: _from,
       );
-      expect(sheet!.items.map((i) => i.text), ['ephemeral', 'ubiquitous']);
+      expect(sheet!.items.map((i) => i.text), [
+        'ephemeral',
+        'ubiquitous',
+        'cat',
+      ]);
     });
   });
 }

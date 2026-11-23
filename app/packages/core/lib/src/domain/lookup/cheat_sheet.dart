@@ -33,6 +33,7 @@ final class CheatSheetItem {
     this.level = CefrLevel.unknown,
     this.translation,
     this.example,
+    this.zipf,
   });
 
   /// The word or expression.
@@ -47,8 +48,11 @@ final class CheatSheetItem {
   /// Short translation or definition, if prepared.
   final String? translation;
 
-  /// Sentence from the text with the item.
+  /// Short quote from the text around the item.
   final String? example;
+
+  /// Zipf frequency of the lemma (higher is more frequent), if known.
+  final double? zipf;
 
   @override
   bool operator ==(Object other) =>
@@ -57,10 +61,12 @@ final class CheatSheetItem {
       other.kind == kind &&
       other.level == level &&
       other.translation == translation &&
-      other.example == example;
+      other.example == example &&
+      other.zipf == zipf;
 
   @override
-  int get hashCode => Object.hash(text, kind, level, translation, example);
+  int get hashCode =>
+      Object.hash(text, kind, level, translation, example, zipf);
 }
 
 /// Cheat sheet for a text range.

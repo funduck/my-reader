@@ -1,18 +1,18 @@
 import '../../domain/books/locator.dart';
-import '../../domain/lookup/cefr_level.dart';
 import '../../domain/lookup/cheat_sheet.dart';
 import '../../ports/cancel_token.dart';
 import '../../ports/cheat_sheet_generator.dart';
 import '../../ports/level_dictionary.dart';
 import '../../ports/text_analyzer.dart';
-import 'cheat_sheet_config.dart';
+import 'short_quote.dart';
 
 /// Cheat sheet generator driven by CEFR levels (S-3, S-5).
 ///
 /// Steps: tokens of the text, each reduced to a lemma and given a level; keeps
-/// lemmas strictly harder than the user's level (an unknown level is not
-/// harder, so those lemmas are dropped); drops lemmas in `knownTerms` and
-/// proper names; ranks the rest and takes the first [cheatSheetMaxItems].
+/// every lemma with a known level (so the screen can change the user's level
+/// and the limit without analysing the text again); drops lemmas in
+/// `knownTerms` and proper names; ranks the rest. No cut by level or count:
+/// see `selectCheatSheetItems`.
 ///
 /// A lemma is taken for a proper name when it occurs with a capital letter
 /// not at the start of a sentence and never in lower case. Occurrences at the
@@ -22,8 +22,9 @@ import 'cheat_sheet_config.dart';
 /// the rarest), then more occurrences in the text, then earlier first
 /// occurrence.
 ///
-/// Each item carries the lemma as `text`, its level and the first sentence of
-/// the text with the lemma as `example`; the translation is left empty.
+/// Each item carries the lemma as `text`, its level and Zipf frequency, and as
+/// `example` a `shortQuote` around the first word form in the text; the
+/// translation is left empty.
 final class LevelCheatSheetGenerator implements CheatSheetGenerator {
   /// Creates a generator over [analyzer] and [levels].
   const new({required this.analyzer, required this.levels});
@@ -39,7 +40,6 @@ final class LevelCheatSheetGenerator implements CheatSheetGenerator {
     required String text,
     required Locator from,
     required Locator to,
-    required CefrLevel userLevel,
     Set<String> knownTerms = const {},
     CancelToken? cancel,
   }) async {
@@ -72,7 +72,7 @@ final class LevelCheatSheetGenerator implements CheatSheetGenerator {
     for (final MapEntry(key: lemma, value: entry) in stats.entries) {
       if (entry.isProperName || knownTerms.contains(lemma)) continue;
       final word = levels.levelOf(lemma);
-      if (!word.level.isHarderThan(userLevel)) continue;
+      if (!word.level.isKnown) continue;
       ranked.add(_Ranked(lemma, word, entry));
     }
     ranked.sort(_compare);
@@ -80,12 +80,15 @@ final class LevelCheatSheetGenerator implements CheatSheetGenerator {
       from: from,
       to: to,
       items: [
-        for (final r in ranked.take(cheatSheetMaxItems))
+        for (final r in ranked)
           CheatSheetItem(
             text: r.lemma,
             kind: CheatSheetItemKind.word,
             level: r.word.level,
-            example: r.stats.example,
+            zipf: r.word.zipf,
+            example: r.stats.sentence == null
+                ? null
+                : shortQuote(r.stats.sentence!, r.stats.form),
           ),
       ],
     );
@@ -137,14 +140,20 @@ final class _Stats {
   int count = 0;
 
   /// First sentence with the lemma.
-  String? example;
+  String? sentence;
+
+  /// The word form that stands in [sentence].
+  String form = '';
 
   bool _midCapital = false;
   bool _lower = false;
 
   void add(String word, {required bool atStart, required String? sentence}) {
     count++;
-    example ??= sentence;
+    if (this.sentence == null && sentence != null) {
+      this.sentence = sentence;
+      form = word;
+    }
     if (_isCapitalized(word)) {
       if (!atStart) _midCapital = true;
     } else {

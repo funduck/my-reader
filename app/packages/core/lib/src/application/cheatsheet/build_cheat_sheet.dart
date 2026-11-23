@@ -55,7 +55,6 @@ final class BuildCheatSheet {
       text: range.text,
       from: range.start,
       to: range.end,
-      userLevel: profile.level,
       knownTerms: {
         for (final t in known)
           if (t.language == cheatSheetLanguage) t.normalized,

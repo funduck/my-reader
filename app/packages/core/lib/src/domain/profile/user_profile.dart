@@ -6,6 +6,22 @@ import '../lookup/lookup_mode.dart';
 import 'cheat_sheet_scope.dart';
 import 'display_prefs.dart';
 
+/// Cheat sheet limit of a new profile.
+const defaultCheatSheetLimit = 20;
+
+/// Cheat sheet limits a profile may hold; null means "all".
+const cheatSheetLimits = <int?>[20, 50, null];
+
+/// A missing key or a value that is not allowed gives the default; an explicit
+/// null means "all".
+int? _limitFromJson(Map<String, Object?> json) {
+  if (!json.containsKey('cheatSheetLimit')) return defaultCheatSheetLimit;
+  final value = json['cheatSheetLimit'];
+  return cheatSheetLimits.contains(value)
+      ? value as int?
+      : defaultCheatSheetLimit;
+}
+
 /// User settings that the core needs.
 @immutable
 final class UserProfile {
@@ -14,6 +30,7 @@ final class UserProfile {
     this.mode = LookupMode.enEn,
     this.level = CefrLevel.b2,
     this.scope = CheatSheetScope.defaultScope,
+    this.cheatSheetLimit = defaultCheatSheetLimit,
     this.providerOrder = const [],
     this.serviceUrl,
     this.display = const DisplayPrefs(),
@@ -28,6 +45,7 @@ final class UserProfile {
       mode: LookupMode.fromJson(json['mode']),
       level: level.isKnown ? level : CefrLevel.b2,
       scope: CheatSheetScope.fromJson(json['scope']),
+      cheatSheetLimit: _limitFromJson(json),
       providerOrder: order is List<Object?>
           ? [
               for (final e in order)
@@ -48,6 +66,10 @@ final class UserProfile {
   /// Size of the cheat sheet piece.
   final CheatSheetScope scope;
 
+  /// Most words on the cheat sheet; null means all. Only
+  /// [cheatSheetLimits] are allowed.
+  final int? cheatSheetLimit;
+
   /// Preferred provider order; empty means "use registration order".
   final List<ProviderId> providerOrder;
 
@@ -63,6 +85,7 @@ final class UserProfile {
     LookupMode? mode,
     CefrLevel? level,
     CheatSheetScope? scope,
+    int? Function()? cheatSheetLimit,
     List<ProviderId>? providerOrder,
     String? Function()? serviceUrl,
     DisplayPrefs? display,
@@ -70,6 +93,9 @@ final class UserProfile {
     mode: mode ?? this.mode,
     level: level ?? this.level,
     scope: scope ?? this.scope,
+    cheatSheetLimit: cheatSheetLimit != null
+        ? cheatSheetLimit()
+        : this.cheatSheetLimit,
     providerOrder: providerOrder ?? this.providerOrder,
     serviceUrl: serviceUrl != null ? serviceUrl() : this.serviceUrl,
     display: display ?? this.display,
@@ -80,6 +106,7 @@ final class UserProfile {
     'mode': mode.toJson(),
     'level': level.toJson(),
     'scope': scope.toJson(),
+    'cheatSheetLimit': cheatSheetLimit,
     'providerOrder': [for (final p in providerOrder) p.value],
     'serviceUrl': serviceUrl,
     'display': display.toJson(),
@@ -91,6 +118,7 @@ final class UserProfile {
         other.mode != mode ||
         other.level != level ||
         other.scope != scope ||
+        other.cheatSheetLimit != cheatSheetLimit ||
         other.serviceUrl != serviceUrl ||
         other.display != display ||
         other.providerOrder.length != providerOrder.length) {
@@ -107,6 +135,7 @@ final class UserProfile {
     mode,
     level,
     scope,
+    cheatSheetLimit,
     serviceUrl,
     display,
     Object.hashAll(providerOrder),
