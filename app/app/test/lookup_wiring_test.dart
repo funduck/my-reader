@@ -139,7 +139,10 @@ void main() {
     final events = await recorded(tester);
 
     expect(find.text('1. loose grains of rock'), findsOneWidget);
-    expect(dictionary.calls.single.text, 'sand');
+    // The sheet also asks offline providers in the other mode (T-090);
+    // count only the calls in the mode the lookup was opened in.
+    final mode = events.single.query.mode;
+    expect(dictionary.calls.where((q) => q.mode == mode).single.text, 'sand');
     final query = events.single.query;
     expect(query.text, 'sand');
     expect(query.locator, at(0.25));
