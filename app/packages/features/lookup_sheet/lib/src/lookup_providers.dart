@@ -42,6 +42,7 @@ final Provider<TranslatePhrase> translatePhraseProvider =
         journal: ref.watch(phraseJournalProvider),
         clock: ref.watch(clockProvider),
         ids: ref.watch(idGeneratorProvider),
+        analyzer: ref.watch(textAnalyzerProvider),
       ),
     );
 

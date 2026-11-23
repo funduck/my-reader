@@ -568,6 +568,7 @@ class _PhraseFailure extends StatelessWidget {
       PhraseFailureKind.serverError => 'DeepL has a problem. Try again later.',
       PhraseFailureKind.other => 'The translation failed.',
       PhraseFailureKind.notFound => 'No translation for this phrase.',
+      PhraseFailureKind.tooLong => 'Select one sentence at most',
     };
     final settings = FilledButton(
       onPressed: onOpenSettings,
@@ -582,7 +583,7 @@ class _PhraseFailure extends StatelessWidget {
           spacing: 8,
           children: [settings, retry],
         ),
-        PhraseFailureKind.notFound => null,
+        PhraseFailureKind.notFound || PhraseFailureKind.tooLong => null,
         _ => retry,
       },
     );
