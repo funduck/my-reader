@@ -9,7 +9,7 @@ import 'package:features_common/features_common.dart';
 import 'package:features_library/features_library.dart';
 import 'package:features_reader/features_reader.dart';
 import 'package:features_settings/features_settings.dart'
-    show backgroundsDirectoryProvider;
+    show backgroundsDirectoryProvider, fontsDirectoryProvider;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:format_epub/format_epub.dart';
@@ -56,6 +56,9 @@ Future<List<Override>> buildDeviceOverrides() async {
   final dictionaries = await StarDictDictionaries.open(
     StarDictLibrary(directory: '${support.path}/dictionaries'),
   );
+  // The chosen font is registered before the first frame of the reader.
+  final font = (await database.profileRepository.get()).display.font;
+  if (font != null) await loadUserFont(font);
   return [
     bookRepositoryProvider.overrideWithValue(database.bookRepository),
     progressRepositoryProvider.overrideWithValue(database.progressRepository),
@@ -67,6 +70,7 @@ Future<List<Override>> buildDeviceOverrides() async {
     backgroundsDirectoryProvider.overrideWithValue(
       '${support.path}/backgrounds',
     ),
+    fontsDirectoryProvider.overrideWithValue('${support.path}/fonts'),
     ...buildLookupOverrides(packsDirPath, dictionaries: dictionaries),
     // The engine needs only sentence bounds and lemmas from the analyzer.
     readerEngineFactoryProvider.overrideWith(

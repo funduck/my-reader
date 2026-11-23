@@ -6,4 +6,5 @@
 library;
 
 export 'src/dictionary_library.dart';
+export 'src/font_loading.dart';
 export 'src/port_providers.dart';

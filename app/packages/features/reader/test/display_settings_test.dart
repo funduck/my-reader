@@ -32,4 +32,24 @@ void main() {
     final image = readerSettingsFrom(prefs).texture! as AssetImage;
     expect(image.assetName, 'packages/reader_simple/assets/textures/paper.png');
   });
+
+  test('fontFamily comes from the font; without a font it is null', () {
+    final dir = Directory.systemTemp.createTempSync('display_settings_');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final file = File('${dir.path}/f.ttf')..writeAsBytesSync([1, 2, 3]);
+    final prefs = const DisplayPrefs().copyWith(
+      font: () => FontChoice(path: file.path, family: 'Lora Regular'),
+    );
+    expect(readerSettingsFrom(prefs).fontFamily, 'Lora Regular');
+    expect(readerSettingsFrom(const DisplayPrefs()).fontFamily, isNull);
+  });
+
+  test('a font whose file is gone gives null', () {
+    final dir = Directory.systemTemp.createTempSync('display_settings_');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final prefs = const DisplayPrefs().copyWith(
+      font: () => FontChoice(path: '${dir.path}/gone.ttf', family: 'Gone'),
+    );
+    expect(readerSettingsFrom(prefs).fontFamily, isNull);
+  });
 }

@@ -151,6 +151,11 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
       _displayLoaded = true;
       if (!mounted) return;
     }
+    final font = _display.value.font;
+    if (font != null) {
+      await loadUserFont(font);
+      if (!mounted) return;
+    }
     engine.applySettings(readerSettingsFrom(_display.value));
     // A place opened from a route link (history) is marked in the text.
     final target = widget.locator;
@@ -166,8 +171,21 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     if (_displayDebounce != null) return;
     _displayLoaded = true;
     if (profile.display == _display.value) return;
+    final fontChanged = profile.display.font != _display.value.font;
     _display.value = profile.display;
-    _engine?.applySettings(readerSettingsFrom(profile.display));
+    final font = profile.display.font;
+    if (fontChanged && font != null) {
+      unawaited(_applyAfterFontLoad(font, profile.display));
+    } else {
+      _engine?.applySettings(readerSettingsFrom(profile.display));
+    }
+  }
+
+  /// Registers [font], then applies [prefs] unless newer ones came meanwhile.
+  Future<void> _applyAfterFontLoad(FontChoice font, DisplayPrefs prefs) async {
+    await loadUserFont(font);
+    if (!mounted || _display.value != prefs) return;
+    _engine?.applySettings(readerSettingsFrom(prefs));
   }
 
   /// Applies [prefs] at once and saves them after [displaySaveDebounce], or
