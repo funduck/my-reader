@@ -107,6 +107,8 @@ void main() {
           profileRepositoryProvider.overrideWithValue(FakeProfileRepository()),
           bookFormatsProvider.overrideWithValue([adapter]),
           lookupJournalProvider.overrideWithValue(journal),
+          phraseJournalProvider.overrideWithValue(FakePhraseJournal()),
+          secretStoreProvider.overrideWithValue(FakeSecretStore()),
           termRepositoryProvider.overrideWithValue(FakeTermRepository()),
           readerEngineFactoryProvider.overrideWithValue(() => engine),
           routerProvider.overrideWith(
@@ -149,7 +151,9 @@ void main() {
     expect(query.sentence, 'The sand moves.');
   });
 
-  testWidgets('a selection does the same', (tester) async {
+  testWidgets('a selected phrase does not go to the dictionary (T-094)', (
+    tester,
+  ) async {
     await pumpReader(tester);
     engine.emit(
       TextSelected(
@@ -158,12 +162,16 @@ void main() {
         sentence: 'The sand moves.',
       ),
     );
-    final events = await recorded(tester);
+    await tester.pumpAndSettle();
+    await tester.pump(minLookupViewDuration);
+    await tester.pumpAndSettle();
 
-    expect(find.text('1. the grains shift'), findsOneWidget);
-    final query = events.single.query;
-    expect(query.text, 'sand moves');
-    expect(query.locator, at(0.5));
-    expect(query.sentence, 'The sand moves.');
+    // No DeepL key in the store: the phrase sheet asks for one.
+    expect(
+      find.text('Phrase translation needs a DeepL API key'),
+      findsOneWidget,
+    );
+    expect(dictionary.calls, isEmpty);
+    expect(await tester.runAsync(() => journal.watch().first), isEmpty);
   });
 }

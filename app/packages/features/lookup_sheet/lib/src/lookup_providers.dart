@@ -24,6 +24,42 @@ final Provider<LookupSelection> lookupSelectionProvider =
       );
     });
 
+/// The provider of phrase translations (DeepL).
+///
+/// Not part of [lookupProvidersProvider]: phrases never go through the
+/// dictionary chain. Throws `PortNotWiredError` until the app wires it.
+final Provider<LookupProvider> phraseProviderProvider =
+    Provider<LookupProvider>(
+      (ref) => throw PortNotWiredError('phraseProviderProvider'),
+      name: 'phraseProviderProvider',
+    );
+
+/// The phrase scenario, built from the port providers of `features_common`.
+final Provider<TranslatePhrase> translatePhraseProvider =
+    Provider<TranslatePhrase>(
+      (ref) => TranslatePhrase(
+        provider: ref.watch(phraseProviderProvider),
+        journal: ref.watch(phraseJournalProvider),
+        clock: ref.watch(clockProvider),
+        ids: ref.watch(idGeneratorProvider),
+      ),
+    );
+
+/// Outcome of translating the phrase of a query; one run per query while the
+/// sheet is open. Disposing the provider cancels the running request. Refresh
+/// it to retry.
+final FutureProviderFamily<PhraseOutcome, LookupQuery> phraseOutcomeProvider =
+    FutureProvider.autoDispose.family<PhraseOutcome, LookupQuery>((ref, query) {
+      final cancel = CancelToken();
+      ref.onDispose(cancel.cancel);
+      return ref.watch(translatePhraseProvider)(
+        text: query.text,
+        sentence: query.sentence,
+        locator: query.locator,
+        cancel: cancel,
+      );
+    }, retry: (_, _) => null);
+
 /// A lookup to run: the `query` and, when the user picked one, the only
 /// `provider` to ask (`null` means the chain in the profile order).
 typedef LookupRequest = ({LookupQuery query, ProviderId? provider});

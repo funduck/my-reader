@@ -67,6 +67,9 @@ class _LookupSheetState extends ConsumerState<LookupSheet> {
   @override
   Widget build(BuildContext context) {
     final source = widget.query;
+    if (!isSingleWord(source.text)) {
+      return _PhraseView(query: source, onOpenSettings: widget.onOpenSettings);
+    }
     final original = source.mode;
     final other = _otherMode(original);
     final inOriginal = _mode == original;
@@ -126,6 +129,87 @@ class _LookupSheetState extends ConsumerState<LookupSheet> {
       _ => false,
     };
     final level = (outcome.value ?? base.value)?.wordLevel;
+    return _SheetFrame(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  query.text,
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+              ),
+              if (level != null) LevelBadge(level: level),
+              if (hasOther) ...[
+                const SizedBox(width: 8),
+                _ModeToggle(
+                  mode: _mode,
+                  // Going back is always possible; going on is not when
+                  // the other mode is known to have nothing.
+                  onPressed: inOriginal && nothingInOther
+                      ? null
+                      : () => setState(
+                          () => _mode = inOriginal ? other : original,
+                        ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 4),
+          switch (outcome) {
+            AsyncLoading() => const _Skeleton(),
+            AsyncError() => _Message(
+              text: 'Something went wrong.',
+              action: TextButton(
+                onPressed: () => ref.invalidate(lookupOutcomeProvider),
+                child: const Text('Retry'),
+              ),
+            ),
+            AsyncData(:final value) => _RecordAfterView(
+              key: ValueKey(value.event.id),
+              record: () => ref.read(lookupSelectionProvider).record(value),
+              child: switch (value) {
+                LookupAnswered() => _Answer(outcome: value),
+                LookupUnanswered(isNotFound: true) => _Message(
+                  text: 'Nothing found for "${query.text}".',
+                ),
+                LookupUnanswered() => _Message(
+                  text:
+                      'No dictionary available. '
+                      'Install a dictionary pack in settings.',
+                  action: FilledButton(
+                    onPressed: onOpenSettings,
+                    child: const Text('Open settings'),
+                  ),
+                ),
+              },
+            ),
+          },
+          if (candidates.length > 1) ...[
+            const SizedBox(height: 8),
+            _ProviderPicker(
+              providers: candidates,
+              selected: provider,
+              onChanged: (id) => setState(() => _provider = id),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Safe area, height limit and scrolling shared by both kinds of sheet.
+class _SheetFrame extends StatelessWidget {
+  const new({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
     return SafeArea(
       child: ConstrainedBox(
         constraints: BoxConstraints(
@@ -133,74 +217,7 @@ class _LookupSheetState extends ConsumerState<LookupSheet> {
         ),
         child: SingleChildScrollView(
           padding: const EdgeInsetsDirectional.fromSTEB(24, 0, 24, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      query.text,
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                  ),
-                  if (level != null) LevelBadge(level: level),
-                  if (hasOther) ...[
-                    const SizedBox(width: 8),
-                    _ModeToggle(
-                      mode: _mode,
-                      // Going back is always possible; going on is not when
-                      // the other mode is known to have nothing.
-                      onPressed: inOriginal && nothingInOther
-                          ? null
-                          : () => setState(
-                              () => _mode = inOriginal ? other : original,
-                            ),
-                    ),
-                  ],
-                ],
-              ),
-              const SizedBox(height: 4),
-              switch (outcome) {
-                AsyncLoading() => const _Skeleton(),
-                AsyncError() => _Message(
-                  text: 'Something went wrong.',
-                  action: TextButton(
-                    onPressed: () => ref.invalidate(lookupOutcomeProvider),
-                    child: const Text('Retry'),
-                  ),
-                ),
-                AsyncData(:final value) => _RecordAfterView(
-                  key: ValueKey(value.event.id),
-                  outcome: value,
-                  child: switch (value) {
-                    LookupAnswered() => _Answer(outcome: value),
-                    LookupUnanswered(isNotFound: true) => _Message(
-                      text: 'Nothing found for "${query.text}".',
-                    ),
-                    LookupUnanswered() => _Message(
-                      text:
-                          'No dictionary available. '
-                          'Install a dictionary pack in settings.',
-                      action: FilledButton(
-                        onPressed: onOpenSettings,
-                        child: const Text('Open settings'),
-                      ),
-                    ),
-                  },
-                ),
-              },
-              if (candidates.length > 1) ...[
-                const SizedBox(height: 8),
-                _ProviderPicker(
-                  providers: candidates,
-                  selected: provider,
-                  onChanged: (id) => setState(() => _provider = id),
-                ),
-              ],
-            ],
-          ),
+          child: child,
         ),
       ),
     );
@@ -245,22 +262,23 @@ class _ModeToggle extends StatelessWidget {
   }
 }
 
-/// Records [outcome] after it has been shown for [minLookupViewDuration].
+/// Calls `record` after the result has been shown for
+/// [minLookupViewDuration].
 ///
 /// Built only for a finished result, so the timer never runs during loading.
 /// Keyed by the event id: a new result (another provider or mode) gets a new
-/// timer, and leaving the tree cancels it.
-class _RecordAfterView extends ConsumerStatefulWidget {
-  const new({required this.outcome, required this.child, super.key});
+/// timer, and leaving the tree cancels it. Used by words and phrases alike.
+class _RecordAfterView extends StatefulWidget {
+  const new({required this.record, required this.child, super.key});
 
-  final LookupOutcome outcome;
+  final Future<void> Function() record;
   final Widget child;
 
   @override
-  ConsumerState<_RecordAfterView> createState() => _RecordAfterViewState();
+  State<_RecordAfterView> createState() => _RecordAfterViewState();
 }
 
-class _RecordAfterViewState extends ConsumerState<_RecordAfterView> {
+class _RecordAfterViewState extends State<_RecordAfterView> {
   static final Logger _log = Logger('LookupSheet');
 
   Timer? _timer;
@@ -289,18 +307,15 @@ class _RecordAfterViewState extends ConsumerState<_RecordAfterView> {
   @override
   void initState() {
     super.initState();
-    final selection = ref.read(lookupSelectionProvider);
-    final outcome = widget.outcome;
+    final record = widget.record;
     _timer = Timer(minLookupViewDuration, () {
       unawaited(
-        selection
-            .record(outcome)
-            .then<void>(
-              (_) {},
-              onError: (Object error, StackTrace stack) {
-                _log.warning('Recording the lookup failed', error, stack);
-              },
-            ),
+        record().then<void>(
+          (_) {},
+          onError: (Object error, StackTrace stack) {
+            _log.warning('Recording the lookup failed', error, stack);
+          },
+        ),
       );
     });
   }
@@ -449,6 +464,124 @@ class _Answer extends ConsumerWidget {
           ),
         Text(providerName, style: theme.textTheme.labelSmall),
       ],
+    );
+  }
+}
+
+/// Sheet of a phrase (more than one word): translation from the phrase
+/// provider only, no mode toggle, no level, no dictionary choice (T-094).
+class _PhraseView extends ConsumerWidget {
+  const new({required this.query, required this.onOpenSettings});
+
+  final LookupQuery query;
+  final VoidCallback? onOpenSettings;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final outcome = ref.watch(phraseOutcomeProvider(query));
+    void retry() => ref.invalidate(phraseOutcomeProvider(query));
+    return _SheetFrame(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            query.text.trim(),
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          const SizedBox(height: 4),
+          switch (outcome) {
+            AsyncLoading() => const _Skeleton(),
+            AsyncError() => _Message(
+              text: 'Something went wrong.',
+              action: TextButton(onPressed: retry, child: const Text('Retry')),
+            ),
+            AsyncData(:final value) => switch (value) {
+              PhraseTranslated() => _RecordAfterView(
+                key: ValueKey(value.id),
+                record: () async {
+                  await ref.read(translatePhraseProvider).record(value);
+                },
+                child: _PhraseAnswer(outcome: value),
+              ),
+              PhraseFailed(:final kind) => _PhraseFailure(
+                kind: kind,
+                onRetry: retry,
+                onOpenSettings: onOpenSettings,
+              ),
+            },
+          },
+        ],
+      ),
+    );
+  }
+}
+
+class _PhraseAnswer extends ConsumerWidget {
+  const new({required this.outcome});
+
+  final PhraseTranslated outcome;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final name = ref.watch(phraseProviderProvider).info.name;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(outcome.translation, style: theme.textTheme.titleMedium),
+        const SizedBox(height: 12),
+        Text(name, style: theme.textTheme.labelSmall),
+      ],
+    );
+  }
+}
+
+class _PhraseFailure extends StatelessWidget {
+  const new({
+    required this.kind,
+    required this.onRetry,
+    required this.onOpenSettings,
+  });
+
+  final PhraseFailureKind kind;
+  final VoidCallback onRetry;
+  final VoidCallback? onOpenSettings;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = switch (kind) {
+      PhraseFailureKind.noKey => 'Phrase translation needs a DeepL API key',
+      PhraseFailureKind.network =>
+        'No connection. Check the network and try again.',
+      PhraseFailureKind.timeout => 'DeepL did not answer in time.',
+      PhraseFailureKind.badKey =>
+        'DeepL rejected the API key. Check it in settings.',
+      PhraseFailureKind.quota => 'The DeepL quota of this key is used up.',
+      PhraseFailureKind.rateLimit =>
+        'Too many requests to DeepL. Wait a moment and try again.',
+      PhraseFailureKind.serverError => 'DeepL has a problem. Try again later.',
+      PhraseFailureKind.other => 'The translation failed.',
+      PhraseFailureKind.notFound => 'No translation for this phrase.',
+    };
+    final settings = FilledButton(
+      onPressed: onOpenSettings,
+      child: const Text('Open settings'),
+    );
+    final retry = TextButton(onPressed: onRetry, child: const Text('Retry'));
+    return _Message(
+      text: text,
+      action: switch (kind) {
+        PhraseFailureKind.noKey => settings,
+        PhraseFailureKind.badKey => Wrap(
+          spacing: 8,
+          children: [settings, retry],
+        ),
+        PhraseFailureKind.notFound => null,
+        _ => retry,
+      },
     );
   }
 }

@@ -18,8 +18,10 @@ dependencies:
   flutter_riverpod: ^3.5.0
   format_epub: any
   go_router: ^18.1.4
+  http: ^1.2.0
   levels_cefr: any
   logging: ^1.3.0
+  lookup_deepl: any
   lookup_sheet: any
   lookup_stardict: any
   lookup_wiktionary: any
@@ -34,7 +36,6 @@ dev_dependencies:
   core_testing: any
   flutter_test:
     sdk: flutter
-  http: ^1.2.0
   integration_test:
     sdk: flutter
   reader_api: any

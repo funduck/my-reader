@@ -14,8 +14,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:format_epub/format_epub.dart';
 import 'package:go_router/go_router.dart';
+import 'package:http/http.dart' as http;
 import 'package:levels_cefr/levels_cefr.dart';
 import 'package:logging/logging.dart';
+import 'package:lookup_deepl/lookup_deepl.dart';
 import 'package:lookup_sheet/lookup_sheet.dart';
 import 'package:lookup_stardict/lookup_stardict.dart';
 import 'package:lookup_wiktionary/lookup_wiktionary.dart'
@@ -108,9 +110,26 @@ List<Override> buildLookupOverrides(
   ),
   if (dictionaries != null)
     dictionaryLibraryProvider.overrideWithValue(dictionaries),
+  phraseProviderProvider.overrideWith(_buildPhraseProvider),
   lookupPresenterProvider.overrideWith(_buildLookupPresenter),
   cheatSheetGeneratorProvider.overrideWith(_buildCheatSheetGenerator),
 ];
+
+/// The HTTP client shared by the network adapters that do not own one (the
+/// phrase translator); closed with the container. Tests override it.
+final Provider<http.Client> httpClientProvider = Provider<http.Client>((ref) {
+  final client = http.Client();
+  ref.onDispose(client.close);
+  return client;
+});
+
+/// DeepL for phrases (B-009). Not in the dictionary chain: the sheet asks it
+/// directly. The key is read from the secret store on every request, so a key
+/// saved in settings works at once.
+LookupProvider _buildPhraseProvider(Ref ref) => DeepLProvider(
+  client: ref.watch(httpClientProvider),
+  apiKey: () => ref.read(secretStoreProvider).read(deeplApiKey),
+);
 
 /// Cheat sheet generator over the analyzer and the level dictionary of the
 /// app (the same instances the lookup sheet uses, so one `en-levels` file is
