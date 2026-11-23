@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:core/domain_lookup.dart';
@@ -6,6 +7,8 @@ import 'package:features_common/features_common.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 import 'package:material_ui/material_ui.dart';
+
+import 'background_texture.dart';
 
 final Logger _log = Logger('ReadingSection');
 
@@ -76,7 +79,8 @@ Future<void> _updateDisplay(
   }
 }
 
-/// The "Reading" section: size, spacing, dimming, mode and palettes.
+/// The "Reading" section: size, spacing, dimming, mode, palettes and the
+/// background texture.
 class ReadingSection extends ConsumerWidget {
   /// Creates the section for the current [display] preferences.
   const new({required this.display, super.key});
@@ -180,6 +184,8 @@ class ReadingSection extends ConsumerWidget {
           onChanged: (p) =>
               unawaited(_updateDisplay(ref, (d) => d.copyWith(night: p))),
         ),
+        const SizedBox(height: 16),
+        _TextureEditor(display: display),
       ],
     );
   }
@@ -437,6 +443,217 @@ class _PrefSliderState extends State<_PrefSlider> {
         setState(() => _dragging = null);
         widget.onSave(v);
       },
+    );
+  }
+}
+
+/// Saves [texture] and deletes the own image it replaces, if any.
+Future<void> _setTexture(WidgetRef ref, BackgroundTexture texture) async {
+  final repository = ref.read(profileRepositoryProvider);
+  final directory = ref.read(backgroundsDirectoryProvider);
+  try {
+    final profile = await repository.get();
+    final old = profile.display.texture;
+    await repository.save(
+      profile.copyWith(display: profile.display.copyWith(texture: texture)),
+    );
+    await deleteUnusedBackground(old, texture, directory);
+  } on Exception catch (e, s) {
+    _log.warning('Cannot save the background texture', e, s);
+  }
+}
+
+/// Row of texture samples and the "Texture visibility" slider.
+class _TextureEditor extends ConsumerStatefulWidget {
+  const new({required this.display});
+
+  final DisplayPrefs display;
+
+  @override
+  ConsumerState<_TextureEditor> createState() => _TextureEditorState();
+}
+
+class _TextureEditorState extends ConsumerState<_TextureEditor> {
+  String? _error;
+
+  Future<void> _pickOwn() async {
+    final picker = ref.read(backgroundFilePickerProvider);
+    final directory = ref.read(backgroundsDirectoryProvider);
+    final path = await picker();
+    if (path == null || !mounted) return;
+    final result = await importBackground(path, directory);
+    if (!mounted) return;
+    switch (result) {
+      case BackgroundImported(:final path):
+        setState(() => _error = null);
+        await _setTexture(ref, FileTexture(path));
+      case BackgroundTooLarge():
+        setState(
+          () => _error = 'The image is larger than 5 MB. Choose a smaller one.',
+        );
+      case BackgroundFailed():
+        setState(() => _error = 'Cannot read the image. Choose another one.');
+    }
+  }
+
+  void _choose(BackgroundTexture texture) {
+    setState(() => _error = null);
+    unawaited(_setTexture(ref, texture));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final display = widget.display;
+    final theme = Theme.of(context);
+    final palette = display.palette;
+    final night = display.mode == DisplayMode.night;
+    final current = display.texture;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Background texture', style: theme.textTheme.titleSmall),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 12,
+          runSpacing: 8,
+          children: [
+            _TextureSample(
+              key: const Key('texture-none'),
+              label: 'None',
+              background: palette.background,
+              night: night,
+              opacity: display.textureOpacity,
+              image: null,
+              selected: current is NoTexture,
+              onTap: () => _choose(const NoTexture()),
+            ),
+            for (final id in builtInTextureIds)
+              _TextureSample(
+                key: Key('texture-$id'),
+                label: '${id[0].toUpperCase()}${id.substring(1)}',
+                background: palette.background,
+                night: night,
+                opacity: display.textureOpacity,
+                image: AssetImage(builtInTextureAsset(id)),
+                selected: current == BuiltInTexture(id),
+                onTap: () => _choose(BuiltInTexture(id)),
+              ),
+            _TextureSample(
+              key: const Key('texture-own'),
+              label: 'Own…',
+              background: palette.background,
+              night: night,
+              opacity: display.textureOpacity,
+              image: switch (current) {
+                FileTexture(:final path) => FileImage(File(path)),
+                _ => null,
+              },
+              selected: current is FileTexture,
+              onTap: () => unawaited(_pickOwn()),
+            ),
+          ],
+        ),
+        if (_error != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              _error!,
+              key: const Key('texture-error'),
+              style: TextStyle(color: theme.colorScheme.error),
+            ),
+          ),
+        const SizedBox(height: 8),
+        const Text('Texture visibility'),
+        _PrefSlider(
+          key: const Key('texture-opacity'),
+          min: 0,
+          max: 1,
+          divisions: 20,
+          value: display.textureOpacity,
+          onSave: (v) => unawaited(
+            _updateDisplay(
+              ref,
+              (d) => d.copyWith(textureOpacity: (v * 20).round() / 20),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// A square sample of a texture over the current page background, with its
+/// name below; blended like the reader does (multiply by day, screen by night).
+class _TextureSample extends StatelessWidget {
+  const new({
+    required this.label,
+    required this.background,
+    required this.night,
+    required this.opacity,
+    required this.image,
+    required this.selected,
+    required this.onTap,
+    super.key,
+  });
+
+  final String label;
+  final int background;
+  final bool night;
+  final double opacity;
+  final ImageProvider? image;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final outline = Theme.of(context).colorScheme.primary;
+    final color = Color(background);
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: 'Texture $label',
+      excludeSemantics: true,
+      child: InkResponse(
+        onTap: onTap,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: selected ? outline : Colors.grey,
+                  width: selected ? 3 : 1,
+                ),
+              ),
+              child: image == null
+                  ? null
+                  : ColorFiltered(
+                      colorFilter: ColorFilter.mode(
+                        color,
+                        night ? BlendMode.screen : BlendMode.multiply,
+                      ),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          image: DecorationImage(
+                            image: image!,
+                            repeat: ImageRepeat.repeat,
+                            opacity: opacity,
+                            onError: (_, _) {},
+                          ),
+                        ),
+                      ),
+                    ),
+            ),
+            const SizedBox(height: 4),
+            Text(label, style: Theme.of(context).textTheme.bodySmall),
+          ],
+        ),
+      ),
     );
   }
 }

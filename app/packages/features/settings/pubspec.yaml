@@ -7,6 +7,7 @@ environment:
   sdk: ^3.14.0
 dependencies:
   core: any
+  crypto: ^3.0.0
   features_common: any
   file_selector: ^1.0.3
   flutter:

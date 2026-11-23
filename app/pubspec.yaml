@@ -24,7 +24,8 @@ workspace:
   - packages/storage_drift
   - packages/text_en
 dev_dependencies:
-  # tool/check_imports.dart and its tests
+  # tool/check_imports.dart, tool/gen_textures.dart and their tests
+  image: ^4.5.0
   test: ^1.25.0
   very_good_analysis: ^11.0.0
   yaml: ^3.1.0

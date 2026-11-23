@@ -2,6 +2,17 @@
 /// data pack downloads, imported dictionaries and the order of providers.
 library;
 
+export 'src/background_texture.dart'
+    show
+        BackgroundFailed,
+        BackgroundImport,
+        BackgroundImported,
+        BackgroundTooLarge,
+        backgroundFilePickerProvider,
+        backgroundsDirectoryProvider,
+        builtInTextureIds,
+        importBackground,
+        maxBackgroundBytes;
 export 'src/dictionaries_controller.dart';
 export 'src/dictionaries_section.dart';
 export 'src/packs_controller.dart';
