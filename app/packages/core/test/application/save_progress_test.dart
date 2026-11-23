@@ -39,6 +39,11 @@ void main() {
     expect(repo.saved.single.updatedAt, DateTime.utc(2024, 5, 6));
   });
 
+  test('with chapter lengths saves the fraction by text length', () async {
+    await save(at(1, 0.5), chapterCount: 3, chapterLengths: [100, 700, 200]);
+    expect(repo.saved.single.percent, closeTo(0.45, 1e-9));
+  });
+
   test('percent is clamped and safe for an empty spine', () async {
     await save(at(3, 1), chapterCount: 4);
     await save(at(0, 0.2), chapterCount: 0);

@@ -181,6 +181,10 @@ void main() {
     bool barShown(WidgetTester tester) =>
         tester.getRect(find.byType(AppBar)).bottom > 0;
 
+    bool panelShown(WidgetTester tester) =>
+        tester.getRect(find.byType(LinearProgressIndicator)).top <
+        tester.view.physicalSize.height / tester.view.devicePixelRatio;
+
     Future<void> toggle(WidgetTester tester) async {
       engines.single.emit(tap);
       await tester.pumpAndSettle();
@@ -205,6 +209,38 @@ void main() {
       await toggle(tester);
       expect(barShown(tester), isFalse);
       expect(chrome.modes.last, SystemUiMode.immersiveSticky);
+      await close(tester);
+    });
+
+    phoneTest('the progress panel is shown and hidden with the menu', (
+      tester,
+    ) async {
+      await open(tester);
+      final viewTop = tester.getTopLeft(find.text('engine view'));
+      expect(panelShown(tester), isFalse);
+      await toggle(tester);
+      expect(panelShown(tester), isTrue);
+      expect(find.text('Chapter 1 · 0%'), findsOneWidget);
+      // It lies over the text: the text stays where it was.
+      expect(tester.getTopLeft(find.text('engine view')), viewTop);
+      await toggle(tester);
+      expect(panelShown(tester), isFalse);
+      expect(barShown(tester), isFalse);
+      await close(tester);
+    });
+
+    phoneTest('the progress panel keeps above the system bottom inset', (
+      tester,
+    ) async {
+      tester.view.padding = const FakeViewPadding(bottom: 48);
+      addTearDown(tester.view.resetPadding);
+      await open(tester);
+      await toggle(tester);
+      final screen = tester.view.physicalSize / tester.view.devicePixelRatio;
+      final bar = tester.getRect(find.byType(LinearProgressIndicator));
+      // 48 physical pixels of the inset and 8 of the panel's own padding.
+      final inset = 48 / tester.view.devicePixelRatio;
+      expect(bar.bottom, closeTo(screen.height - inset - 8, 0.01));
       await close(tester);
     });
 
@@ -365,6 +401,109 @@ void main() {
     await close(tester);
   });
 
+  group('progress panel', () {
+    // Chapters of 4, 4, 6 and 5 characters: 19 in all.
+    String caption(WidgetTester tester) => tester
+        .widget<Text>(
+          find.descendant(
+            of: find
+                .ancestor(
+                  of: find.byType(LinearProgressIndicator),
+                  matching: find.byType(Column),
+                )
+                .first,
+            matching: find.byType(Text),
+          ),
+        )
+        .data!;
+
+    macTest('shows the chapter and the percent after PositionChanged', (
+      tester,
+    ) async {
+      await open(tester);
+      engines.single.emit(PositionChanged(at(2, 0.5)));
+      await tester.pump();
+      await tester.pump();
+      // (4 + 4 + 0.5 * 6) / 19 = 57.9 %
+      expect(find.text('Chapter 3 · 58%'), findsOneWidget);
+      final bar = tester.widget<LinearProgressIndicator>(
+        find.byType(LinearProgressIndicator),
+      );
+      expect(bar.value, closeTo(11 / 19, 1e-9));
+
+      engines.single.emit(PositionChanged(at(3, 1)));
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Chapter 4 · 100%'), findsOneWidget);
+      await close(tester);
+    });
+
+    macTest('starts at the place where the book opened', (tester) async {
+      await open(tester, locator: at(1, 0));
+      expect(find.text('Chapter 2 · 21%'), findsOneWidget);
+      await close(tester);
+    });
+
+    macTest('without a table of contents entry shows only the percent', (
+      tester,
+    ) async {
+      adapter = _WrappedAdapter(noToc: true)
+        ..register(
+          '/x/b1.epub',
+          const BookMetadata(title: 'Dune'),
+          chapters: ['One.', 'Two.', 'Three.', 'Four.'],
+        );
+      await open(tester);
+      engines.single.emit(PositionChanged(at(2, 0.5)));
+      await tester.pump();
+      await tester.pump();
+      expect(caption(tester), '58%');
+      await close(tester);
+    });
+
+    macTest('before the chapters are measured chapters weigh the same', (
+      tester,
+    ) async {
+      final gate = Completer<void>();
+      adapter = _WrappedAdapter(gate: gate.future)
+        ..register(
+          '/x/b1.epub',
+          const BookMetadata(title: 'Dune'),
+          chapters: ['One.', 'Two.', 'Three.', 'Four.'],
+        );
+      await open(tester);
+      engines.single.emit(PositionChanged(at(1, 0.5)));
+      await tester.pump();
+      await tester.pump();
+      expect(caption(tester), 'Chapter 2 · 38%');
+
+      gate.complete();
+      await tester.pump();
+      await tester.pump();
+      // (4 + 0.5 * 4) / 19 = 31.6 %
+      expect(caption(tester), 'Chapter 2 · 32%');
+      await close(tester);
+    });
+
+    macTest('closing the screen while measuring stops without an error', (
+      tester,
+    ) async {
+      final gate = Completer<void>();
+      adapter = _WrappedAdapter(gate: gate.future)
+        ..register(
+          '/x/b1.epub',
+          const BookMetadata(title: 'Dune'),
+          chapters: ['One.', 'Two.', 'Three.', 'Four.'],
+        );
+      await open(tester);
+      await close(tester);
+      gate.complete();
+      await tester.pump();
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    });
+  });
+
   macTest('shows the engine view and the title', (tester) async {
     await open(tester);
     expect(find.text('engine view'), findsOneWidget);
@@ -386,7 +525,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
     final saved = await progress.get(id);
     expect(saved?.locator, at(1, 0.4));
-    expect(saved?.percent, closeTo(0.35, 1e-9));
+    // Chapters of 4, 4, 6 and 5 characters: (4 + 0.4 * 4) / 19.
+    expect(saved?.percent, closeTo(5.6 / 19, 1e-9));
     await close(tester);
   });
 
@@ -788,4 +928,43 @@ class _CountingProfiles implements ProfileRepository {
     _onSave();
     return _inner.save(profile);
   }
+}
+
+/// A [FakeBookFormatAdapter] whose books have no table of contents and/or
+/// hold back the chapters until [gate] completes.
+class _WrappedAdapter extends FakeBookFormatAdapter {
+  new({this.noToc = false, this.gate});
+
+  final bool noToc;
+  final Future<void>? gate;
+
+  @override
+  Future<OpenedBook> open(String path) async =>
+      _WrappedBook(await super.open(path), noToc: noToc, gate: gate);
+}
+
+class _WrappedBook implements OpenedBook {
+  new(this.inner, {required this.noToc, required this.gate});
+
+  final OpenedBook inner;
+  final bool noToc;
+  final Future<void>? gate;
+
+  @override
+  List<TocEntry> get toc => noToc ? const [] : inner.toc;
+
+  @override
+  List<ChapterRef> get spine => inner.spine;
+
+  @override
+  Future<ContentDocument> chapter(ChapterRef ref) async {
+    await gate;
+    return await inner.chapter(ref);
+  }
+
+  @override
+  Future<Uint8List> resource(String href) => inner.resource(href);
+
+  @override
+  Future<void> close() => inner.close();
 }
