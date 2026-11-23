@@ -89,31 +89,59 @@ List<double> _field(double Function(double u, double v, int x, int y) f) {
   return out;
 }
 
+/// Rescales [pixels] to mean 0.5 and standard deviation [sigma] (0..1), so
+/// the texture is clearly visible; the visibility is set by the slider, not
+/// by the picture. An affine map keeps the torus seamless.
+List<double> _normalize(List<double> pixels, double sigma) {
+  final n = pixels.length;
+  final mean = pixels.reduce((a, b) => a + b) / n;
+  var sum = 0.0;
+  for (final p in pixels) {
+    sum += (p - mean) * (p - mean);
+  }
+  final k = sigma / math.sqrt(sum / n);
+  return [for (final p in pixels) (0.5 + (p - mean) * k).clamp(0.0, 1.0)];
+}
+
 /// Soft noise with long fibres: coarse blobs plus stretched strands.
-List<double> _paper() => _field((u, v, x, y) {
-  final blobs =
-      0.6 * _tileNoise(u, v, 4, 4, 1) + 0.4 * _tileNoise(u, v, 8, 8, 2);
-  final fibres =
-      0.5 * _tileNoise(u, v, 48, 3, 3) + 0.5 * _tileNoise(u, v, 3, 48, 4);
-  final grain = _unit(x, y, 5);
-  return 0.5 + 0.035 * blobs + 0.03 * fibres + 0.01 * grain;
-});
+List<double> _paper() => _normalize(
+  _field((u, v, x, y) {
+    final blobs =
+        0.6 * _tileNoise(u, v, 4, 4, 1) + 0.4 * _tileNoise(u, v, 8, 8, 2);
+    final fibres =
+        0.5 * _tileNoise(u, v, 48, 3, 3) + 0.5 * _tileNoise(u, v, 3, 48, 4);
+    final grain = _unit(x, y, 5);
+    return 0.5 * blobs + 0.8 * fibres + 0.25 * grain;
+  }),
+  0.14,
+);
 
-/// Fine uniform noise, a little smoothed by a tiny lattice.
-List<double> _noise() => _field((u, v, x, y) {
-  final fine = _unit(x, y, 6);
-  final soft = _tileNoise(u, v, 128, 128, 7);
-  return 0.5 + 0.035 * fine + 0.02 * soft;
-});
+/// Fine noise, a little smoothed by a tiny lattice.
+List<double> _noise() => _normalize(
+  _field((u, v, x, y) {
+    final fine = 0.5 * (_unit(x, y, 6) + _unit(x, y, 10));
+    final soft = _tileNoise(u, v, 128, 128, 7);
+    return fine + 0.5 * soft;
+  }),
+  0.15,
+);
 
-/// Light woven grid: threads every 8 px both ways, smooth (no hard flips).
-List<double> _linen() => _field((u, v, x, y) {
-  final warp = math.sin(2 * math.pi * x / 8);
-  final weft = math.sin(2 * math.pi * y / 8);
-  final weave = 0.4 * warp + 0.4 * weft + 0.5 * warp * weft;
-  final slub = _tileNoise(u, v, 32, 32, 8);
-  return 0.5 + 0.04 * weave + 0.015 * slub + 0.008 * _unit(x, y, 9);
-});
+/// Plain weave: 4 px cells in a chessboard, warp threads run over the weft in
+/// one half of the cells and under it in the other; each thread is a rounded
+/// ridge, so the picture reads as woven cloth, not as a grid of dots.
+List<double> _linen() => _normalize(
+  _field((u, v, x, y) {
+    final cellX = x ~/ 4;
+    final cellY = y ~/ 4;
+    final ridgeX = math.sin(math.pi * ((x % 4) + 0.5) / 4);
+    final ridgeY = math.sin(math.pi * ((y % 4) + 0.5) / 4);
+    final warpOver = (cellX + cellY).isEven;
+    final weave = warpOver ? ridgeX : ridgeY;
+    final slub = _tileNoise(u, v, 32, 32, 8);
+    return weave + 0.35 * slub + 0.15 * _unit(x, y, 9);
+  }),
+  0.15,
+);
 
 void main(List<String> args) {
   final dir = Directory(

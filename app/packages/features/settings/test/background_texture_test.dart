@@ -6,6 +6,7 @@ import 'package:features_common/features_common.dart';
 import 'package:features_settings/features_settings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:logging/logging.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'fakes.dart';
@@ -151,5 +152,83 @@ void main() {
     await tester.drag(slider, const Offset(-2000, 0));
     await tester.pumpAndSettle();
     expect((await profile.get()).display.textureOpacity, 0);
+  });
+
+  Container sampleBox(WidgetTester tester, String id) =>
+      tester.widget<Container>(
+        find.descendant(
+          of: find.byKey(Key('texture-$id')),
+          matching: find.byType(Container),
+        ),
+      );
+
+  testWidgets('the selection frame is drawn above the texture', (tester) async {
+    profile = FakeProfileRepository(
+      const UserProfile(
+        display: DisplayPrefs(texture: BuiltInTexture('noise')),
+      ),
+    );
+    await pump(tester);
+    final selected = sampleBox(tester, 'noise');
+    // The picture is the child; a frame in `decoration` would be covered.
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('texture-noise')),
+        matching: find.byType(ColorFiltered),
+      ),
+      findsOneWidget,
+    );
+    expect((selected.decoration! as BoxDecoration).border, isNull);
+    final frame = selected.foregroundDecoration! as BoxDecoration;
+    expect((frame.border! as Border).top.width, 3);
+    final other = sampleBox(tester, 'paper');
+    final otherFrame = other.foregroundDecoration! as BoxDecoration;
+    expect((otherFrame.border! as Border).top.width, 1);
+  });
+
+  testWidgets('the paragraph sample is drawn on the chosen texture', (
+    tester,
+  ) async {
+    await pump(tester);
+    final sample = find.byKey(const Key('night-sample'));
+    expect(
+      find.descendant(of: sample, matching: find.byType(ColorFiltered)),
+      findsNothing,
+    );
+    await tester.tap(find.byKey(const Key('texture-paper')));
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(of: sample, matching: find.byType(ColorFiltered)),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('day-sample')),
+        matching: find.byType(ColorFiltered),
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const Key('texture-none')));
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(of: sample, matching: find.byType(ColorFiltered)),
+      findsNothing,
+    );
+  });
+
+  testWidgets('choosing a texture is logged at info level', (tester) async {
+    final records = <LogRecord>[];
+    final previous = Logger.root.level;
+    Logger.root.level = Level.ALL;
+    final subscription = Logger.root.onRecord.listen(records.add);
+    addTearDown(() async {
+      await subscription.cancel();
+      Logger.root.level = previous;
+    });
+    await pump(tester);
+    await tester.tap(find.byKey(const Key('texture-linen')));
+    await tester.pumpAndSettle();
+    final info = records.where((r) => r.level == Level.INFO);
+    expect(info.map((r) => r.message), contains('Texture chosen: linen'));
   });
 }
