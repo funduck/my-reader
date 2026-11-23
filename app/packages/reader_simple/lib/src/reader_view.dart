@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:core/domain_books.dart';
 import 'package:flutter/rendering.dart';
 import 'package:material_ui/material_ui.dart';
-import 'package:reader_api/reader_api.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import 'block_view.dart';
@@ -44,7 +43,6 @@ class ReaderView extends StatelessWidget {
                 texture: texture,
                 opacity: settings.textureOpacity,
                 background: style.background,
-                night: settings.theme == ReaderTheme.dark,
               ),
             if (chapter != null)
               _ChapterList(
@@ -69,30 +67,26 @@ class ReaderView extends StatelessWidget {
 
 /// The tiled texture under the list, outside the scroll.
 ///
-/// The image is tinted with the page background by `multiply` (day) or
-/// `screen` (night) and drawn with [opacity], so the result over the plain
-/// background is the texture blended with it.
+/// The image is blended with the page background by `overlay` (the same by
+/// day and by night) and drawn with [opacity]. A mid-grey texture leaves the
+/// background unchanged on average; lighter and darker pixels lighten and
+/// darken it.
 class _TextureLayer extends StatelessWidget {
   const new({
     required this.texture,
     required this.opacity,
     required this.background,
-    required this.night,
   });
 
   final ImageProvider texture;
   final double opacity;
   final Color background;
-  final bool night;
 
   @override
   Widget build(BuildContext context) => Positioned.fill(
     child: RepaintBoundary(
       child: ColorFiltered(
-        colorFilter: ColorFilter.mode(
-          background,
-          night ? BlendMode.screen : BlendMode.multiply,
-        ),
+        colorFilter: ColorFilter.mode(background, BlendMode.overlay),
         child: DecoratedBox(
           decoration: BoxDecoration(
             image: DecorationImage(

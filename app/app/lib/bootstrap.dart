@@ -8,6 +8,8 @@ import 'package:core/ports.dart';
 import 'package:features_common/features_common.dart';
 import 'package:features_library/features_library.dart';
 import 'package:features_reader/features_reader.dart';
+import 'package:features_settings/features_settings.dart'
+    show backgroundsDirectoryProvider;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:format_epub/format_epub.dart';
@@ -62,6 +64,9 @@ Future<List<Override>> buildDeviceOverrides() async {
     termRepositoryProvider.overrideWithValue(database.termRepository),
     bookFormatsProvider.overrideWithValue(const [EpubFormatAdapter()]),
     booksDirectoryProvider.overrideWithValue('${support.path}/books'),
+    backgroundsDirectoryProvider.overrideWithValue(
+      '${support.path}/backgrounds',
+    ),
     ...buildLookupOverrides(packsDirPath, dictionaries: dictionaries),
     // The engine needs only sentence bounds and lemmas from the analyzer.
     readerEngineFactoryProvider.overrideWith(

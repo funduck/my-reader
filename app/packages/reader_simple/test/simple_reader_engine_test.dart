@@ -373,6 +373,36 @@ void main() {
       expect(tiled, findsNothing);
     });
 
+    testWidgets('texture is blended with overlay by day and by night', (
+      tester,
+    ) async {
+      final engine = await _open(tester, _fakeBook(chapters: 1));
+      for (final theme in ReaderTheme.values) {
+        engine.applySettings(
+          ReaderSettings(
+            theme: theme,
+            background: const Color(0xFF123456),
+            texture: MemoryImage(_png),
+          ),
+        );
+        await tester.pump();
+        final tiled = find.byWidgetPredicate(
+          (w) =>
+              w is DecoratedBox &&
+              w.decoration is BoxDecoration &&
+              (w.decoration as BoxDecoration).image != null,
+        );
+        final filtered = tester.widget<ColorFiltered>(
+          find.ancestor(of: tiled, matching: find.byType(ColorFiltered)),
+        );
+        expect(
+          filtered.colorFilter,
+          const ColorFilter.mode(Color(0xFF123456), BlendMode.overlay),
+          reason: '$theme',
+        );
+      }
+    });
+
     testWidgets('applying settings keeps the scroll position', (tester) async {
       final engine = await _open(tester, _fakeBook(chapters: 1));
       await _scrollTo(tester, find.textContaining('c0-p25'), 300);
