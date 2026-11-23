@@ -1,6 +1,11 @@
+import 'dart:async';
+
+import 'package:core/application.dart';
 import 'package:core/domain_books.dart';
 import 'package:core/domain_lookup.dart';
+import 'package:features_common/features_common.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:logging/logging.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'providers.dart';
@@ -11,10 +16,22 @@ typedef WordTapCallback = void Function(
   LookupQuery query,
 );
 
+final Logger _log = Logger('CheatSheetScreen');
+
+/// The levels offered for "above": a word of the top level has nothing above.
+const List<CefrLevel> _pickableLevels = [
+  CefrLevel.a2,
+  CefrLevel.b1,
+  CefrLevel.b2,
+  CefrLevel.c1,
+];
+
 /// Warm-up before reading: the hard words of the next piece of [bookId], each
-/// with its level, a short meaning and a sentence from the text.
+/// with its level, frequency, a short meaning and a quote from the text.
 ///
 /// The piece starts at [from], or at the saved position when it is null.
+/// Above the list the user picks the level and how many words to show (both
+/// saved in the profile); "Знаю" hides a word and marks its term known.
 /// Tapping a word calls [onWordTap] (the app shows the lookup sheet, which
 /// writes the query to the history). [onRead] brings the user back to the
 /// book.
@@ -42,7 +59,10 @@ class CheatSheetScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final load = ref.watch(cheatSheetProvider((bookId: bookId, from: from)));
+    final request = (bookId: bookId, from: from);
+    final load = ref.watch(cheatSheetProvider(request));
+    // Subscribed with the sheet, not after it, so the list is ready at once.
+    ref.watch(cheatSheetProfileProvider);
     return Scaffold(
       appBar: AppBar(
         title: Text(load.maybeWhen(data: _title, orElse: () => 'Разминка')),
@@ -51,7 +71,8 @@ class CheatSheetScreen extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (_, _) =>
             const Center(child: Text('Не удалось подготовить разминку.')),
-        data: (data) => _Items(data: data, onWordTap: onWordTap),
+        data: (data) =>
+            _Body(request: request, data: data, onWordTap: onWordTap),
       ),
       bottomNavigationBar: SafeArea(
         child: Padding(
@@ -68,24 +89,159 @@ class CheatSheetScreen extends ConsumerWidget {
   };
 }
 
-class _Items extends StatelessWidget {
-  const new({required this.data, required this.onWordTap});
+/// Level and limit pickers above the list, then the list itself.
+class _Body extends ConsumerWidget {
+  const new({
+    required this.request,
+    required this.data,
+    required this.onWordTap,
+  });
 
+  final CheatSheetRequest request;
   final CheatSheetLoad data;
   final WordTapCallback? onWordTap;
 
   @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final items = ref.watch(cheatSheetItemsProvider(request));
+    final profile = ref.watch(cheatSheetProfileProvider).value;
+    return Column(
+      children: [
+        if (profile != null) _Controls(profile: profile),
+        Expanded(
+          child: switch (items) {
+            AsyncData(:final value) => _Items(
+              request: request,
+              data: data,
+              items: value,
+              onWordTap: onWordTap,
+            ),
+            AsyncError() => const Center(
+              child: Text('Не удалось подготовить разминку.'),
+            ),
+            AsyncLoading() => const Center(child: CircularProgressIndicator()),
+          },
+        ),
+      ],
+    );
+  }
+}
+
+/// Saves the change of the profile; the level and the limit are the same
+/// values as in the settings.
+Future<void> _updateProfile(
+  WidgetRef ref,
+  UserProfile Function(UserProfile) change,
+) async {
+  try {
+    final repository = ref.read(profileRepositoryProvider);
+    await repository.save(change(await repository.get()));
+  } on Object catch (error, stack) {
+    _log.warning('Cannot save the profile', error, stack);
+  }
+}
+
+class _Controls extends ConsumerWidget {
+  const new({required this.profile});
+
+  final UserProfile profile;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Wrap(
+        spacing: 16,
+        runSpacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Выше уровня'),
+              const SizedBox(width: 8),
+              SegmentedButton<CefrLevel>(
+                key: const Key('cheatsheet-level'),
+                showSelectedIcon: false,
+                emptySelectionAllowed: true,
+                segments: [
+                  for (final level in _pickableLevels)
+                    ButtonSegment(
+                      value: level,
+                      label: Text(level.name.toUpperCase()),
+                    ),
+                ],
+                selected: {
+                  if (_pickableLevels.contains(profile.level)) profile.level,
+                },
+                onSelectionChanged: (s) => unawaited(
+                  _updateProfile(ref, (p) => p.copyWith(level: s.first)),
+                ),
+              ),
+            ],
+          ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Слов'),
+              const SizedBox(width: 8),
+              SegmentedButton<int?>(
+                key: const Key('cheatsheet-limit'),
+                showSelectedIcon: false,
+                emptySelectionAllowed: true,
+                segments: [
+                  for (final limit in cheatSheetLimits)
+                    ButtonSegment(
+                      value: limit,
+                      label: Text(limit == null ? 'Все' : '$limit'),
+                    ),
+                ],
+                selected: {
+                  if (cheatSheetLimits.contains(profile.cheatSheetLimit))
+                    profile.cheatSheetLimit,
+                },
+                onSelectionChanged: (s) => unawaited(
+                  _updateProfile(
+                    ref,
+                    (p) => p.copyWith(cheatSheetLimit: () => s.first),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Items extends StatelessWidget {
+  const new({
+    required this.request,
+    required this.data,
+    required this.items,
+    required this.onWordTap,
+  });
+
+  final CheatSheetRequest request;
+  final CheatSheetLoad data;
+  final List<CheatSheetItem> items;
+  final WordTapCallback? onWordTap;
+
+  @override
   Widget build(BuildContext context) {
-    final sheet = data.sheet;
+    final from = data.sheet?.from;
     final onWordTap = this.onWordTap;
-    if (sheet == null || sheet.items.isEmpty) {
+    if (items.isEmpty) {
       return const Center(child: Text('Незнакомых слов не нашлось.'));
     }
     return ListView.builder(
-      itemCount: sheet.items.length,
+      itemCount: items.length,
       itemBuilder: (context, i) {
-        final item = sheet.items[i];
+        final item = items[i];
         return _ItemTile(
+          key: ValueKey(item.text),
+          request: request,
           item: item,
           mode: data.mode,
           onTap: onWordTap == null
@@ -96,7 +252,7 @@ class _Items extends StatelessWidget {
                     text: item.text,
                     mode: data.mode,
                     sentence: item.example,
-                    locator: sheet.from,
+                    locator: from,
                   ),
                 ),
         );
@@ -106,11 +262,37 @@ class _Items extends StatelessWidget {
 }
 
 class _ItemTile extends ConsumerWidget {
-  const new({required this.item, required this.mode, required this.onTap});
+  const new({
+    required this.request,
+    required this.item,
+    required this.mode,
+    required this.onTap,
+    super.key,
+  });
 
+  final CheatSheetRequest request;
   final CheatSheetItem item;
   final LookupMode mode;
   final VoidCallback? onTap;
+
+  /// Hides the row and offers to bring it back. What "Undo" needs is captured
+  /// first: the row is gone from the list by then.
+  void _markKnown(BuildContext context, WidgetRef ref) {
+    final messenger = ScaffoldMessenger.of(context);
+    final known = ref.read(cheatSheetKnownProvider(request).notifier);
+    unawaited(known.markKnown(item));
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('«Знаю»: ${item.text}'),
+          action: SnackBarAction(
+            label: 'Undo',
+            onPressed: () => unawaited(known.undo(item)),
+          ),
+        ),
+      );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -119,6 +301,7 @@ class _ItemTile extends ConsumerWidget {
         ref.watch(itemGlossProvider((text: item.text, mode: mode))).value;
     final theme = Theme.of(context);
     final example = item.example;
+    final bars = zipfBars(item.zipf);
     return ListTile(
       onTap: onTap,
       title: Row(
@@ -127,6 +310,10 @@ class _ItemTile extends ConsumerWidget {
           if (item.level.isKnown) ...[
             const SizedBox(width: 8),
             Text(item.level.name.toUpperCase()),
+          ],
+          if (bars != null) ...[
+            const SizedBox(width: 8),
+            FrequencyBars(bars: bars),
           ],
         ],
       ),
@@ -137,6 +324,51 @@ class _ItemTile extends ConsumerWidget {
           if (example != null && example.isNotEmpty)
             Text.rich(
               highlightWord(example, item.text, theme.textTheme.bodyMedium),
+            ),
+        ],
+      ),
+      trailing: TextButton(
+        key: Key('cheatsheet-known-${item.text}'),
+        onPressed: () => _markKnown(context, ref),
+        child: const Text('Знаю'),
+      ),
+    );
+  }
+}
+
+/// Word frequency as signal bars: [bars] of 5 are filled, 5 is a very common
+/// word. The bars grow in height, so the count reads without the colour.
+class FrequencyBars extends StatelessWidget {
+  /// Creates the bars; [bars] is from 1 to 5.
+  const new({required this.bars, super.key});
+
+  /// How many bars are filled, 1..5.
+  final int bars;
+
+  /// The number of bars drawn.
+  static const int total = 5;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Semantics(
+      label: 'частотность $bars из $total',
+      excludeSemantics: true,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          for (var i = 1; i <= total; i++)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(end: 2),
+              child: Container(
+                width: 3,
+                height: 3.0 + 2 * i,
+                decoration: BoxDecoration(
+                  color: i <= bars ? scheme.primary : scheme.outlineVariant,
+                  borderRadius: BorderRadius.circular(1),
+                ),
+              ),
             ),
         ],
       ),
