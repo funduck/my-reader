@@ -2,10 +2,15 @@
 /// before reading it.
 library;
 
-export 'src/cheatsheet_screen.dart' show CheatSheetScreen, WordTapCallback;
+export 'src/cheatsheet_screen.dart'
+    show CheatSheetScreen, FrequencyBars, WordTapCallback;
 export 'src/providers.dart'
     show
+        CheatSheetKnown,
         CheatSheetLoad,
         CheatSheetRequest,
+        cheatSheetItemsProvider,
+        cheatSheetKnownProvider,
+        cheatSheetProfileProvider,
         cheatSheetProvider,
         itemGlossProvider;

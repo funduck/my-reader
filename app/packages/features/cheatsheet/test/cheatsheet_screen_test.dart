@@ -27,6 +27,27 @@ class _FakeGenerator implements CheatSheetGenerator {
   }
 }
 
+/// Words are runs of letters; the lemma is the lower-cased word.
+class _Analyzer implements TextAnalyzer {
+  @override
+  List<SentenceSpan> sentences(String text) => [SentenceSpan(0, text.length)];
+
+  @override
+  List<TextToken> tokens(String text) => [
+    for (final m in RegExp('[A-Za-z0-9]+').allMatches(text))
+      TextToken(m[0]!, m.start, m.end),
+  ];
+
+  @override
+  String lemma(String word) => word.toLowerCase();
+}
+
+class _NoLevels implements LevelDictionary {
+  @override
+  WordLevel levelOf(String lemma, {String? pos}) =>
+      const WordLevel(CefrLevel.unknown);
+}
+
 void main() {
   const id = BookId('b1');
   late FakeBookRepository books;
@@ -34,6 +55,7 @@ void main() {
   late FakeProfileRepository profiles;
   late _FakeGenerator generator;
   late FakeLookupProvider dictionary;
+  late FakeTermRepository terms;
 
   Locator at(int chapter, double progression) => Locator(
     book: id,
@@ -43,6 +65,7 @@ void main() {
 
   setUp(() async {
     books = FakeBookRepository();
+    terms = FakeTermRepository();
     adapter = FakeBookFormatAdapter()
       ..register(
         '/x/b1.epub',
@@ -104,7 +127,10 @@ void main() {
           ),
           bookFormatsProvider.overrideWithValue([adapter]),
           profileRepositoryProvider.overrideWithValue(profiles),
-          termRepositoryProvider.overrideWithValue(FakeTermRepository()),
+          termRepositoryProvider.overrideWithValue(terms),
+          textAnalyzerProvider.overrideWithValue(_Analyzer()),
+          levelDictionaryProvider.overrideWithValue(_NoLevels()),
+          idGeneratorProvider.overrideWithValue(SeqIdGenerator(prefix: 't')),
           cheatSheetGeneratorProvider.overrideWithValue(generator),
           lookupProvidersProvider.overrideWithValue([dictionary]),
         ],
@@ -118,7 +144,7 @@ void main() {
         ),
       ),
     );
-    // Two rounds: the sheet, then the glosses of its rows.
+    // Two rounds: the sheet with the profile, then the glosses of the rows.
     for (var i = 0; i < 2; i++) {
       await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 50)),
@@ -133,8 +159,11 @@ void main() {
     await open(tester, from: at(0, 0));
     expect(find.text('Следующие ~10 стр.'), findsOneWidget);
     expect(find.text('spice'), findsOneWidget);
-    expect(find.text('C1'), findsOneWidget);
-    expect(find.text('B2'), findsOneWidget);
+    // The level pickers have the same labels; look at the rows only.
+    Finder inRows(String text) =>
+        find.descendant(of: find.byType(ListTile), matching: find.text(text));
+    expect(inRows('C1'), findsOneWidget);
+    expect(inRows('B2'), findsOneWidget);
     // First sense from the provider, translation of the item as it is.
     expect(find.text('a pungent substance'), findsOneWidget);
     expect(find.text('second'), findsNothing);
@@ -204,4 +233,217 @@ void main() {
     expect(find.text('Не удалось подготовить разминку.'), findsOneWidget);
     expect(find.text('Читать'), findsOneWidget);
   });
+
+  CheatSheetItem word(
+    String text, {
+    CefrLevel level = CefrLevel.c1,
+    double? zipf,
+  }) => CheatSheetItem(
+    text: text,
+    kind: CheatSheetItemKind.word,
+    level: level,
+    zipf: zipf,
+    translation: 'tr-$text',
+    example: 'Say $text now.',
+  );
+
+  List<String> shownWords(WidgetTester tester) => [
+    for (final w in tester.widgetList<Text>(find.byType(Text)))
+      if (w.data != null && w.data!.startsWith('w')) w.data!,
+  ];
+
+  Future<void> settle(WidgetTester tester) async {
+    for (var i = 0; i < 3; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 20)),
+      );
+      await tester.pump();
+    }
+  }
+
+  group('level and limit', () {
+    setUp(() {
+      generator = _FakeGenerator([
+        word('w1', level: CefrLevel.b2, zipf: 5),
+        word('w2', zipf: 4.5),
+        word('w3', level: CefrLevel.b2, zipf: 3.5),
+        word('w4', level: CefrLevel.b1, zipf: 3),
+        word('w5', zipf: 2),
+      ]);
+    });
+
+    testWidgets('a limit from the profile cuts the list by frequency', (
+      tester,
+    ) async {
+      await profiles.save(
+        const UserProfile(level: CefrLevel.a2, cheatSheetLimit: 2),
+      );
+      await open(tester, from: at(0, 0));
+      expect(shownWords(tester), ['w1', 'w2']);
+    });
+
+    testWidgets('changing the level and the limit keeps the sheet', (
+      tester,
+    ) async {
+      await open(tester, from: at(0, 0));
+      // The profile of the test: B1, limit 20. w4 is B1, not above B1.
+      expect(shownWords(tester), ['w1', 'w2', 'w3', 'w5']);
+
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const Key('cheatsheet-level')),
+          matching: find.text('A2'),
+        ),
+      );
+      await settle(tester);
+      expect(shownWords(tester), ['w1', 'w2', 'w3', 'w4', 'w5']);
+      expect((await profiles.get()).level, CefrLevel.a2);
+
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const Key('cheatsheet-level')),
+          matching: find.text('B2'),
+        ),
+      );
+      await settle(tester);
+      expect(shownWords(tester), ['w2', 'w5']);
+
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const Key('cheatsheet-limit')),
+          matching: find.text('Все'),
+        ),
+      );
+      await settle(tester);
+      expect((await profiles.get()).cheatSheetLimit, isNull);
+
+      await profiles.save((await profiles.get()).copyWith(level: CefrLevel.a2));
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const Key('cheatsheet-limit')),
+          matching: find.text('20'),
+        ),
+      );
+      await settle(tester);
+      expect((await profiles.get()).cheatSheetLimit, 20);
+      // Nothing above reopened the book or ran the generator again.
+      expect(generator.calls, hasLength(1));
+    });
+
+    testWidgets('a limit of 20 shows 20 and "Все" shows the rest', (
+      tester,
+    ) async {
+      generator = _FakeGenerator([
+        for (var i = 10; i < 40; i++) word('w$i', zipf: 6 - i / 10),
+      ]);
+      await open(tester, from: at(0, 0));
+      // The list is lazy: count the rows through the sheet provider.
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(CheatSheetScreen)),
+      );
+      final request = (bookId: id, from: at(0, 0));
+      expect(
+        container.read(cheatSheetItemsProvider(request)).value,
+        hasLength(20),
+      );
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const Key('cheatsheet-limit')),
+          matching: find.text('Все'),
+        ),
+      );
+      await settle(tester);
+      expect(
+        container.read(cheatSheetItemsProvider(request)).value,
+        hasLength(30),
+      );
+      expect(generator.calls, hasLength(1));
+    });
+  });
+
+  group('known', () {
+    setUp(() {
+      generator = _FakeGenerator([
+        word('w1', zipf: 5),
+        word('w2', zipf: 4),
+        word('w3', zipf: 3),
+      ]);
+    });
+
+    Future<void> limitTo(int limit) async {
+      await profiles.save(
+        UserProfile(level: CefrLevel.b1, cheatSheetLimit: limit),
+      );
+    }
+
+    testWidgets('"Знаю" removes the row and the next word takes its place', (
+      tester,
+    ) async {
+      await limitTo(2);
+      await open(tester, from: at(0, 0));
+      expect(shownWords(tester), ['w1', 'w2']);
+
+      await tester.tap(find.byKey(const Key('cheatsheet-known-w1')));
+      await settle(tester);
+
+      expect(shownWords(tester), ['w2', 'w3']);
+      final term = (await tester.runAsync(() => terms.watchAll().first))!
+          .single;
+      expect(term.normalized, 'w1');
+      expect(term.status, TermStatus.known);
+      expect(generator.calls, hasLength(1));
+    });
+
+    testWidgets('Undo brings the word back and makes it learning', (
+      tester,
+    ) async {
+      await limitTo(2);
+      await open(tester, from: at(0, 0));
+      await tester.tap(find.byKey(const Key('cheatsheet-known-w1')));
+      await settle(tester);
+      // Let the snack bar slide in.
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.text('Undo'), findsOneWidget);
+
+      await tester.tap(find.text('Undo'));
+      await settle(tester);
+
+      expect(shownWords(tester), ['w1', 'w2']);
+      final term = (await tester.runAsync(() => terms.watchAll().first))!
+          .single;
+      expect(term.status, TermStatus.learning);
+      expect(generator.calls, hasLength(1));
+    });
+
+    testWidgets('a failed mark puts the row back', (tester) async {
+      await limitTo(2);
+      terms = _FailingTerms();
+      await open(tester, from: at(0, 0));
+      await tester.tap(find.byKey(const Key('cheatsheet-known-w1')));
+      await settle(tester);
+      expect(shownWords(tester), ['w1', 'w2']);
+    });
+  });
+
+  group('frequency bars', () {
+    setUp(() {
+      generator = _FakeGenerator([word('w1', zipf: 4.2), word('w2')]);
+    });
+
+    testWidgets('only a word with zipf has bars, with a label', (tester) async {
+      final semantics = tester.ensureSemantics();
+      await open(tester, from: at(0, 0));
+      expect(find.byType(FrequencyBars), findsOneWidget);
+      expect(
+        find.bySemanticsLabel(RegExp('частотность 4 из 5')),
+        findsOneWidget,
+      );
+      semantics.dispose();
+    });
+  });
+}
+
+class _FailingTerms extends FakeTermRepository {
+  @override
+  Future<void> save(Term term) => Future<void>.error(StateError('disk'));
 }
