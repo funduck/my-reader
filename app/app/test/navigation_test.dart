@@ -147,7 +147,7 @@ void main() {
     await back(tester);
     expect(find.widgetWithText(AppBar, 'Dune'), findsOneWidget);
     expect(find.text('engine view'), findsOneWidget);
-  });
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
   testWidgets('reader -> history -> back -> the same book', (tester) async {
     await pumpApp(tester, at: Routes.readerAt('b1'));
@@ -155,7 +155,7 @@ void main() {
     expect(find.widgetWithText(AppBar, 'History'), findsOneWidget);
     await back(tester);
     expect(find.widgetWithText(AppBar, 'Dune'), findsOneWidget);
-  });
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
   testWidgets('word sheet -> settings -> back -> reader', (tester) async {
     await pumpApp(tester, at: Routes.readerAt('b1'));

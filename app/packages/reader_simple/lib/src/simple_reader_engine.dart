@@ -94,6 +94,7 @@ class SimpleReaderEngine implements ReaderEngine, TextInteractions {
     interval: positionInterval,
     action: _reportPosition,
   );
+  final Set<(int, int)> _selected = {};
   OpenedBook? _book;
   BookId? _bookId;
   ViewportBridge? _bridge;
@@ -312,6 +313,26 @@ class SimpleReaderEngine implements ReaderEngine, TextInteractions {
       ),
     );
   }
+
+  @override
+  @internal
+  void selectionChanged(TextTarget target, {required bool active}) {
+    final key = (target.block, target.base);
+    if (active) {
+      _selected.add(key);
+    } else {
+      _selected.remove(key);
+    }
+  }
+
+  /// Whether any text of the chapter has a non-empty selection.
+  @internal
+  bool get hasSelection => _selected.isNotEmpty;
+
+  /// A single tap landed at [position] in the view of [size] (T-087).
+  @internal
+  void viewTapped(Offset position, Size size) =>
+      _emit(ViewTapped(position: position, size: size));
 
   @override
   @internal

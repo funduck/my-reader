@@ -273,10 +273,29 @@ class _InteractiveTextState extends State<_InteractiveText> {
   bool _selected = false;
   bool _suppressMenu = false;
   Timer? _hold;
+  final FocusNode _focus = FocusNode(debugLabel: 'ReaderText');
+
+  @override
+  void initState() {
+    super.initState();
+    _focus.addListener(_onFocus);
+  }
+
+  // A tap elsewhere takes the focus away and hides the selection, without a
+  // selection-changed callback; the selection no longer counts.
+  void _onFocus() {
+    if (!_focus.hasFocus) _setSelected(false);
+  }
 
   @override
   void dispose() {
     _hold?.cancel();
+    _focus
+      ..removeListener(_onFocus)
+      ..dispose();
+    if (_selected) {
+      widget.interactions.selectionChanged(widget.target, active: false);
+    }
     super.dispose();
   }
 
@@ -380,6 +399,12 @@ class _InteractiveTextState extends State<_InteractiveText> {
     }
   }
 
+  void _setSelected(bool value) {
+    if (_selected == value) return;
+    _selected = value;
+    widget.interactions.selectionChanged(widget.target, active: value);
+  }
+
   void _lookup() {
     final offset = _downOffset;
     if (offset == null || _pressed == null) return;
@@ -390,7 +415,7 @@ class _InteractiveTextState extends State<_InteractiveText> {
     TextSelection selection,
     SelectionChangedCause? cause,
   ) {
-    _selected = !selection.isCollapsed;
+    _setSelected(!selection.isCollapsed);
     if (cause != SelectionChangedCause.longPress ||
         _kind == PointerDeviceKind.mouse ||
         _pressed == null) {
@@ -398,7 +423,7 @@ class _InteractiveTextState extends State<_InteractiveText> {
     }
     _suppressMenu = true;
     _lookup();
-    _selected = false;
+    _setSelected(false);
     final state = _editableState();
     if (state == null) return;
     // The selection is being set right now; undo it after this call.
@@ -467,6 +492,7 @@ class _InteractiveTextState extends State<_InteractiveText> {
             highlights: widget.highlights,
           ),
           style: widget.style,
+          focusNode: _focus,
           onSelectionChanged: _onSelectionChanged,
           contextMenuBuilder: _menu,
         ),

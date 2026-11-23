@@ -12,3 +12,5 @@ export 'src/providers.dart'
         saveProgressProvider;
 export 'src/reader_screen.dart'
     show ReaderScreen, displaySaveDebounce, saveDebounce;
+export 'src/system_chrome.dart'
+    show PlatformSystemChrome, SystemChromeGateway, systemChromeProvider;

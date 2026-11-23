@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:core/domain_books.dart';
 import 'package:meta/meta.dart';
 
@@ -93,4 +95,30 @@ final class ChapterFinished extends ReaderEvent {
 
   @override
   int get hashCode => Object.hash(ChapterFinished, chapter);
+}
+
+/// The user tapped once anywhere in the view (T-087): on text, on a word, on
+/// the margins or on the empty space under the chapter.
+///
+/// Not sent for a hold (it is a lookup), a drag or scroll, a double tap, a
+/// tap that only clears a selection, or a tap on the view's own buttons. The
+/// app uses it to show and hide the menu; later a tap near an edge can turn
+/// pages.
+final class ViewTapped extends ReaderEvent {
+  /// Creates the event for a tap at [position] in a view of [size].
+  const new({required this.position, required this.size});
+
+  /// Where the tap landed, in the coordinates of the engine's view
+  /// (`Offset.zero` is its top left corner).
+  final Offset position;
+
+  /// Size of the engine's view.
+  final Size size;
+
+  @override
+  bool operator ==(Object other) =>
+      other is ViewTapped && other.position == position && other.size == size;
+
+  @override
+  int get hashCode => Object.hash(ViewTapped, position, size);
 }

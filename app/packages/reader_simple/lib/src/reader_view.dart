@@ -9,6 +9,7 @@ import 'block_view.dart';
 import 'position.dart';
 import 'reader_style.dart';
 import 'simple_reader_engine.dart';
+import 'view_tap.dart';
 
 /// The widget returned by `SimpleReaderEngine.buildView`.
 ///
@@ -22,7 +23,13 @@ class ReaderView extends StatelessWidget {
   final SimpleReaderEngine engine;
 
   @override
-  Widget build(BuildContext context) => ListenableBuilder(
+  Widget build(BuildContext context) => ViewTapDetector(
+    onTap: engine.viewTapped,
+    hasSelection: () => engine.hasSelection,
+    child: _content(),
+  );
+
+  Widget _content() => ListenableBuilder(
     listenable: Listenable.merge([
       engine.chapter,
       engine.style,
@@ -227,8 +234,13 @@ class _ChapterListState extends State<_ChapterList> implements ViewportBridge {
       itemScrollController: _scroll,
       itemPositionsListener: _positions,
       // On Android 15+ the app draws under the navigation bar: the end of
-      // the chapter and the next-chapter control must scroll above it.
-      padding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
+      // the chapter and the next-chapter control must scroll above it. The
+      // top inset keeps the first lines out of the camera cutout when the
+      // app draws behind its own bar (T-087).
+      padding: EdgeInsets.only(
+        top: MediaQuery.paddingOf(context).top,
+        bottom: MediaQuery.paddingOf(context).bottom,
+      ),
       itemCount: blocks.length + 2,
       initialScrollIndex: chapter.startBlock + 1,
       itemBuilder: (context, i) {
@@ -287,9 +299,13 @@ class _EdgeButton extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 16),
       child: Column(
         children: [
-          TextButton(
-            onPressed: () => unawaited(action()),
-            child: Text(label, style: TextStyle(color: style.link)),
+          Listener(
+            onPointerDown: (event) =>
+                ViewTapDetector.ignore(context, event.pointer),
+            child: TextButton(
+              onPressed: () => unawaited(action()),
+              child: Text(label, style: TextStyle(color: style.link)),
+            ),
           ),
           ValueListenableBuilder<bool>(
             valueListenable: engine.switchFailed,

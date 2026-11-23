@@ -5,6 +5,8 @@ import 'package:core/domain_books.dart';
 import 'package:core/domain_lookup.dart';
 import 'package:core/ports.dart';
 import 'package:features_common/features_common.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 import 'package:material_ui/material_ui.dart';
@@ -13,6 +15,7 @@ import 'package:reader_api/reader_api.dart';
 import 'display_settings.dart';
 import 'providers.dart';
 import 'quick_settings_sheet.dart';
+import 'system_chrome.dart';
 
 final Logger _log = Logger('ReaderScreen');
 
@@ -64,6 +67,21 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   late final SaveProgress _saveProgress;
   late final ReaderEngineFactory _factory;
   late final ProfileRepository _profiles;
+  late final SystemChromeGateway _chrome;
+
+  /// Fullscreen reading (T-087): only on a phone. On a desktop the menu is
+  /// always shown and `SystemChrome` is not touched.
+  late final bool _phone;
+
+  /// Whether the menu (the app bar and the system bars) is shown; phone only.
+  bool _menuVisible = false;
+
+  /// The screen left through a menu button and is not back yet.
+  bool _away = false;
+
+  /// The last top inset seen while the menu was hidden; kept while it is
+  /// shown so that the text does not move.
+  double _hiddenTop = 0;
 
   ReaderEngine? _engine;
   OpenedBook? _opened;
@@ -95,12 +113,53 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     _saveProgress = ref.read(saveProgressProvider);
     _factory = ref.read(readerEngineFactoryProvider);
     _profiles = ref.read(profileRepositoryProvider);
+    _chrome = ref.read(systemChromeProvider);
+    _phone =
+        defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+    _applyBars();
     _profileSub = _profiles.watch().listen(
       _onProfile,
       onError: (Object e, StackTrace s) =>
           _log.warning('Watching the profile failed', e, s),
     );
     unawaited(_start());
+  }
+
+  /// Puts the system bars in the state of [_menuVisible], or of [visible].
+  void _applyBars({bool? visible}) {
+    if (!_phone) return;
+    final mode = (visible ?? _menuVisible)
+        ? SystemUiMode.edgeToEdge
+        : SystemUiMode.immersiveSticky;
+    unawaited(
+      _chrome.setMode(mode).catchError((Object e, StackTrace s) {
+        _log.warning('Switching the system bars failed', e, s);
+      }),
+    );
+  }
+
+  void _setMenu({required bool visible}) {
+    if (!_phone || _menuVisible == visible) return;
+    setState(() => _menuVisible = visible);
+    _applyBars();
+  }
+
+  /// Runs a menu button's [action]; the bars are back to normal until the
+  /// screen is current again.
+  void _leave(VoidCallback action) {
+    _away = true;
+    _applyBars(visible: true);
+    action();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_away && (ModalRoute.of(context)?.isCurrent ?? true)) {
+      _away = false;
+      _applyBars();
+    }
   }
 
   Future<void> _start() async {
@@ -249,6 +308,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
       case TextSelected(:final text, :final at, :final sentence):
         _lookup(text, at, sentence);
         return;
+      case ViewTapped():
+        _setMenu(visible: !_menuVisible);
+        return;
       case ChapterFinished():
         return;
       case PositionChanged():
@@ -309,6 +371,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
       case AppLifecycleState.detached:
         _flush();
       case AppLifecycleState.resumed:
+        // Android may bring the bars back while the app is in the background.
+        if (!_menuVisible && !_away) _applyBars();
       case AppLifecycleState.inactive:
         break;
     }
@@ -317,6 +381,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _applyBars(visible: true);
     _flush();
     _flushDisplay();
     unawaited(_profileSub?.cancel());
@@ -339,7 +404,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     final at = _current;
     if (at != null) {
       _flush();
-      widget.onOpenCheatSheet?.call(at);
+      _leave(() => widget.onOpenCheatSheet?.call(at));
     }
   }
 
@@ -372,57 +437,121 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
         body: const Center(child: CircularProgressIndicator()),
       );
     }
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(book.metadata.title),
-        actions: [
-          ValueListenableBuilder<DisplayPrefs>(
-            valueListenable: _display,
-            builder: (context, prefs, _) => IconButton(
-              icon: Icon(
-                prefs.mode == DisplayMode.day
-                    ? Icons.light_mode
-                    : Icons.dark_mode,
-              ),
-              tooltip: 'Day / Night',
-              onPressed: _toggleMode,
+    final appBar = AppBar(
+      title: Text(book.metadata.title),
+      actions: [
+        ValueListenableBuilder<DisplayPrefs>(
+          valueListenable: _display,
+          builder: (context, prefs, _) => IconButton(
+            icon: Icon(
+              prefs.mode == DisplayMode.day
+                  ? Icons.light_mode
+                  : Icons.dark_mode,
             ),
+            tooltip: 'Day / Night',
+            onPressed: _toggleMode,
           ),
+        ),
+        IconButton(
+          icon: const Text('Аа'),
+          tooltip: 'Text',
+          onPressed: _openQuickSettings,
+        ),
+        if (widget.onOpenCheatSheet != null)
           IconButton(
-            icon: const Text('Аа'),
-            tooltip: 'Text',
-            onPressed: _openQuickSettings,
+            icon: const Icon(Icons.lightbulb_outline),
+            tooltip: 'Разминка',
+            onPressed: _openCheatSheet,
           ),
-          if (widget.onOpenCheatSheet != null)
-            IconButton(
-              icon: const Icon(Icons.lightbulb_outline),
-              tooltip: 'Разминка',
-              onPressed: _openCheatSheet,
-            ),
-          if (widget.onOpenHistory != null)
-            IconButton(
-              icon: const Icon(Icons.history),
-              tooltip: 'History',
-              onPressed: widget.onOpenHistory,
-            ),
-          if (widget.onOpenSettings != null)
-            IconButton(
-              icon: const Icon(Icons.settings_outlined),
-              tooltip: 'Settings',
-              onPressed: widget.onOpenSettings,
-            ),
-        ],
-      ),
-      drawer: _TocDrawer(
-        toc: _opened?.toc ?? const [],
-        onSelect: (entry) {
-          Navigator.of(context).pop();
-          unawaited(_goTo(entry));
+        if (widget.onOpenHistory != null)
+          IconButton(
+            icon: const Icon(Icons.history),
+            tooltip: 'History',
+            onPressed: () => _leave(widget.onOpenHistory!),
+          ),
+        if (widget.onOpenSettings != null)
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Settings',
+            onPressed: () => _leave(widget.onOpenSettings!),
+          ),
+      ],
+    );
+    if (!_phone) {
+      return Scaffold(
+        appBar: appBar,
+        drawer: _drawer(),
+        body: engine.buildView(context),
+      );
+    }
+    // Fullscreen: the app bar lies over the text and slides in, so the text
+    // never changes its height or its place.
+    final top = MediaQuery.viewPaddingOf(context).top;
+    if (!_menuVisible) _hiddenTop = top;
+    return Scaffold(
+      extendBodyBehindAppBar: true,
+      appBar: _SlidingAppBar(visible: _menuVisible, child: appBar),
+      drawer: _drawer(),
+      body: NotificationListener<ScrollStartNotification>(
+        onNotification: (n) {
+          if (n.dragDetails != null && _menuVisible) _setMenu(visible: false);
+          return false;
         },
+        child: Builder(
+          builder: (context) {
+            final data = MediaQuery.of(context);
+            // The cutout of the camera stays free of text; the bars are
+            // hidden, so the body would otherwise start at the very top.
+            return MediaQuery(
+              data: data.copyWith(
+                padding: data.padding.copyWith(top: _hiddenTop),
+              ),
+              child: Builder(builder: engine.buildView),
+            );
+          },
+        ),
       ),
-      body: engine.buildView(context),
     );
   }
+
+  Widget _drawer() => _TocDrawer(
+    toc: _opened?.toc ?? const [],
+    onSelect: (entry) {
+      Navigator.of(context).pop();
+      unawaited(_goTo(entry));
+    },
+  );
+}
+
+/// The app bar that slides up out of the screen while it is hidden.
+///
+/// It stays in the tree (the `Scaffold` keeps its height), so the body does
+/// not change; hidden, it takes no touches, focus or screen-reader reading.
+class _SlidingAppBar extends StatelessWidget implements PreferredSizeWidget {
+  const new({required this.visible, required this.child});
+
+  final bool visible;
+  final PreferredSizeWidget child;
+
+  @override
+  Size get preferredSize => child.preferredSize;
+
+  @override
+  Widget build(BuildContext context) => ExcludeSemantics(
+    excluding: !visible,
+    child: ExcludeFocus(
+      excluding: !visible,
+      child: IgnorePointer(
+        ignoring: !visible,
+        child: AnimatedSlide(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          offset: visible ? Offset.zero : const Offset(0, -1),
+          child: child,
+        ),
+      ),
+    ),
+  );
 }
 
 class _TocDrawer extends StatelessWidget {

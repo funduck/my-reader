@@ -5,6 +5,7 @@ import 'package:core/domain_books.dart';
 import 'package:core/domain_lookup.dart';
 import 'package:core_testing/core_testing.dart';
 import 'package:features_common/features_common.dart';
+import 'package:flutter/gestures.dart' show kDoubleTapTimeout;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:my_reader_app/bootstrap.dart';
@@ -250,6 +251,11 @@ void main() {
     }
 
     await settle();
+    // On a phone the menu is hidden while reading; a margin tap shows it.
+    await tester.tapAt(const Offset(4, 300));
+    await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 10));
+    await settle();
+    await tester.pump(const Duration(milliseconds: 300)); // the bar slides in
     await tester.tap(find.byTooltip('Разминка'));
     await settle();
 
