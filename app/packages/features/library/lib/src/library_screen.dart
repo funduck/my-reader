@@ -14,10 +14,24 @@ final Logger _log = Logger('LibraryScreen');
 /// a button that imports a new one.
 class LibraryScreen extends ConsumerStatefulWidget {
   /// Creates the screen; [onOpenBook] is called when a book is tapped.
-  const new({required this.onOpenBook, super.key});
+  ///
+  /// [onOpenHistory] and [onOpenSettings] add the matching buttons to the
+  /// app bar; without a callback the button is not shown.
+  const new({
+    required this.onOpenBook,
+    this.onOpenHistory,
+    this.onOpenSettings,
+    super.key,
+  });
 
   /// Opens the reader for the book.
   final void Function(BookId id) onOpenBook;
+
+  /// Opens the history of lookups; without it the button is not shown.
+  final VoidCallback? onOpenHistory;
+
+  /// Opens the settings; without it the button is not shown.
+  final VoidCallback? onOpenSettings;
 
   @override
   ConsumerState<LibraryScreen> createState() => _LibraryScreenState();
@@ -57,7 +71,23 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   Widget build(BuildContext context) {
     final books = ref.watch(libraryBooksProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Library')),
+      appBar: AppBar(
+        title: const Text('Library'),
+        actions: [
+          if (widget.onOpenHistory != null)
+            IconButton(
+              icon: const Icon(Icons.history),
+              tooltip: 'History',
+              onPressed: widget.onOpenHistory,
+            ),
+          if (widget.onOpenSettings != null)
+            IconButton(
+              icon: const Icon(Icons.settings_outlined),
+              tooltip: 'Settings',
+              onPressed: widget.onOpenSettings,
+            ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _importing ? null : _import,
         icon: const Icon(Icons.add),

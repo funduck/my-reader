@@ -50,6 +50,8 @@ GoRouter createRouter({String initialLocation = Routes.library}) {
         path: Routes.library,
         builder: (context, _) => LibraryScreen(
           onOpenBook: (id) => context.push(Routes.readerAt(id.value)),
+          onOpenHistory: () => context.push(Routes.history),
+          onOpenSettings: () => context.push(Routes.settings),
         ),
       ),
       GoRoute(
@@ -61,6 +63,8 @@ GoRouter createRouter({String initialLocation = Routes.library}) {
             key: ValueKey('${bookId.value}|$param'),
             bookId: bookId,
             locator: parseLocatorParam(param),
+            onOpenHistory: () => context.push(Routes.history),
+            onOpenSettings: () => context.push(Routes.settings),
             onOpenCheatSheet: (at) => context.push(
               Uri(
                 path: Routes.cheatsheetFor(bookId.value),
@@ -95,7 +99,7 @@ GoRouter createRouter({String initialLocation = Routes.library}) {
               showLookupSheet(
                 sheetContext,
                 query,
-                onOpenSettings: () => context.go(Routes.settings),
+                onOpenSettings: () => context.push(Routes.settings),
               ),
             ),
             onRead: () => context.canPop()

@@ -6,3 +6,4 @@
 - Толкование (T-047): `WordTapped`/`TextSelected` экран отдаёт `lookupPresenterProvider` (`LookupPresenter(context, {text, at, sentence})`), потому что фича не может импортировать `lookup_sheet`. Без override бросает `PortNotWiredError` при тапе (ошибка логируется, читалка работает). Проводит `app` (`buildLookupOverrides`).
 - Разминка (T-054): `ReaderScreen({onOpenCheatSheet})` — кнопка «Разминка» в AppBar видна только с колбэком; колбэк получает последний `PositionChanged`, иначе место открытия, иначе начало книги; перед вызовом позиция сохраняется.
 - Подсветка (T-071): если `ReaderScreen` открыт с `locator` (из маршрута), после `engine.load` вызывается `engine.highlight([locator])`; без `locator` подсветки нет. Рисуется только при `quote` в локаторе (см. `reader_simple`).
+- Кнопки шапки (T-101): `onOpenHistory`, `onOpenSettings` — необязательные `VoidCallback`, как `onOpenCheatSheet`; без них кнопок нет.
