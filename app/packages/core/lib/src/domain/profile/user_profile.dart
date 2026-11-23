@@ -7,19 +7,23 @@ import 'cheat_sheet_scope.dart';
 import 'display_prefs.dart';
 
 /// Cheat sheet limit of a new profile.
-const defaultCheatSheetLimit = 20;
+const defaultCheatSheetLimit = 10;
 
-/// Cheat sheet limits a profile may hold; null means "all".
-const cheatSheetLimits = <int?>[20, 50, null];
+/// Smallest cheat sheet limit.
+const minCheatSheetLimit = 1;
 
-/// A missing key or a value that is not allowed gives the default; an explicit
-/// null means "all".
-int? _limitFromJson(Map<String, Object?> json) {
+/// Largest cheat sheet limit.
+const maxCheatSheetLimit = 500;
+
+/// A missing key or a value that is not a number gives the default; an
+/// explicit null (once "all") gives the maximum; a number is clamped to
+/// [minCheatSheetLimit]..[maxCheatSheetLimit].
+int _limitFromJson(Map<String, Object?> json) {
   if (!json.containsKey('cheatSheetLimit')) return defaultCheatSheetLimit;
   final value = json['cheatSheetLimit'];
-  return cheatSheetLimits.contains(value)
-      ? value as int?
-      : defaultCheatSheetLimit;
+  if (value == null) return maxCheatSheetLimit;
+  if (value is! num || !value.isFinite) return defaultCheatSheetLimit;
+  return value.toInt().clamp(minCheatSheetLimit, maxCheatSheetLimit);
 }
 
 /// User settings that the core needs.
@@ -66,9 +70,9 @@ final class UserProfile {
   /// Size of the cheat sheet piece.
   final CheatSheetScope scope;
 
-  /// Most words on the cheat sheet; null means all. Only
-  /// [cheatSheetLimits] are allowed.
-  final int? cheatSheetLimit;
+  /// Most words on the cheat sheet. Only
+  /// [minCheatSheetLimit]..[maxCheatSheetLimit] are allowed.
+  final int cheatSheetLimit;
 
   /// Preferred provider order; empty means "use registration order".
   final List<ProviderId> providerOrder;
@@ -85,7 +89,7 @@ final class UserProfile {
     LookupMode? mode,
     CefrLevel? level,
     CheatSheetScope? scope,
-    int? Function()? cheatSheetLimit,
+    int? cheatSheetLimit,
     List<ProviderId>? providerOrder,
     String? Function()? serviceUrl,
     DisplayPrefs? display,
@@ -93,9 +97,7 @@ final class UserProfile {
     mode: mode ?? this.mode,
     level: level ?? this.level,
     scope: scope ?? this.scope,
-    cheatSheetLimit: cheatSheetLimit != null
-        ? cheatSheetLimit()
-        : this.cheatSheetLimit,
+    cheatSheetLimit: cheatSheetLimit ?? this.cheatSheetLimit,
     providerOrder: providerOrder ?? this.providerOrder,
     serviceUrl: serviceUrl != null ? serviceUrl() : this.serviceUrl,
     display: display ?? this.display,

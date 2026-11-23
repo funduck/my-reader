@@ -4,6 +4,7 @@ import 'package:core/application.dart';
 import 'package:core/domain_books.dart';
 import 'package:core/domain_lookup.dart';
 import 'package:features_common/features_common.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 import 'package:material_ui/material_ui.dart';
@@ -185,31 +186,91 @@ class _Controls extends ConsumerWidget {
             children: [
               const Text('Слов'),
               const SizedBox(width: 8),
-              SegmentedButton<int?>(
-                key: const Key('cheatsheet-limit'),
-                showSelectedIcon: false,
-                emptySelectionAllowed: true,
-                segments: [
-                  for (final limit in cheatSheetLimits)
-                    ButtonSegment(
-                      value: limit,
-                      label: Text(limit == null ? 'Все' : '$limit'),
-                    ),
-                ],
-                selected: {
-                  if (cheatSheetLimits.contains(profile.cheatSheetLimit))
-                    profile.cheatSheetLimit,
-                },
-                onSelectionChanged: (s) => unawaited(
-                  _updateProfile(
-                    ref,
-                    (p) => p.copyWith(cheatSheetLimit: () => s.first),
-                  ),
-                ),
-              ),
+              _LimitField(limit: profile.cheatSheetLimit),
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// The number of words: digits only, saved when the focus leaves the field or
+/// on Enter. An empty or zero value goes back to the saved number; more than
+/// the maximum becomes the maximum.
+class _LimitField extends ConsumerStatefulWidget {
+  const new({required this.limit});
+
+  final int limit;
+
+  @override
+  ConsumerState<_LimitField> createState() => _LimitFieldState();
+}
+
+class _LimitFieldState extends ConsumerState<_LimitField> {
+  late final TextEditingController _controller = TextEditingController(
+    text: '${widget.limit}',
+  );
+  late final FocusNode _focus = FocusNode()..addListener(_onFocus);
+
+  void _onFocus() {
+    if (!_focus.hasFocus) _commit();
+  }
+
+  /// Shows [value] as the field text, cursor at the end.
+  void _show(int value) {
+    final text = '$value';
+    if (_controller.text == text) return;
+    _controller.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+  }
+
+  void _commit() {
+    final entered = int.tryParse(_controller.text);
+    if (entered == null || entered < minCheatSheetLimit) {
+      _show(widget.limit);
+      return;
+    }
+    final value = entered > maxCheatSheetLimit ? maxCheatSheetLimit : entered;
+    _show(value);
+    if (value != widget.limit) {
+      unawaited(_updateProfile(ref, (p) => p.copyWith(cheatSheetLimit: value)));
+    }
+  }
+
+  @override
+  void didUpdateWidget(_LimitField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.limit != widget.limit && !_focus.hasFocus) {
+      _show(widget.limit);
+    }
+  }
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 72,
+      child: TextField(
+        key: const Key('cheatsheet-limit'),
+        controller: _controller,
+        focusNode: _focus,
+        keyboardType: TextInputType.number,
+        textInputAction: TextInputAction.done,
+        inputFormatters: [
+          FilteringTextInputFormatter.digitsOnly,
+          LengthLimitingTextInputFormatter(4),
+        ],
+        decoration: const InputDecoration(isDense: true),
+        onSubmitted: (_) => _commit(),
       ),
     );
   }

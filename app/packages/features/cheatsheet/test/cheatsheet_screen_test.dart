@@ -261,6 +261,18 @@ void main() {
     }
   }
 
+  String limitText(WidgetTester tester) => tester
+      .widget<TextField>(find.byKey(const Key('cheatsheet-limit')))
+      .controller!
+      .text;
+
+  /// Types [text] into the limit field and presses Enter.
+  Future<void> enterLimit(WidgetTester tester, String text) async {
+    await tester.enterText(find.byKey(const Key('cheatsheet-limit')), text);
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await settle(tester);
+  }
+
   group('level and limit', () {
     setUp(() {
       generator = _FakeGenerator([
@@ -286,7 +298,7 @@ void main() {
       tester,
     ) async {
       await open(tester, from: at(0, 0));
-      // The profile of the test: B1, limit 20. w4 is B1, not above B1.
+      // The profile of the test: B1, limit 10. w4 is B1, not above B1.
       expect(shownWords(tester), ['w1', 'w2', 'w3', 'w5']);
 
       await tester.tap(
@@ -308,56 +320,70 @@ void main() {
       await settle(tester);
       expect(shownWords(tester), ['w2', 'w5']);
 
-      await tester.tap(
-        find.descendant(
-          of: find.byKey(const Key('cheatsheet-limit')),
-          matching: find.text('Все'),
-        ),
-      );
-      await settle(tester);
-      expect((await profiles.get()).cheatSheetLimit, isNull);
-
-      await profiles.save((await profiles.get()).copyWith(level: CefrLevel.a2));
-      await tester.tap(
-        find.descendant(
-          of: find.byKey(const Key('cheatsheet-limit')),
-          matching: find.text('20'),
-        ),
-      );
-      await settle(tester);
-      expect((await profiles.get()).cheatSheetLimit, 20);
+      await enterLimit(tester, '3');
+      expect((await profiles.get()).cheatSheetLimit, 3);
+      await enterLimit(tester, '15');
+      expect((await profiles.get()).cheatSheetLimit, 15);
       // Nothing above reopened the book or ran the generator again.
       expect(generator.calls, hasLength(1));
     });
 
-    testWidgets('a limit of 20 shows 20 and "Все" shows the rest', (
+    testWidgets('the field starts at 10; 7 and Enter shows 7 rows', (
       tester,
     ) async {
       generator = _FakeGenerator([
         for (var i = 10; i < 40; i++) word('w$i', zipf: 6 - i / 10),
       ]);
       await open(tester, from: at(0, 0));
-      // The list is lazy: count the rows through the sheet provider.
+      expect(limitText(tester), '10');
       final container = ProviderScope.containerOf(
         tester.element(find.byType(CheatSheetScreen)),
       );
       final request = (bookId: id, from: at(0, 0));
       expect(
         container.read(cheatSheetItemsProvider(request)).value,
-        hasLength(20),
+        hasLength(10),
       );
-      await tester.tap(
-        find.descendant(
-          of: find.byKey(const Key('cheatsheet-limit')),
-          matching: find.text('Все'),
-        ),
-      );
-      await settle(tester);
+
+      await enterLimit(tester, '7');
+      expect((await profiles.get()).cheatSheetLimit, 7);
       expect(
         container.read(cheatSheetItemsProvider(request)).value,
-        hasLength(30),
+        hasLength(7),
       );
       expect(generator.calls, hasLength(1));
+    });
+
+    testWidgets('an empty or zero value returns to the saved number', (
+      tester,
+    ) async {
+      await open(tester, from: at(0, 0));
+      await enterLimit(tester, '');
+      expect(limitText(tester), '10');
+      expect((await profiles.get()).cheatSheetLimit, 10);
+      await enterLimit(tester, '0');
+      expect(limitText(tester), '10');
+      expect((await profiles.get()).cheatSheetLimit, 10);
+    });
+
+    testWidgets('more than 500 becomes 500; the field keeps digits only', (
+      tester,
+    ) async {
+      await open(tester, from: at(0, 0));
+      await enterLimit(tester, '999');
+      expect(limitText(tester), '500');
+      expect((await profiles.get()).cheatSheetLimit, 500);
+
+      await tester.enterText(find.byKey(const Key('cheatsheet-limit')), '1a2');
+      expect(limitText(tester), '12');
+    });
+
+    testWidgets('losing the focus saves the value', (tester) async {
+      await open(tester, from: at(0, 0));
+      await tester.enterText(find.byKey(const Key('cheatsheet-limit')), '4');
+      FocusManager.instance.primaryFocus?.unfocus();
+      await settle(tester);
+      expect((await profiles.get()).cheatSheetLimit, 4);
     });
   });
 

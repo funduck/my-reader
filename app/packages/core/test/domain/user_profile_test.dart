@@ -46,7 +46,7 @@ void main() {
       expect(profile.scope, const CheatSheetPages(10));
       expect(profile.providerOrder, isEmpty);
       expect(profile.serviceUrl, isNull);
-      expect(profile.cheatSheetLimit, 20);
+      expect(profile.cheatSheetLimit, 10);
     });
 
     test('empty JSON gives defaults', () {
@@ -95,33 +95,43 @@ void main() {
       expect(profile.scope, CheatSheetScope.defaultScope);
     });
 
-    test('old profile without cheatSheetLimit reads 20', () {
+    test('old profile without cheatSheetLimit reads 10', () {
       final profile = UserProfile.fromJson(const {'level': 'c1'});
-      expect(profile.cheatSheetLimit, 20);
+      expect(profile.cheatSheetLimit, 10);
     });
 
-    test('cheatSheetLimit: 20, 50 and null round-trip; others read 20', () {
-      for (final limit in <int?>[20, 50, null]) {
+    test('cheatSheetLimit round-trips', () {
+      for (final limit in [1, 7, 10, 500]) {
         final profile = UserProfile(cheatSheetLimit: limit);
         final back = UserProfile.fromJson(_roundTrip(profile.toJson()));
         expect(back.cheatSheetLimit, limit);
         expect(back, profile);
       }
-      for (final bad in <Object?>[0, 30, -1, '50', 1.5, true]) {
+    });
+
+    test('old cheatSheetLimit: null reads 500, numbers are clamped', () {
+      int read(Object? v) =>
+          UserProfile.fromJson({'cheatSheetLimit': v}).cheatSheetLimit;
+      expect(read(null), 500);
+      expect(read(0), 1);
+      expect(read(-5), 1);
+      expect(read(1000), 500);
+      expect(read(50), 50);
+    });
+
+    test('cheatSheetLimit that is not a number reads 10', () {
+      for (final bad in <Object?>['50', 'all', true, <Object?>[]]) {
         expect(
           UserProfile.fromJson({'cheatSheetLimit': bad}).cheatSheetLimit,
-          20,
+          10,
         );
       }
     });
 
-    test('copyWith can set cheatSheetLimit to null (all)', () {
+    test('copyWith replaces and keeps cheatSheetLimit', () {
       const profile = UserProfile();
-      expect(
-        profile.copyWith(cheatSheetLimit: () => null).cheatSheetLimit,
-        isNull,
-      );
-      expect(profile.copyWith(level: CefrLevel.a1).cheatSheetLimit, 20);
+      expect(profile.copyWith(cheatSheetLimit: 7).cheatSheetLimit, 7);
+      expect(profile.copyWith(level: CefrLevel.a1).cheatSheetLimit, 10);
     });
 
     test('copyWith replaces and can clear serviceUrl', () {
