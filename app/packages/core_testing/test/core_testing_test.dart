@@ -47,6 +47,9 @@ void main() {
   group('FakeLookupJournal', () {
     lookupJournalContract(FakeLookupJournal.new);
   });
+  group('FakePhraseJournal', () {
+    phraseJournalContract(FakePhraseJournal.new);
+  });
   group('FakeLookupProvider', () {
     lookupProviderContract(
       _provider,

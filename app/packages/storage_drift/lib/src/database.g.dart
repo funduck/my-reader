@@ -2503,6 +2503,534 @@ class TermEventsCompanion extends UpdateCompanion<TermEventRow> {
   }
 }
 
+class $PhraseLookupsTable extends PhraseLookups
+    with TableInfo<$PhraseLookupsTable, PhraseLookupRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PhraseLookupsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _phraseMeta = const VerificationMeta('phrase');
+  @override
+  late final GeneratedColumn<String> phrase = GeneratedColumn<String>(
+    'phrase',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _translationMeta = const VerificationMeta(
+    'translation',
+  );
+  @override
+  late final GeneratedColumn<String> translation = GeneratedColumn<String>(
+    'translation',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _providerMeta = const VerificationMeta(
+    'provider',
+  );
+  @override
+  late final GeneratedColumn<String> provider = GeneratedColumn<String>(
+    'provider',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  late final GeneratedColumnWithTypeConverter<DateTime, int> at =
+      GeneratedColumn<int>(
+        'at',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: true,
+      ).withConverter<DateTime>($PhraseLookupsTable.$converterat);
+  @override
+  late final GeneratedColumnWithTypeConverter<Locator, String> locator =
+      GeneratedColumn<String>(
+        'locator',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+      ).withConverter<Locator>($PhraseLookupsTable.$converterlocator);
+  static const VerificationMeta _bookIdMeta = const VerificationMeta('bookId');
+  @override
+  late final GeneratedColumn<String> bookId = GeneratedColumn<String>(
+    'book_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sentenceMeta = const VerificationMeta(
+    'sentence',
+  );
+  @override
+  late final GeneratedColumn<String> sentence = GeneratedColumn<String>(
+    'sentence',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    phrase,
+    translation,
+    provider,
+    at,
+    locator,
+    bookId,
+    sentence,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'phrase_lookups';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<PhraseLookupRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('phrase')) {
+      context.handle(
+        _phraseMeta,
+        phrase.isAcceptableOrUnknown(data['phrase']!, _phraseMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_phraseMeta);
+    }
+    if (data.containsKey('translation')) {
+      context.handle(
+        _translationMeta,
+        translation.isAcceptableOrUnknown(
+          data['translation']!,
+          _translationMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_translationMeta);
+    }
+    if (data.containsKey('provider')) {
+      context.handle(
+        _providerMeta,
+        provider.isAcceptableOrUnknown(data['provider']!, _providerMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_providerMeta);
+    }
+    if (data.containsKey('book_id')) {
+      context.handle(
+        _bookIdMeta,
+        bookId.isAcceptableOrUnknown(data['book_id']!, _bookIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_bookIdMeta);
+    }
+    if (data.containsKey('sentence')) {
+      context.handle(
+        _sentenceMeta,
+        sentence.isAcceptableOrUnknown(data['sentence']!, _sentenceMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  PhraseLookupRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PhraseLookupRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      phrase: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}phrase'],
+      )!,
+      translation: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}translation'],
+      )!,
+      provider: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}provider'],
+      )!,
+      at: $PhraseLookupsTable.$converterat.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}at'],
+        )!,
+      ),
+      locator: $PhraseLookupsTable.$converterlocator.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}locator'],
+        )!,
+      ),
+      bookId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}book_id'],
+      )!,
+      sentence: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sentence'],
+      ),
+    );
+  }
+
+  @override
+  $PhraseLookupsTable createAlias(String alias) {
+    return $PhraseLookupsTable(attachedDatabase, alias);
+  }
+
+  static TypeConverter<DateTime, int> $converterat =
+      const UtcDateTimeConverter();
+  static TypeConverter<Locator, String> $converterlocator =
+      const LocatorConverter();
+}
+
+class PhraseLookupRow extends DataClass implements Insertable<PhraseLookupRow> {
+  /// `PhraseLookupId.value`.
+  final String id;
+
+  /// The phrase as selected.
+  final String phrase;
+
+  /// Translation of the phrase.
+  final String translation;
+
+  /// `ProviderId.value` of the translation.
+  final String provider;
+
+  /// When the phrase was translated, microseconds since epoch (UTC).
+  final DateTime at;
+
+  /// `Locator` as JSON.
+  final Locator locator;
+
+  /// `Locator.book`, copied for filtering.
+  final String bookId;
+
+  /// Context sentence, if known.
+  final String? sentence;
+  const PhraseLookupRow({
+    required this.id,
+    required this.phrase,
+    required this.translation,
+    required this.provider,
+    required this.at,
+    required this.locator,
+    required this.bookId,
+    this.sentence,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['phrase'] = Variable<String>(phrase);
+    map['translation'] = Variable<String>(translation);
+    map['provider'] = Variable<String>(provider);
+    {
+      map['at'] = Variable<int>($PhraseLookupsTable.$converterat.toSql(at));
+    }
+    {
+      map['locator'] = Variable<String>(
+        $PhraseLookupsTable.$converterlocator.toSql(locator),
+      );
+    }
+    map['book_id'] = Variable<String>(bookId);
+    if (!nullToAbsent || sentence != null) {
+      map['sentence'] = Variable<String>(sentence);
+    }
+    return map;
+  }
+
+  PhraseLookupsCompanion toCompanion(bool nullToAbsent) {
+    return PhraseLookupsCompanion(
+      id: Value(id),
+      phrase: Value(phrase),
+      translation: Value(translation),
+      provider: Value(provider),
+      at: Value(at),
+      locator: Value(locator),
+      bookId: Value(bookId),
+      sentence: sentence == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sentence),
+    );
+  }
+
+  factory PhraseLookupRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PhraseLookupRow(
+      id: serializer.fromJson<String>(json['id']),
+      phrase: serializer.fromJson<String>(json['phrase']),
+      translation: serializer.fromJson<String>(json['translation']),
+      provider: serializer.fromJson<String>(json['provider']),
+      at: serializer.fromJson<DateTime>(json['at']),
+      locator: serializer.fromJson<Locator>(json['locator']),
+      bookId: serializer.fromJson<String>(json['bookId']),
+      sentence: serializer.fromJson<String?>(json['sentence']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'phrase': serializer.toJson<String>(phrase),
+      'translation': serializer.toJson<String>(translation),
+      'provider': serializer.toJson<String>(provider),
+      'at': serializer.toJson<DateTime>(at),
+      'locator': serializer.toJson<Locator>(locator),
+      'bookId': serializer.toJson<String>(bookId),
+      'sentence': serializer.toJson<String?>(sentence),
+    };
+  }
+
+  PhraseLookupRow copyWith({
+    String? id,
+    String? phrase,
+    String? translation,
+    String? provider,
+    DateTime? at,
+    Locator? locator,
+    String? bookId,
+    Value<String?> sentence = const Value.absent(),
+  }) => PhraseLookupRow(
+    id: id ?? this.id,
+    phrase: phrase ?? this.phrase,
+    translation: translation ?? this.translation,
+    provider: provider ?? this.provider,
+    at: at ?? this.at,
+    locator: locator ?? this.locator,
+    bookId: bookId ?? this.bookId,
+    sentence: sentence.present ? sentence.value : this.sentence,
+  );
+  PhraseLookupRow copyWithCompanion(PhraseLookupsCompanion data) {
+    return PhraseLookupRow(
+      id: data.id.present ? data.id.value : this.id,
+      phrase: data.phrase.present ? data.phrase.value : this.phrase,
+      translation: data.translation.present
+          ? data.translation.value
+          : this.translation,
+      provider: data.provider.present ? data.provider.value : this.provider,
+      at: data.at.present ? data.at.value : this.at,
+      locator: data.locator.present ? data.locator.value : this.locator,
+      bookId: data.bookId.present ? data.bookId.value : this.bookId,
+      sentence: data.sentence.present ? data.sentence.value : this.sentence,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PhraseLookupRow(')
+          ..write('id: $id, ')
+          ..write('phrase: $phrase, ')
+          ..write('translation: $translation, ')
+          ..write('provider: $provider, ')
+          ..write('at: $at, ')
+          ..write('locator: $locator, ')
+          ..write('bookId: $bookId, ')
+          ..write('sentence: $sentence')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    phrase,
+    translation,
+    provider,
+    at,
+    locator,
+    bookId,
+    sentence,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PhraseLookupRow &&
+          other.id == this.id &&
+          other.phrase == this.phrase &&
+          other.translation == this.translation &&
+          other.provider == this.provider &&
+          other.at == this.at &&
+          other.locator == this.locator &&
+          other.bookId == this.bookId &&
+          other.sentence == this.sentence);
+}
+
+class PhraseLookupsCompanion extends UpdateCompanion<PhraseLookupRow> {
+  final Value<String> id;
+  final Value<String> phrase;
+  final Value<String> translation;
+  final Value<String> provider;
+  final Value<DateTime> at;
+  final Value<Locator> locator;
+  final Value<String> bookId;
+  final Value<String?> sentence;
+  final Value<int> rowid;
+  const PhraseLookupsCompanion({
+    this.id = const Value.absent(),
+    this.phrase = const Value.absent(),
+    this.translation = const Value.absent(),
+    this.provider = const Value.absent(),
+    this.at = const Value.absent(),
+    this.locator = const Value.absent(),
+    this.bookId = const Value.absent(),
+    this.sentence = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  PhraseLookupsCompanion.insert({
+    required String id,
+    required String phrase,
+    required String translation,
+    required String provider,
+    required DateTime at,
+    required Locator locator,
+    required String bookId,
+    this.sentence = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       phrase = Value(phrase),
+       translation = Value(translation),
+       provider = Value(provider),
+       at = Value(at),
+       locator = Value(locator),
+       bookId = Value(bookId);
+  static Insertable<PhraseLookupRow> custom({
+    Expression<String>? id,
+    Expression<String>? phrase,
+    Expression<String>? translation,
+    Expression<String>? provider,
+    Expression<int>? at,
+    Expression<String>? locator,
+    Expression<String>? bookId,
+    Expression<String>? sentence,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (phrase != null) 'phrase': phrase,
+      if (translation != null) 'translation': translation,
+      if (provider != null) 'provider': provider,
+      if (at != null) 'at': at,
+      if (locator != null) 'locator': locator,
+      if (bookId != null) 'book_id': bookId,
+      if (sentence != null) 'sentence': sentence,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  PhraseLookupsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? phrase,
+    Value<String>? translation,
+    Value<String>? provider,
+    Value<DateTime>? at,
+    Value<Locator>? locator,
+    Value<String>? bookId,
+    Value<String?>? sentence,
+    Value<int>? rowid,
+  }) {
+    return PhraseLookupsCompanion(
+      id: id ?? this.id,
+      phrase: phrase ?? this.phrase,
+      translation: translation ?? this.translation,
+      provider: provider ?? this.provider,
+      at: at ?? this.at,
+      locator: locator ?? this.locator,
+      bookId: bookId ?? this.bookId,
+      sentence: sentence ?? this.sentence,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (phrase.present) {
+      map['phrase'] = Variable<String>(phrase.value);
+    }
+    if (translation.present) {
+      map['translation'] = Variable<String>(translation.value);
+    }
+    if (provider.present) {
+      map['provider'] = Variable<String>(provider.value);
+    }
+    if (at.present) {
+      map['at'] = Variable<int>(
+        $PhraseLookupsTable.$converterat.toSql(at.value),
+      );
+    }
+    if (locator.present) {
+      map['locator'] = Variable<String>(
+        $PhraseLookupsTable.$converterlocator.toSql(locator.value),
+      );
+    }
+    if (bookId.present) {
+      map['book_id'] = Variable<String>(bookId.value);
+    }
+    if (sentence.present) {
+      map['sentence'] = Variable<String>(sentence.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PhraseLookupsCompanion(')
+          ..write('id: $id, ')
+          ..write('phrase: $phrase, ')
+          ..write('translation: $translation, ')
+          ..write('provider: $provider, ')
+          ..write('at: $at, ')
+          ..write('locator: $locator, ')
+          ..write('bookId: $bookId, ')
+          ..write('sentence: $sentence, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -2513,6 +3041,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $LookupEventsTable lookupEvents = $LookupEventsTable(this);
   late final $TermsTable terms = $TermsTable(this);
   late final $TermEventsTable termEvents = $TermEventsTable(this);
+  late final $PhraseLookupsTable phraseLookups = $PhraseLookupsTable(this);
   late final Index booksContentHash = Index(
     'books_content_hash',
     'CREATE INDEX books_content_hash ON books (content_hash)',
@@ -2533,6 +3062,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'term_events_event',
     'CREATE INDEX term_events_event ON term_events (event_id)',
   );
+  late final Index phraseLookupsAt = Index(
+    'phrase_lookups_at',
+    'CREATE INDEX phrase_lookups_at ON phrase_lookups (at)',
+  );
+  late final Index phraseLookupsBook = Index(
+    'phrase_lookups_book',
+    'CREATE INDEX phrase_lookups_book ON phrase_lookups (book_id)',
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -2544,11 +3081,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     lookupEvents,
     terms,
     termEvents,
+    phraseLookups,
     booksContentHash,
     lookupEventsAt,
     lookupEventsBook,
     termsLemma,
     termEventsEvent,
+    phraseLookupsAt,
+    phraseLookupsBook,
   ];
 }
 
@@ -3896,6 +4436,276 @@ typedef $$TermEventsTableProcessedTableManager =
       TermEventRow,
       PrefetchHooks Function()
     >;
+typedef $$PhraseLookupsTableCreateCompanionBuilder =
+    PhraseLookupsCompanion Function({
+      required String id,
+      required String phrase,
+      required String translation,
+      required String provider,
+      required DateTime at,
+      required Locator locator,
+      required String bookId,
+      Value<String?> sentence,
+      Value<int> rowid,
+    });
+typedef $$PhraseLookupsTableUpdateCompanionBuilder =
+    PhraseLookupsCompanion Function({
+      Value<String> id,
+      Value<String> phrase,
+      Value<String> translation,
+      Value<String> provider,
+      Value<DateTime> at,
+      Value<Locator> locator,
+      Value<String> bookId,
+      Value<String?> sentence,
+      Value<int> rowid,
+    });
+
+class $$PhraseLookupsTableFilterComposer
+    extends Composer<_$AppDatabase, $PhraseLookupsTable> {
+  $$PhraseLookupsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get phrase => $composableBuilder(
+    column: $table.phrase,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get translation => $composableBuilder(
+    column: $table.translation,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get provider => $composableBuilder(
+    column: $table.provider,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<DateTime, DateTime, int> get at =>
+      $composableBuilder(
+        column: $table.at,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
+
+  ColumnWithTypeConverterFilters<Locator, Locator, String> get locator =>
+      $composableBuilder(
+        column: $table.locator,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
+
+  ColumnFilters<String> get bookId => $composableBuilder(
+    column: $table.bookId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sentence => $composableBuilder(
+    column: $table.sentence,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$PhraseLookupsTableOrderingComposer
+    extends Composer<_$AppDatabase, $PhraseLookupsTable> {
+  $$PhraseLookupsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get phrase => $composableBuilder(
+    column: $table.phrase,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get translation => $composableBuilder(
+    column: $table.translation,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get provider => $composableBuilder(
+    column: $table.provider,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get at => $composableBuilder(
+    column: $table.at,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get locator => $composableBuilder(
+    column: $table.locator,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get bookId => $composableBuilder(
+    column: $table.bookId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sentence => $composableBuilder(
+    column: $table.sentence,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$PhraseLookupsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PhraseLookupsTable> {
+  $$PhraseLookupsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get phrase =>
+      $composableBuilder(column: $table.phrase, builder: (column) => column);
+
+  GeneratedColumn<String> get translation => $composableBuilder(
+    column: $table.translation,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get provider =>
+      $composableBuilder(column: $table.provider, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<DateTime, int> get at =>
+      $composableBuilder(column: $table.at, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<Locator, String> get locator =>
+      $composableBuilder(column: $table.locator, builder: (column) => column);
+
+  GeneratedColumn<String> get bookId =>
+      $composableBuilder(column: $table.bookId, builder: (column) => column);
+
+  GeneratedColumn<String> get sentence =>
+      $composableBuilder(column: $table.sentence, builder: (column) => column);
+}
+
+class $$PhraseLookupsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $PhraseLookupsTable,
+          PhraseLookupRow,
+          $$PhraseLookupsTableFilterComposer,
+          $$PhraseLookupsTableOrderingComposer,
+          $$PhraseLookupsTableAnnotationComposer,
+          $$PhraseLookupsTableCreateCompanionBuilder,
+          $$PhraseLookupsTableUpdateCompanionBuilder,
+          (
+            PhraseLookupRow,
+            BaseReferences<_$AppDatabase, $PhraseLookupsTable, PhraseLookupRow>,
+          ),
+          PhraseLookupRow,
+          PrefetchHooks Function()
+        > {
+  $$PhraseLookupsTableTableManager(_$AppDatabase db, $PhraseLookupsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PhraseLookupsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PhraseLookupsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PhraseLookupsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> phrase = const Value.absent(),
+                Value<String> translation = const Value.absent(),
+                Value<String> provider = const Value.absent(),
+                Value<DateTime> at = const Value.absent(),
+                Value<Locator> locator = const Value.absent(),
+                Value<String> bookId = const Value.absent(),
+                Value<String?> sentence = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PhraseLookupsCompanion(
+                id: id,
+                phrase: phrase,
+                translation: translation,
+                provider: provider,
+                at: at,
+                locator: locator,
+                bookId: bookId,
+                sentence: sentence,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String phrase,
+                required String translation,
+                required String provider,
+                required DateTime at,
+                required Locator locator,
+                required String bookId,
+                Value<String?> sentence = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PhraseLookupsCompanion.insert(
+                id: id,
+                phrase: phrase,
+                translation: translation,
+                provider: provider,
+                at: at,
+                locator: locator,
+                bookId: bookId,
+                sentence: sentence,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$PhraseLookupsTable, PhraseLookupRow>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $PhraseLookupsTable,
+                    PhraseLookupRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$PhraseLookupsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $PhraseLookupsTable,
+      PhraseLookupRow,
+      $$PhraseLookupsTableFilterComposer,
+      $$PhraseLookupsTableOrderingComposer,
+      $$PhraseLookupsTableAnnotationComposer,
+      $$PhraseLookupsTableCreateCompanionBuilder,
+      $$PhraseLookupsTableUpdateCompanionBuilder,
+      (
+        PhraseLookupRow,
+        BaseReferences<_$AppDatabase, $PhraseLookupsTable, PhraseLookupRow>,
+      ),
+      PhraseLookupRow,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -3912,4 +4722,6 @@ class $AppDatabaseManager {
       $$TermsTableTableManager(_db, _db.terms);
   $$TermEventsTableTableManager get termEvents =>
       $$TermEventsTableTableManager(_db, _db.termEvents);
+  $$PhraseLookupsTableTableManager get phraseLookups =>
+      $$PhraseLookupsTableTableManager(_db, _db.phraseLookups);
 }

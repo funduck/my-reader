@@ -25,6 +25,7 @@ part 'database.g.dart';
     LookupEvents,
     Terms,
     TermEvents,
+    PhraseLookups,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -32,7 +33,7 @@ class AppDatabase extends _$AppDatabase {
   new(super.e);
 
   /// Current schema version; bump it and add a step to [migration] together.
-  static const int currentSchemaVersion = 2;
+  static const int currentSchemaVersion = 3;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -52,11 +53,20 @@ class AppDatabase extends _$AppDatabase {
         await m.create(termsLemma);
         await m.create(termEventsEvent);
       }
+      if (from < 3) {
+        // v3: phrase journal.
+        await m.createTable(phraseLookups);
+        await m.create(phraseLookupsAt);
+        await m.create(phraseLookupsBook);
+      }
     },
   );
 
   /// Journal of lookups; also lists events of one term.
   DriftLookupJournal get lookupJournal => DriftLookupJournal(this);
+
+  /// Journal of translated phrases.
+  DriftPhraseJournal get phraseJournal => DriftPhraseJournal(this);
 
   /// Terms aggregated from the journal.
   DriftTermRepository get termRepository => DriftTermRepository(this);

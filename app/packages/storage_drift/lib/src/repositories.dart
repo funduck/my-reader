@@ -270,6 +270,75 @@ final class DriftLookupJournal implements LookupJournal {
   );
 }
 
+/// [PhraseJournal] on top of `AppDatabase`.
+///
+/// Entries are listed newest first; among equal times the later record comes
+/// first.
+final class DriftPhraseJournal implements PhraseJournal {
+  /// Creates a journal over the database.
+  new(this._db);
+
+  final AppDatabase _db;
+
+  @override
+  Future<void> record(PhraseLookup phrase) async {
+    await _db
+        .into(_db.phraseLookups)
+        .insert(
+          PhraseLookupsCompanion.insert(
+            id: phrase.id.value,
+            phrase: phrase.text,
+            translation: phrase.translation,
+            provider: phrase.provider.value,
+            at: phrase.at,
+            locator: phrase.locator,
+            bookId: phrase.locator.book.value,
+            sentence: Value(phrase.sentence),
+          ),
+          mode: InsertMode.insertOrIgnore,
+        );
+  }
+
+  @override
+  Stream<List<PhraseLookup>> watchAll() =>
+      _newestFirst(_db.select(_db.phraseLookups))
+          .watch()
+          .map((rows) => rows.map(_toPhrase).toList());
+
+  @override
+  Future<List<PhraseLookup>> byBook(BookId book) async {
+    final rows = await _newestFirst(
+      _db.select(_db.phraseLookups)..where((t) => t.bookId.equals(book.value)),
+    ).get();
+    return rows.map(_toPhrase).toList();
+  }
+
+  @override
+  Future<void> delete(PhraseLookupId id) async {
+    await (_db.delete(
+      _db.phraseLookups,
+    )..where((t) => t.id.equals(id.value))).go();
+  }
+
+  SimpleSelectStatement<$PhraseLookupsTable, PhraseLookupRow> _newestFirst(
+    SimpleSelectStatement<$PhraseLookupsTable, PhraseLookupRow> query,
+  ) => query
+    ..orderBy([
+      (t) => OrderingTerm.desc(t.at),
+      (t) => OrderingTerm.desc(CustomExpression<int>('${t.aliasedName}.rowid')),
+    ]);
+
+  PhraseLookup _toPhrase(PhraseLookupRow row) => PhraseLookup(
+    id: PhraseLookupId(row.id),
+    text: row.phrase,
+    translation: row.translation,
+    provider: ProviderId(row.provider),
+    at: row.at,
+    locator: row.locator,
+    sentence: row.sentence,
+  );
+}
+
 /// [TermRepository] on top of `AppDatabase`.
 final class DriftTermRepository implements TermRepository {
   /// Creates a repository over the database.

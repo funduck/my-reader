@@ -36,6 +36,11 @@ final Provider<LookupJournal> lookupJournalProvider = _port<LookupJournal>(
   'lookupJournalProvider',
 );
 
+/// Journal of translated phrases, separate from lookup events and terms.
+final Provider<PhraseJournal> phraseJournalProvider = _port<PhraseJournal>(
+  'phraseJournalProvider',
+);
+
 /// Storage of terms and their statuses.
 final Provider<TermRepository> termRepositoryProvider = _port<TermRepository>(
   'termRepositoryProvider',

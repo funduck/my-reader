@@ -79,4 +79,77 @@ void main() {
     expect(again.lookupCount, 2);
     expect(await db.termRepository.watchAll().first, hasLength(1));
   });
+
+  test('v2 data survives migration to v3, the phrase table is empty', () async {
+    final schema = await verifier.schemaAt(2);
+    const locator = Locator(
+      book: BookId('b1'),
+      chapter: ChapterRef(href: 'c1.xhtml', index: 0),
+      progression: 0.5,
+    );
+    final at = DateTime.utc(2024, 1, 2, 3, 4, 5);
+    schema.rawDatabase
+      ..execute(
+        'INSERT INTO books (id, title, author, language, format, file_path, '
+        'content_hash, added_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        ['b1', 'Moby-Dick', null, 'en', 'epub', '/b1.epub', 'h1', 1],
+      )
+      ..execute(
+        'INSERT INTO lookup_events (id, at, query_text, mode, sentence, '
+        'locator, book_id, chapter_href, chapter_index, provider, '
+        'transcription, senses) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [
+          'e1',
+          at.microsecondsSinceEpoch,
+          'ran',
+          'enRu',
+          'He ran.',
+          jsonEncode(locator.toJson()),
+          'b1',
+          'c1.xhtml',
+          0,
+          'stardict.test',
+          null,
+          jsonEncode([
+            {'text': 'бежал', 'pos': null, 'examples': <String>[]},
+          ]),
+        ],
+      )
+      ..execute(
+        'INSERT INTO terms (id, normalized, language, lookup_count, status, '
+        'level) VALUES (?, ?, ?, ?, ?, ?)',
+        ['t1', 'run', 'en', 1, 'learning', 'b1'],
+      )
+      ..execute(
+        'INSERT INTO term_events (term_id, event_id, position) '
+        'VALUES (?, ?, ?)',
+        ['t1', 'e1', 0],
+      );
+
+    final db = AppDatabase(schema.newConnection());
+    addTearDown(db.close);
+    await verifier.migrateAndValidate(db, 3);
+
+    expect(
+      (await db.bookRepository.get(const BookId('b1')))?.metadata.title,
+      'Moby-Dick',
+    );
+    final events = await db.lookupJournal.watch().first;
+    expect(events.single.id, const LookupEventId('e1'));
+    expect(events.single.query.locator, locator);
+    final term = await db.termRepository.find('run', 'en');
+    expect(term?.eventIds, [const LookupEventId('e1')]);
+
+    expect(await db.phraseJournal.watchAll().first, isEmpty);
+    final phrase = PhraseLookup(
+      id: const PhraseLookupId('p1'),
+      text: 'gave up',
+      translation: 'сдался',
+      provider: const ProviderId('deepl'),
+      at: at,
+      locator: locator,
+    );
+    await db.phraseJournal.record(phrase);
+    expect(await db.phraseJournal.byBook(const BookId('b1')), [phrase]);
+  });
 }

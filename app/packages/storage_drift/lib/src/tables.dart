@@ -177,3 +177,38 @@ class TermEvents extends Table {
   @override
   Set<Column<Object>> get primaryKey => {termId, eventId};
 }
+
+/// Journal of translated phrases (`PhraseLookup`), separate from terms.
+///
+/// The book is copied out of the locator so the list can be filtered in SQL.
+@DataClassName('PhraseLookupRow')
+@TableIndex(name: 'phrase_lookups_at', columns: {#at})
+@TableIndex(name: 'phrase_lookups_book', columns: {#bookId})
+class PhraseLookups extends Table {
+  /// `PhraseLookupId.value`.
+  TextColumn get id => text()();
+
+  /// The phrase as selected.
+  TextColumn get phrase => text()();
+
+  /// Translation of the phrase.
+  TextColumn get translation => text()();
+
+  /// `ProviderId.value` of the translation.
+  TextColumn get provider => text()();
+
+  /// When the phrase was translated, microseconds since epoch (UTC).
+  IntColumn get at => integer().map(const UtcDateTimeConverter())();
+
+  /// `Locator` as JSON.
+  TextColumn get locator => text().map(const LocatorConverter())();
+
+  /// `Locator.book`, copied for filtering.
+  TextColumn get bookId => text()();
+
+  /// Context sentence, if known.
+  TextColumn get sentence => text().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
