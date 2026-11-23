@@ -34,6 +34,21 @@ const _at = Locator(
   quote: TextQuote(exact: 'gave up'),
 );
 
+/// Splits after `.`, `!` and `?` followed by a space.
+class _Sentences extends SimpleAnalyzer {
+  @override
+  List<SentenceSpan> sentences(String text) {
+    final spans = <SentenceSpan>[];
+    var start = 0;
+    for (final m in RegExp(r'[.!?]\s+').allMatches(text)) {
+      spans.add(SentenceSpan(start, m.start + 1));
+      start = m.end;
+    }
+    if (start < text.length) spans.add(SentenceSpan(start, text.length));
+    return spans;
+  }
+}
+
 class _Delayed implements LookupProvider {
   new(this._inner, this._delay);
 
@@ -72,6 +87,7 @@ void main() {
     journal: journal,
     clock: FixedClock(DateTime.utc(2026, 1, 2)),
     ids: CountingIds(),
+    analyzer: _Sentences(),
   );
 
   test('success: translation from the provider, nothing written yet', () async {
@@ -127,6 +143,47 @@ void main() {
     await s.record(b);
 
     expect(journal.items, hasLength(2));
+  });
+
+  group('too long: the provider is not asked, nothing is written', () {
+    const tooLong = PhraseFailed(kind: PhraseFailureKind.tooLong);
+
+    test('two sentences', () async {
+      final outcome = await scenario()(
+        text: 'He gave up. Then he left.',
+        locator: _at,
+      );
+
+      expect(outcome, tooLong);
+      expect(provider.calls, isEmpty);
+      expect(journal.items, isEmpty);
+    });
+
+    test('one sentence over 500 characters', () async {
+      final outcome = await scenario()(
+        text: List.filled(130, 'word').join(' '),
+        locator: _at,
+      );
+
+      expect(outcome, tooLong);
+      expect(provider.calls, isEmpty);
+      expect(journal.items, isEmpty);
+    });
+
+    test('one sentence of up to 500 characters is translated', () async {
+      final text = 'a' * 500;
+      expect(await scenario()(text: text), isA<PhraseTranslated>());
+      expect(provider.calls.single.text, text);
+    });
+
+    test('one sentence with a trailing stop is translated', () async {
+      expect(await scenario()(text: 'He gave up. '), isA<PhraseTranslated>());
+    });
+
+    test('two words inside a sentence are translated', () async {
+      expect(await scenario()(text: 'gave up'), isA<PhraseTranslated>());
+      expect(provider.calls, hasLength(1));
+    });
   });
 
   group('failures are values and write nothing', () {
@@ -186,6 +243,7 @@ void main() {
         journal: journal,
         clock: FixedClock(DateTime.utc(2026)),
         ids: CountingIds(),
+        analyzer: _Sentences(),
       );
       expect(await s(text: 'a b'), isA<PhraseTranslated>());
     },

@@ -10,6 +10,7 @@ import '../../ports/clock.dart';
 import '../../ports/id_generator.dart';
 import '../../ports/lookup_provider.dart';
 import '../../ports/phrase_journal.dart';
+import '../../ports/text_analyzer.dart';
 
 /// Why a phrase could not be translated.
 enum PhraseFailureKind {
@@ -39,6 +40,10 @@ enum PhraseFailureKind {
 
   /// The provider answered with nothing to show.
   notFound,
+
+  /// The selection is longer than one sentence, or longer than
+  /// `TranslatePhrase.maxLength` characters. The provider was not asked.
+  tooLong,
 }
 
 /// What `TranslatePhrase.call` returns.
@@ -137,7 +142,9 @@ final class PhraseFailed extends PhraseOutcome {
 ///
 /// Asks one phrase provider (DeepL) directly, not through `ProviderChain`: the
 /// chain's 5 s limit is shorter than the provider's own timeout, which is what
-/// this scenario relies on. Two steps like `LookupSelection` (T-086): [call]
+/// this scenario relies on. A selection of more than one sentence (or over
+/// [maxLength] characters) is `PhraseFailureKind.tooLong` before any request:
+/// DeepL bills by characters. Two steps like `LookupSelection` (T-086): [call]
 /// translates and writes nothing; [record] appends the result to the
 /// [PhraseJournal] once the caller decides it was seen. Terms and the lookup
 /// journal are not touched. Failures are values ([PhraseFailed]); only
@@ -149,12 +156,18 @@ class TranslatePhrase {
     required this._journal,
     required this._clock,
     required this._ids,
+    required this._analyzer,
   });
+
+  /// Longest phrase asked from the provider, in characters; the fallback for
+  /// text without sentence marks.
+  static const int maxLength = 500;
 
   final LookupProvider _provider;
   final PhraseJournal _journal;
   final Clock _clock;
   final IdGenerator _ids;
+  final TextAnalyzer _analyzer;
 
   /// Translates [text] (trimmed) from English to Russian.
   ///
@@ -168,6 +181,9 @@ class TranslatePhrase {
   }) async {
     cancel?.throwIfCancelled();
     final phrase = text.trim();
+    if (phrase.length > maxLength || _analyzer.sentences(phrase).length > 1) {
+      return const PhraseFailed(kind: PhraseFailureKind.tooLong);
+    }
     final query = LookupQuery(
       text: phrase,
       mode: LookupMode.enRu,

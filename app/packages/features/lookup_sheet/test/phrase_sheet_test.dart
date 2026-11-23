@@ -64,6 +64,16 @@ class _Selection implements LookupSelection {
       throw UnimplementedError();
 }
 
+/// Ends a sentence at `.` followed by a space.
+class _TwoSentences extends WordAnalyzer {
+  @override
+  List<SentenceSpan> sentences(String text) {
+    final cut = text.indexOf('. ');
+    if (cut < 0) return [SentenceSpan(0, text.length)];
+    return [SentenceSpan(0, cut + 1), SentenceSpan(cut + 2, text.length)];
+  }
+}
+
 class _Fixture {
   new() {
     deepl = FakeLookupProvider(
@@ -99,7 +109,7 @@ class _Fixture {
           clockProvider.overrideWithValue(FakeClock(DateTime.utc(2026, 3))),
           idGeneratorProvider.overrideWithValue(SeqIdGenerator()),
           lookupSelectionProvider.overrideWithValue(selection),
-          ...TermSupport().overrides(ids: false),
+          ...TermSupport().overrides(ids: false, analyzer: _TwoSentences()),
           lookupProvidersProvider.overrideWithValue([
             FakeLookupProvider(
               id: _dict,
@@ -216,6 +226,26 @@ void main() {
     expect(f.deepl.calls, hasLength(2));
     await tester.pump(minLookupViewDuration);
     expect(await f.count(), 1);
+  });
+
+  testWidgets('two sentences: a message, no Retry, no request', (tester) async {
+    final f = _Fixture();
+    await f.open(
+      tester,
+      const LookupQuery(
+        text: 'He gave up. Then he left.',
+        mode: LookupMode.enEn,
+        locator: _place,
+      ),
+    );
+
+    expect(find.text('Select one sentence at most'), findsOneWidget);
+    expect(find.text('Retry'), findsNothing);
+    expect(find.text('Open settings'), findsNothing);
+    expect(f.deepl.calls, isEmpty);
+
+    await tester.pump(const Duration(seconds: 10));
+    expect(await f.count(), 0);
   });
 
   testWidgets('an error is never recorded', (tester) async {

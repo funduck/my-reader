@@ -33,10 +33,10 @@ class TermSupport {
   final FakeTermRepository terms = FakeTermRepository();
 
   /// Provider overrides to add to the scope; [ids] is false for a test that
-  /// wires its own id generator.
-  List<Override> overrides({bool ids = true}) => [
+  /// wires its own id generator; [analyzer] replaces the one-sentence default.
+  List<Override> overrides({bool ids = true, TextAnalyzer? analyzer}) => [
     termRepositoryProvider.overrideWithValue(terms),
-    textAnalyzerProvider.overrideWithValue(WordAnalyzer()),
+    textAnalyzerProvider.overrideWithValue(analyzer ?? WordAnalyzer()),
     levelDictionaryProvider.overrideWithValue(NoLevels()),
     if (ids)
       idGeneratorProvider.overrideWithValue(SeqIdGenerator(prefix: 'term')),
