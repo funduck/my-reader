@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:core/domain_books.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/rendering.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'interactions.dart';
@@ -457,19 +458,58 @@ class _InteractiveTextState extends State<_InteractiveText> {
     onPointerCancel: _onCancel,
     child: IgnorePointer(
       ignoring: _gated,
-      child: SelectableText.rich(
-        inlineSpan(
-          widget.inlines,
-          widget.readerStyle,
-          highlights: widget.highlights,
+      child: _KeepScroll(
+        child: SelectableText.rich(
+          inlineSpan(
+            widget.inlines,
+            widget.readerStyle,
+            highlights: widget.highlights,
+          ),
+          style: widget.style,
+          focusNode: _focus,
+          onSelectionChanged: _onSelectionChanged,
+          contextMenuBuilder: _menu,
         ),
-        style: widget.style,
-        focusNode: _focus,
-        onSelectionChanged: _onSelectionChanged,
-        contextMenuBuilder: _menu,
       ),
     ),
   );
+}
+
+/// Stops the text from scrolling the chapter list when its selection changes
+/// (T-107).
+///
+/// Every selection change makes `EditableText` ask the enclosing scrollables
+/// to bring the caret into view (`RenderObject.showOnScreen` with a rect): a
+/// post-frame reveal padded by `scrollPadding` and the handle size, and, for
+/// a drag, a reveal of the dragged end. In a list of paragraphs that moves
+/// the page under the finger: a hold near the screen edge scrolls, a drag that
+/// ends below the screen scrolls, and the collapse of the selection after
+/// "Translate" (caret to offset 0) jumps back to the start of a paragraph
+/// that is partly above the screen. Requests without a rect come from
+/// accessibility ("show this node") and pass through.
+class _KeepScroll extends SingleChildRenderObjectWidget {
+  const new({required super.child});
+
+  @override
+  RenderObject createRenderObject(BuildContext context) => _RenderKeepScroll();
+}
+
+class _RenderKeepScroll extends RenderProxyBox {
+  @override
+  void showOnScreen({
+    RenderObject? descendant,
+    Rect? rect,
+    Duration duration = Duration.zero,
+    Curve curve = Curves.ease,
+  }) {
+    if (rect != null) return;
+    super.showOnScreen(
+      descendant: descendant,
+      rect: rect,
+      duration: duration,
+      curve: curve,
+    );
+  }
 }
 
 class _ImageView extends StatefulWidget {
