@@ -1,0 +1,14 @@
+name: lookup_deepl
+description: Online en-ru phrase translation LookupProvider over the DeepL API.
+publish_to: none
+version: 0.1.0
+resolution: workspace
+environment:
+  sdk: ^3.14.0
+dependencies:
+  core: any
+  http: ^1.2.0
+  logging: ^1.3.0
+dev_dependencies:
+  core_testing: any
+  test: ^1.25.0
