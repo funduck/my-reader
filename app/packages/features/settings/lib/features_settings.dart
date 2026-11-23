@@ -30,3 +30,5 @@ export 'src/font_choice.dart'
 export 'src/packs_controller.dart';
 export 'src/reading_section.dart';
 export 'src/settings_screen.dart';
+export 'src/translation_section.dart'
+    show TranslationSection, deeplKeyHelpUrl, deeplKeyProvider, maskedKey;

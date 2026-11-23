@@ -24,6 +24,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:packs_http/packs_http.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:reader_simple/reader_simple.dart';
+import 'package:secrets_os/secrets_os.dart';
 import 'package:storage_drift/storage_drift.dart';
 import 'package:text_en/text_en.dart';
 
@@ -71,6 +72,7 @@ Future<List<Override>> buildDeviceOverrides() async {
       '${support.path}/backgrounds',
     ),
     fontsDirectoryProvider.overrideWithValue('${support.path}/fonts'),
+    secretStoreProvider.overrideWithValue(OsSecretStore()),
     ...buildLookupOverrides(packsDirPath, dictionaries: dictionaries),
     // The engine needs only sentence bounds and lemmas from the analyzer.
     readerEngineFactoryProvider.overrideWith(
