@@ -10,6 +10,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lookup_sheet/lookup_sheet.dart';
 import 'package:material_ui/material_ui.dart';
 
+import 'term_support.dart';
+
 const _query = LookupQuery(text: 'cat', mode: LookupMode.enEn);
 const _a = ProviderId('dict.a');
 const _b = ProviderId('dict.b');
@@ -104,6 +106,7 @@ Future<void> _open(WidgetTester tester, LookupSelection selection) async {
     ProviderScope(
       overrides: [
         lookupSelectionProvider.overrideWithValue(selection),
+        ...TermSupport().overrides(),
         lookupProvidersProvider.overrideWithValue([
           _Provider(_a, 'Dict A'),
           _Provider(_b, 'Dict B'),

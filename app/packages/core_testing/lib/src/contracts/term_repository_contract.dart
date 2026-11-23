@@ -10,12 +10,13 @@ Term _term(
   String language = 'en',
   int count = 1,
   TermStatus status = TermStatus.learning,
+  bool noEvents = false,
 }) => Term(
   id: TermId(id),
   normalized: word,
   language: language,
   lookupCount: count,
-  eventIds: [LookupEventId('e-$id')],
+  eventIds: noEvents ? const [] : [LookupEventId('e-$id')],
   status: status,
 );
 
@@ -36,6 +37,30 @@ void termRepositoryContract(FutureOr<TermRepository> Function() create) {
       final term = _term('t1', 'word', count: 3);
       await repo.save(term);
       expect(await repo.find('word', 'en'), term);
+    });
+
+    test('a term with no events is stored and read back (T-098)', () async {
+      // A word marked "known" from the cheat sheet was never looked up.
+      const term = Term(
+        id: TermId('t1'),
+        normalized: 'word',
+        language: 'en',
+        lookupCount: 0,
+        eventIds: [],
+        status: TermStatus.known,
+        level: CefrLevel.b2,
+      );
+      await repo.save(term);
+      expect(await repo.find('word', 'en'), term);
+      expect(await repo.watchAll(status: TermStatus.known).first, [term]);
+    });
+
+    test('a term gets its first events after being saved without', () async {
+      await repo.save(_term('t1', 'word', count: 0, noEvents: true));
+      final later = _term('t1', 'word');
+      await repo.save(later);
+      expect(await repo.find('word', 'en'), later);
+      expect(await repo.watchAll().first, [later]);
     });
 
     test('find distinguishes language and normalized text', () async {

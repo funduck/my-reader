@@ -10,6 +10,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lookup_sheet/lookup_sheet.dart';
 import 'package:material_ui/material_ui.dart';
 
+import 'term_support.dart';
+
 const _query = LookupQuery(text: 'ephemeral', mode: LookupMode.enEn);
 const _providerId = ProviderId('fake.dict');
 
@@ -110,6 +112,8 @@ LookupOutcome _unanswered(List<ProviderAttempt> attempts) => LookupUnanswered(
   failure: ChainFailure(attempts),
 );
 
+late TermSupport support;
+
 /// Pumps a page whose button opens the sheet.
 Future<_FakeSelection> _open(
   WidgetTester tester,
@@ -121,6 +125,7 @@ Future<_FakeSelection> _open(
     ProviderScope(
       overrides: [
         lookupSelectionProvider.overrideWithValue(selection),
+        ...support.overrides(),
         lookupProvidersProvider.overrideWithValue([_FakeProvider()]),
       ],
       child: MaterialApp(
@@ -146,6 +151,8 @@ Future<_FakeSelection> _open(
 }
 
 void main() {
+  setUp(() => support = TermSupport());
+
   testWidgets('shows a skeleton at once, then the answer', (tester) async {
     final completer = Completer<LookupOutcome>();
     final selection = await _open(tester, () => completer.future);
@@ -259,6 +266,88 @@ void main() {
     expect(find.text('1. lasting a very short time'), findsOneWidget);
   });
 
+  group('known switch', () {
+    Finder toggle() => find.byKey(const Key('lookup-known-toggle'));
+
+    bool selected(WidgetTester tester) =>
+        tester.widget<FilterChip>(toggle()).selected;
+
+    testWidgets('marks the word known at once and unmarks it', (tester) async {
+      await _open(tester, () async => _answered());
+      await tester.pumpAndSettle();
+      expect(find.text('Знаю'), findsOneWidget);
+      expect(selected(tester), isFalse);
+      expect(await support.terms.find('ephemeral', 'en'), isNull);
+
+      await tester.tap(toggle());
+      await tester.pumpAndSettle();
+      final term = await support.terms.find('ephemeral', 'en');
+      expect(term?.status, TermStatus.known);
+      expect(term?.lookupCount, 0);
+      expect(selected(tester), isTrue);
+
+      await tester.tap(toggle());
+      await tester.pumpAndSettle();
+      expect(
+        (await support.terms.find('ephemeral', 'en'))?.status,
+        TermStatus.learning,
+      );
+      expect(selected(tester), isFalse);
+    });
+
+    testWidgets('works while the lookup is still running', (tester) async {
+      final completer = Completer<LookupOutcome>();
+      await _open(tester, () => completer.future);
+      // Lets the sheet slide in; the skeleton keeps animating, so no settle.
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.byKey(const Key('lookup-skeleton')), findsOneWidget);
+
+      await tester.tap(toggle());
+      await tester.pump();
+      expect(
+        (await support.terms.find('ephemeral', 'en'))?.status,
+        TermStatus.known,
+      );
+      expect(selected(tester), isTrue);
+    });
+
+    testWidgets('starts on for a word that is already known', (tester) async {
+      await support.terms.save(
+        const Term(
+          id: TermId('t1'),
+          normalized: 'ephemeral',
+          language: 'en',
+          lookupCount: 2,
+          eventIds: [LookupEventId('e0'), LookupEventId('e9')],
+          status: TermStatus.known,
+        ),
+      );
+      await _open(tester, () async => _answered());
+      await tester.pumpAndSettle();
+      expect(selected(tester), isTrue);
+    });
+
+    testWidgets('follows a change made elsewhere', (tester) async {
+      await _open(tester, () async => _answered());
+      await tester.pumpAndSettle();
+      expect(selected(tester), isFalse);
+
+      await support.terms.save(
+        const Term(
+          id: TermId('t1'),
+          normalized: 'ephemeral',
+          language: 'en',
+          lookupCount: 0,
+          eventIds: [],
+          status: TermStatus.known,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(selected(tester), isTrue);
+    });
+  });
+
   testWidgets('closing the sheet cancels the running lookup', (tester) async {
     CancelToken? seen;
     final selection = _CancelSpy(onCall: (c) => seen = c);
@@ -266,6 +355,7 @@ void main() {
       ProviderScope(
         overrides: [
           lookupSelectionProvider.overrideWithValue(selection),
+          ...support.overrides(),
           lookupProvidersProvider.overrideWithValue([_FakeProvider()]),
         ],
         child: MaterialApp(

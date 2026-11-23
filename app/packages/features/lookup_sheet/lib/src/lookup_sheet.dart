@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 import 'package:material_ui/material_ui.dart';
 
+import 'known_toggle.dart';
 import 'level_badge.dart';
 import 'lookup_providers.dart';
 import 'simple_html.dart';
@@ -143,6 +144,8 @@ class _LookupSheetState extends ConsumerState<LookupSheet> {
                 ),
               ),
               if (level != null) LevelBadge(level: level),
+              const SizedBox(width: 8),
+              KnownToggle(text: source.text),
               if (hasOther) ...[
                 const SizedBox(width: 8),
                 _ModeToggle(

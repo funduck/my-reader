@@ -10,6 +10,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lookup_sheet/lookup_sheet.dart';
 import 'package:material_ui/material_ui.dart';
 
+import 'term_support.dart';
+
 const _query = LookupQuery(text: 'cat', mode: LookupMode.enEn);
 const _en = ProviderId('dict.en');
 const _ru = ProviderId('dict.ru');
@@ -108,6 +110,7 @@ Future<void> _open(
     ProviderScope(
       overrides: [
         lookupSelectionProvider.overrideWithValue(selection),
+        ...TermSupport().overrides(),
         lookupProvidersProvider.overrideWithValue(providers),
       ],
       child: const MaterialApp(

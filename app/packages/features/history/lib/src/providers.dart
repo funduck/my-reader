@@ -53,7 +53,8 @@ final StreamProvider<List<Book>> historyBooksProvider =
 /// Terms with their lookups, the most recently looked up first.
 ///
 /// With a book only terms looked up in that book remain, and only their
-/// lookups in that book are listed.
+/// lookups in that book are listed. Terms marked known but never looked up
+/// (from the cheat sheet) come last, with no contexts.
 final Provider<AsyncValue<List<HistoryEntry>>> Function(BookId?)
 historyProvider = Provider.family<AsyncValue<List<HistoryEntry>>, BookId?>((
   ref,
@@ -87,13 +88,17 @@ historyProvider = Provider.family<AsyncValue<List<HistoryEntry>>, BookId?>((
             ),
     ]..sort((a, b) => b.event.at.compareTo(a.event.at));
     if (book != null && contexts.isEmpty) continue;
+    // A term without a single lookup is there only because it was marked
+    // known (cheat sheet); once unmarked, it has nothing to show.
+    if (term.eventIds.isEmpty && term.status != TermStatus.known) continue;
     entries.add(HistoryEntry(term: term, contexts: contexts));
   }
   entries.sort((a, b) {
     final x = a.lastAt;
     final y = b.lastAt;
     if (x == null || y == null) {
-      return x == y ? 0 : (x == null ? 1 : -1);
+      if (x == y) return a.term.normalized.compareTo(b.term.normalized);
+      return x == null ? 1 : -1;
     }
     return y.compareTo(x);
   });
