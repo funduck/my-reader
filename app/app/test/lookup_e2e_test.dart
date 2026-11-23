@@ -83,9 +83,8 @@ void main() {
       WordTapped(word: 'Child', at: at(0.05), sentence: fixtureParagraph),
     );
     await settle(shown);
-    await tester.pump(
-      minLookupViewDuration - const Duration(milliseconds: 500),
-    );
+    // The result appeared in the pump that `settle` just saw: 1.9 s on screen.
+    await tester.pump(const Duration(milliseconds: 1900));
     await tester.tapAt(const Offset(10, 10));
     await settle(() => !shown());
     await tester.pump(const Duration(seconds: 5));

@@ -176,6 +176,27 @@ class _RecordAfterViewState extends ConsumerState<_RecordAfterView> {
   static final Logger _log = Logger('LookupSheet');
 
   Timer? _timer;
+  Animation<double>? _routeAnimation;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Closing the sheet starts an exit animation during which the content is
+    // still mounted; the result is no longer "on screen" from its start.
+    final animation = ModalRoute.of(context)?.animation;
+    if (animation != _routeAnimation) {
+      _routeAnimation?.removeStatusListener(_onRouteStatus);
+      animation?.addStatusListener(_onRouteStatus);
+      _routeAnimation = animation;
+    }
+  }
+
+  void _onRouteStatus(AnimationStatus status) {
+    if (status == AnimationStatus.reverse ||
+        status == AnimationStatus.dismissed) {
+      _timer?.cancel();
+    }
+  }
 
   @override
   void initState() {
@@ -198,6 +219,7 @@ class _RecordAfterViewState extends ConsumerState<_RecordAfterView> {
 
   @override
   void dispose() {
+    _routeAnimation?.removeStatusListener(_onRouteStatus);
     _timer?.cancel();
     super.dispose();
   }
