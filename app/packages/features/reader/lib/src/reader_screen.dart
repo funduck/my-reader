@@ -302,9 +302,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
 
   void _onEvent(ReaderEvent event) {
     switch (event) {
-      case WordTapped(:final word, :final at, :final sentence):
-        _lookup(word, at, sentence);
-        return;
       case TextSelected(:final text, :final at, :final sentence):
         _lookup(text, at, sentence);
         return;

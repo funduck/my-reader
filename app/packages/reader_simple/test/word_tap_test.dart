@@ -1,15 +1,13 @@
-import 'dart:typed_data';
-
 import 'package:core/domain_books.dart';
 import 'package:core/ports.dart';
 import 'package:core_testing/core_testing.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:reader_api/reader_api.dart';
 import 'package:reader_simple/reader_simple.dart';
-import 'package:reader_simple/src/block_view.dart' show PressMarkPainter;
 import 'package:reader_simple/src/interactions.dart';
 import 'package:reader_simple/src/reader_view.dart' show ReaderView;
 
@@ -45,16 +43,18 @@ class _Harness {
   final FakeTextAnalyzer analyzer;
   final List<ReaderEvent> events;
 
-  /// The tap and selection events, without position reports.
-  List<ReaderEvent> get taps => [
-    for (final e in events)
-      if (e is WordTapped || e is TextSelected) e,
-  ];
+  /// The selection events, without position reports.
+  List<TextSelected> get taps => events.whereType<TextSelected>().toList();
 }
 
-Future<_Harness> _open(WidgetTester tester, OpenedBook book) async {
+Future<_Harness> _open(
+  WidgetTester tester,
+  OpenedBook book, {
+  bool translate = false,
+}) async {
   final analyzer = FakeTextAnalyzer();
-  final engine = SimpleReaderEngine(analyzer: analyzer);
+  final engine = SimpleReaderEngine(analyzer: analyzer)
+    ..applySettings(ReaderSettings(translateOnSelect: translate));
   addTearDown(engine.dispose);
   final events = <ReaderEvent>[];
   final sub = engine.events.listen(events.add);
@@ -69,8 +69,11 @@ Future<_Harness> _open(WidgetTester tester, OpenedBook book) async {
   return _Harness(engine, analyzer, events);
 }
 
-Future<_Harness> _openText(WidgetTester tester, String chapter) =>
-    _open(tester, FakeOpenedBook(chapters: [chapter]));
+Future<_Harness> _openText(
+  WidgetTester tester,
+  String chapter, {
+  bool translate = false,
+}) => _open(tester, FakeOpenedBook(chapters: [chapter]), translate: translate);
 
 RenderEditable? _findEditable(RenderObject root) {
   if (root is RenderEditable) return root;
@@ -101,19 +104,10 @@ Offset _centerOf(WidgetTester tester, String inParagraph, String word) {
   return editable.localToGlobal(box.toRect().center);
 }
 
-/// A touch that rests on [at] long enough to look the word up.
-Future<void> _tap(WidgetTester tester, Offset at) async {
+/// A finger that rests on [at] for the long press (500 ms) and goes up.
+Future<void> _hold(WidgetTester tester, Offset at) async {
   final gesture = await tester.startGesture(at);
-  await tester.pump(lookupHoldDuration + const Duration(milliseconds: 10));
-  await gesture.up();
-  await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 10));
-}
-
-/// A press of the primary mouse button on [at], held for [hold], then
-/// released.
-Future<void> _mouseHold(WidgetTester tester, Offset at, Duration hold) async {
-  final gesture = await tester.startGesture(at, kind: PointerDeviceKind.mouse);
-  await tester.pump(hold);
+  await tester.pump(kLongPressTimeout + const Duration(milliseconds: 10));
   await gesture.up();
   await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 10));
 }
@@ -128,38 +122,6 @@ List<TextSpan> _marked(WidgetTester tester, String inParagraph) {
     return true;
   });
   return result;
-}
-
-/// The words under the press mark of the paragraph that contains
-/// [inParagraph].
-List<String> _pressedWords(WidgetTester tester, String inParagraph) {
-  final marks = find.descendant(
-    of: find.ancestor(
-      of: _paragraph(inParagraph),
-      matching: find.byType(Stack),
-    ),
-    matching: find.byWidgetPredicate(
-      (w) => w is CustomPaint && w.painter is PressMarkPainter,
-    ),
-  );
-  final painter =
-      tester.widget<CustomPaint>(marks.first).painter! as PressMarkPainter;
-  final box = tester.renderObject<RenderBox>(marks.first);
-  final editable = _findEditable(tester.renderObject(_paragraph(inParagraph)))!;
-  final text = tester
-      .widget<SelectableText>(_paragraph(inParagraph))
-      .textSpan!
-      .toPlainText();
-  return [
-    for (final r in painter.boxes)
-      () {
-        final at = editable
-            .getPositionForPoint(box.localToGlobal(r.center))
-            .offset;
-        final word = wordRangeAt(text, at)!;
-        return text.substring(word.$1, word.$2);
-      }(),
-  ];
 }
 
 /// A click of the primary mouse button; a mouse has no selection handles that
@@ -261,22 +223,17 @@ void _viewTapTests({required bool mouse}) {
     expect(_viewTaps(h), hasLength(1));
   });
 
-  testWidgets('a hold of 500 ms gives WordTapped and no ViewTapped', (
-    tester,
-  ) async {
+  testWidgets('a hold of 500 ms gives no ViewTapped', (tester) async {
     final h = await _openText(tester, _fox);
     final at = _centerOf(tester, 'quick', 'brown');
-    if (mouse) {
-      await _mouseHold(
-        tester,
-        at,
-        lookupHoldDuration + const Duration(milliseconds: 10),
-      );
-    } else {
-      await _tap(tester, at);
-    }
+    final gesture = await tester.startGesture(
+      at,
+      kind: mouse ? PointerDeviceKind.mouse : PointerDeviceKind.touch,
+    );
+    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 10));
+    await gesture.up();
+    await tester.pump(kDoubleTapTimeout * 2);
 
-    expect((h.taps.single as WordTapped).word, 'brown');
     expect(_viewTaps(h), isEmpty);
   });
 
@@ -362,34 +319,163 @@ final _macOS = TargetPlatformVariant.only(TargetPlatform.macOS);
 
 const _fox = 'The quick brown fox jumps. It was over the lazy dog.';
 
+/// The paragraph's editable.
+EditableTextState _editableOf(WidgetTester tester) =>
+    tester.state<EditableTextState>(find.byType(EditableText).first);
+
+String _selectedText(WidgetTester tester) {
+  final editable = _editableOf(tester);
+  final selection = editable.textEditingValue.selection;
+  if (!selection.isValid) return '';
+  return selection.textInside(editable.textEditingValue.text);
+}
+
+/// Records what goes to the clipboard.
+List<String> _mockClipboard(WidgetTester tester) {
+  final copied = <String>[];
+  tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+    SystemChannels.platform,
+    (call) async {
+      if (call.method == 'Clipboard.setData') {
+        final args = call.arguments as Map<Object?, Object?>;
+        copied.add(args['text']! as String);
+      }
+      return null;
+    },
+  );
+  addTearDown(
+    () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      null,
+    ),
+  );
+  return copied;
+}
+
+const _held = Duration(milliseconds: 510);
+
+/// The centre of the right-hand selection handle (the end of the selection).
+Offset _endHandle(WidgetTester tester) {
+  final handles = find.byWidgetPredicate(
+    (w) => w.runtimeType.toString() == '_SelectionHandleOverlay',
+  );
+  expect(handles, findsNWidgets(2));
+  return [
+    for (var i = 0; i < 2; i++)
+      tester.getCenter(
+        find
+            .descendant(
+              of: handles.at(i),
+              matching: find.byType(GestureDetector),
+            )
+            .first,
+      ),
+  ].reduce((a, b) => a.dx > b.dx ? a : b);
+}
+
 void main() {
-  group('tap on a word', () {
-    testWidgets('still emits WordTapped through the dim layer', (tester) async {
-      final h = await _openText(tester, _fox);
-      h.engine.applySettings(const ReaderSettings(dim: 0.5));
-      await tester.pump();
-      expect(
-        find.byWidgetPredicate(
-          (w) =>
-              w is ColoredBox && w.color == Colors.black.withValues(alpha: 0.5),
-        ),
-        findsOneWidget,
-      );
-
-      await _tap(tester, _centerOf(tester, 'quick', 'brown'));
-
-      expect((h.taps.single as WordTapped).word, 'brown');
-    });
-
-    testWidgets('emits WordTapped with word, Locator and sentence', (
+  group('tap', () {
+    testWidgets('a tap on a word gives ViewTapped, no mark, no selection', (
       tester,
     ) async {
+      final h = await _openText(tester, _fox, translate: true);
+      await tester.tapAt(_centerOf(tester, 'quick', 'brown'));
+      await tester.pump(kDoubleTapTimeout * 2);
+
+      expect(_viewTaps(h), hasLength(1));
+      expect(h.taps, isEmpty);
+      expect(_marked(tester, 'quick'), isEmpty);
+      expect(_selectedText(tester), isEmpty);
+      expect(find.text('Translate'), findsNothing);
+    });
+
+    testWidgets('a touch down alone draws and selects nothing', (tester) async {
       final h = await _openText(tester, _fox);
-      await _tap(tester, _centerOf(tester, 'quick', 'brown'));
+      final gesture = await tester.startGesture(
+        _centerOf(tester, 'quick', 'brown'),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(_marked(tester, 'quick'), isEmpty);
+      expect(_selectedText(tester), isEmpty);
+      await gesture.up();
+      await tester.pump(kDoubleTapTimeout * 2);
+      expect(h.taps, isEmpty);
+    });
+
+    testWidgets('a touch released before 500 ms selects nothing', (
+      tester,
+    ) async {
+      final h = await _openText(tester, _fox, translate: true);
+      final gesture = await tester.startGesture(
+        _centerOf(tester, 'quick', 'brown'),
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      await gesture.up();
+      await tester.pump(kDoubleTapTimeout * 2);
+
+      expect(h.taps, isEmpty);
+      expect(_selectedText(tester), isEmpty);
+    });
+  });
+
+  group('double tap with a finger', () {
+    for (final translate in [true, false]) {
+      testWidgets('selects nothing and gives no event (translate $translate)', (
+        tester,
+      ) async {
+        final h = await _openText(tester, _fox, translate: translate);
+        final at = _centerOf(tester, 'quick', 'brown');
+        await tester.tapAt(at);
+        await tester.pump(kDoubleTapMinTime);
+        await tester.tapAt(at);
+        await tester.pump(kDoubleTapTimeout * 2);
+
+        expect(_selectedText(tester), isEmpty);
+        expect(h.taps, isEmpty);
+        expect(_viewTaps(h), isEmpty);
+        expect(find.text('Translate'), findsNothing);
+      });
+    }
+
+    testWidgets('a hold on another word after a tap selects it', (
+      tester,
+    ) async {
+      final h = await _openText(tester, _fox, translate: true);
+      await tester.tapAt(_centerOf(tester, 'quick', 'brown'));
+      await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 10));
+      await _hold(tester, _centerOf(tester, 'quick', 'lazy'));
+      expect(h.taps.single.text, 'lazy');
+    });
+
+    testWidgets('two single taps far apart in time both count', (tester) async {
+      final h = await _openText(tester, _fox);
+      final at = _centerOf(tester, 'quick', 'brown');
+      await tester.tapAt(at);
+      await tester.pump(kDoubleTapTimeout * 2);
+      await tester.tapAt(at);
+      await tester.pump(kDoubleTapTimeout * 2);
+      expect(_viewTaps(h), hasLength(2));
+    });
+  });
+
+  group('hold, translateOnSelect on', () {
+    testWidgets('gives one TextSelected after release, selection collapsed', (
+      tester,
+    ) async {
+      final h = await _openText(tester, _fox, translate: true);
+      final gesture = await tester.startGesture(
+        _centerOf(tester, 'quick', 'brown'),
+      );
+      await tester.pump(_held);
+      // Selected, but the finger is still down: not ready.
+      expect(_selectedText(tester), 'brown');
+      expect(h.taps, isEmpty);
+      await gesture.up();
+      await tester.pump(kDoubleTapTimeout * 2);
 
       expect(h.taps, hasLength(1));
-      final event = h.taps.single as WordTapped;
-      expect(event.word, 'brown');
+      final event = h.taps.single;
+      expect(event.text, 'brown');
       expect(event.sentence, 'The quick brown fox jumps.');
       expect(event.at.book, _bookId);
       expect(
@@ -399,93 +485,63 @@ void main() {
       expect(event.at.engineHint, 'simple:1:0:0:10');
       expect(event.at.quote!.exact, 'brown');
       expect(event.at.quote!.prefix, 'The quick ');
-      expect(event.at.quote!.suffix, ' fox jumps. It was over the la');
       expect(event.at.progression, closeTo(10 / _fox.length, 1e-9));
+      expect(_selectedText(tester), isEmpty);
+      expect(find.text('Translate'), findsNothing);
+      expect(find.text('Copy'), findsNothing);
+      expect(_viewTaps(h), isEmpty);
+    });
+
+    testWidgets('works through the dim layer', (tester) async {
+      final h = await _openText(tester, _fox, translate: true);
+      h.engine.applySettings(
+        const ReaderSettings(translateOnSelect: true, dim: 0.5),
+      );
+      await tester.pump();
+      await _hold(tester, _centerOf(tester, 'quick', 'brown'));
+      expect(h.taps.single.text, 'brown');
     });
 
     testWidgets('a word in the second sentence gets that sentence', (
       tester,
     ) async {
-      final h = await _openText(tester, _fox);
-      await _tap(tester, _centerOf(tester, 'quick', 'lazy'));
+      final h = await _openText(tester, _fox, translate: true);
+      await _hold(tester, _centerOf(tester, 'quick', 'lazy'));
 
-      final event = h.taps.single as WordTapped;
-      expect(event.word, 'lazy');
-      expect(event.sentence, 'It was over the lazy dog.');
+      expect(h.taps.single.text, 'lazy');
+      expect(h.taps.single.sentence, 'It was over the lazy dog.');
     });
 
     testWidgets('punctuation is not part of the word', (tester) async {
-      final h = await _openText(tester, 'Well, "stop" now (please)!');
-      await _tap(tester, _centerOf(tester, 'Well', 'stop'));
-      await _tap(tester, _centerOf(tester, 'Well', 'please'));
-
-      expect(
-        [for (final e in h.taps) (e as WordTapped).word],
-        ['stop', 'please'],
+      final h = await _openText(
+        tester,
+        'Well, "stop" now (please)!',
+        translate: true,
       );
+      await _hold(tester, _centerOf(tester, 'Well', 'stop'));
+      await _hold(tester, _centerOf(tester, 'Well', 'please'));
+
+      expect([for (final e in h.taps) e.text], ['stop', 'please']);
     });
 
-    testWidgets('an apostrophe and a hyphen inside a word stay', (
+    testWidgets('a touch that moves 20 px at 100 ms selects nothing', (
       tester,
     ) async {
-      final h = await _openText(tester, "She didn't like a well-known 'fox'.");
-      await _tap(tester, _centerOf(tester, 'didn', "didn't"));
-      await _tap(tester, _centerOf(tester, 'didn', 'well-known'));
-      await _tap(tester, _centerOf(tester, 'didn', 'fox'));
-
-      expect(
-        [for (final e in h.taps) (e as WordTapped).word],
-        ["didn't", 'well-known', 'fox'],
+      final h = await _openText(tester, _fox, translate: true);
+      final gesture = await tester.startGesture(
+        _centerOf(tester, 'quick', 'brown'),
       );
-    });
-
-    testWidgets('a tap on blank space between words emits nothing', (
-      tester,
-    ) async {
-      final h = await _openText(tester, 'one   two');
-      // The middle of the three spaces.
-      await _tap(tester, _centerOf(tester, 'one', '  '));
-      expect(h.taps, isEmpty);
-    });
-
-    testWidgets('a double click selects the word and is not a tap', (
-      tester,
-    ) async {
-      final h = await _openText(tester, _fox);
-      final at = _centerOf(tester, 'quick', 'brown');
-      await _click(tester, at);
-      await tester.pump(kDoubleTapMinTime);
-      await _click(tester, at);
+      await tester.pump(const Duration(milliseconds: 100));
+      await gesture.moveBy(const Offset(20, 0));
+      await tester.pump(_held);
+      await gesture.up();
       await tester.pump(kDoubleTapTimeout * 2);
 
       expect(h.taps, isEmpty);
-      final editable = tester.state<EditableTextState>(
-        find.byType(EditableText).first,
-      );
-      final selection = editable.textEditingValue.selection;
-      expect(selection.textInside(editable.textEditingValue.text), 'brown');
-    }, variant: _macOS);
+      expect(_selectedText(tester), isEmpty);
+    });
 
-    testWidgets('a hold that only clears a selection emits nothing', (
-      tester,
-    ) async {
-      final h = await _openText(tester, _fox);
-      final quick = _centerOf(tester, 'quick', 'quick');
-      await _click(tester, quick);
-      await tester.pump(kDoubleTapMinTime);
-      await _click(tester, quick);
-      await tester.pump(kDoubleTapTimeout * 2);
-      expect(h.taps, isEmpty);
-      final hold = lookupHoldDuration + const Duration(milliseconds: 10);
-      await _mouseHold(tester, _centerOf(tester, 'quick', 'fox'), hold);
-      expect(h.taps, isEmpty);
-
-      // The selection is gone, the next hold counts.
-      await _mouseHold(tester, _centerOf(tester, 'quick', 'fox'), hold);
-      expect((h.taps.single as WordTapped).word, 'fox');
-    }, variant: _macOS);
-
-    testWidgets('the Locator of a tap in a list item points into the item', (
+    testWidgets('the Locator of a hold in a list item points into the item', (
       tester,
     ) async {
       final h = await _open(
@@ -501,18 +557,19 @@ void main() {
             ),
           ]),
         ),
+        translate: true,
       );
-      await _tap(tester, _centerOf(tester, 'second', 'item'));
+      await _hold(tester, _centerOf(tester, 'second', 'item'));
 
-      final event = h.taps.single as WordTapped;
-      expect(event.word, 'item');
+      final event = h.taps.single;
+      expect(event.text, 'item');
       expect(event.sentence, 'second item here');
       // "first one" (9) + the newline + "second " (7).
       expect(event.at.engineHint, 'simple:1:0:0:17');
       expect(event.at.quote!.exact, 'item');
     });
 
-    testWidgets('a tap in a quoted paragraph points into the block', (
+    testWidgets('a hold in a quoted paragraph points into the block', (
       tester,
     ) async {
       final h = await _open(
@@ -526,181 +583,218 @@ void main() {
             ]),
           ]),
         ),
+        translate: true,
       );
-      await _tap(tester, _centerOf(tester, 'two', 'three'));
+      await _hold(tester, _centerOf(tester, 'two', 'three'));
 
-      final event = h.taps.single as WordTapped;
-      expect(event.word, 'three');
+      final event = h.taps.single;
+      expect(event.text, 'three');
       // Block 1; "one" (3) + the newline + "two " (4).
       expect(event.at.engineHint, 'simple:1:0:1:8');
     });
 
     testWidgets('no event after dispose', (tester) async {
-      final h = await _openText(tester, _fox);
-      await tester.startGesture(
+      final h = await _openText(tester, _fox, translate: true);
+      final gesture = await tester.startGesture(
         _centerOf(tester, 'quick', 'brown'),
-        kind: PointerDeviceKind.mouse,
       );
-      await tester.pump(lookupHoldDuration ~/ 2);
+      await tester.pump(_held);
       await tester.pumpWidget(const SizedBox());
-      await tester.pump(lookupHoldDuration * 2);
+      await gesture.up();
+      await tester.pump(_held * 2);
       expect(h.taps, isEmpty);
-    }, variant: _macOS);
+    });
   });
 
-  group('hold to look up', () {
-    const early = Duration(milliseconds: 400);
-    final full = lookupHoldDuration + const Duration(milliseconds: 10);
+  group('hold, translateOnSelect off', () {
+    testWidgets('shows a toolbar with Translate and Copy only', (tester) async {
+      final h = await _openText(tester, _fox);
+      await _hold(tester, _centerOf(tester, 'quick', 'brown'));
 
-    bool menuShown() =>
-        find.text('Copy').evaluate().isNotEmpty ||
-        find.text('Select all').evaluate().isNotEmpty ||
-        find.text('Translate').evaluate().isNotEmpty;
-
-    EditableTextState editableOf(WidgetTester tester) =>
-        tester.state<EditableTextState>(find.byType(EditableText).first);
-
-    test('lookupHoldDuration is 500 ms', () {
-      expect(lookupHoldDuration, const Duration(milliseconds: 500));
+      expect(h.taps, isEmpty);
+      expect(_selectedText(tester), 'brown');
+      expect(find.text('Translate'), findsOneWidget);
+      expect(find.text('Copy'), findsOneWidget);
+      expect(find.text('Select all'), findsNothing);
+      expect(find.text('Cut'), findsNothing);
+      expect(find.text('Paste'), findsNothing);
     });
 
-    testWidgets('touch marks the word at once and emits nothing', (
+    testWidgets('Translate gives TextSelected and collapses the selection', (
       tester,
     ) async {
       final h = await _openText(tester, _fox);
-      final gesture = await tester.startGesture(
-        _centerOf(tester, 'quick', 'brown'),
-      );
-      await tester.pump(const Duration(milliseconds: 50));
-
-      expect(_pressedWords(tester, 'quick'), ['brown']);
-      expect(h.taps, isEmpty);
-      await gesture.up();
-      await tester.pump(kDoubleTapTimeout * 2);
-      expect(h.taps, isEmpty);
-    });
-
-    testWidgets('a touch held for 500 ms emits one WordTapped', (tester) async {
-      final h = await _openText(tester, _fox);
-      final gesture = await tester.startGesture(
-        _centerOf(tester, 'quick', 'brown'),
-      );
-      await tester.pump(full);
-      await gesture.up();
-      await tester.pump(kDoubleTapTimeout * 2);
-
-      final event = h.taps.single as WordTapped;
-      expect(event.word, 'brown');
-      expect(event.sentence, 'The quick brown fox jumps.');
-      expect(event.at.engineHint, 'simple:1:0:0:10');
-      expect(_pressedWords(tester, 'quick'), isEmpty);
-    });
-
-    testWidgets('after a touch hold there is no selection and no toolbar', (
-      tester,
-    ) async {
-      await _openText(tester, _fox);
-      final gesture = await tester.startGesture(
-        _centerOf(tester, 'quick', 'brown'),
-      );
-      await tester.pump(full);
-      await gesture.up();
-      await tester.pump(kDoubleTapTimeout * 2);
-
-      expect(editableOf(tester).textEditingValue.selection.isCollapsed, isTrue);
-      expect(menuShown(), isFalse);
-    });
-
-    testWidgets('a touch released after 400 ms emits nothing', (tester) async {
-      final h = await _openText(tester, _fox);
-      final gesture = await tester.startGesture(
-        _centerOf(tester, 'quick', 'brown'),
-      );
-      await tester.pump(early);
-      await gesture.up();
-      await tester.pump(kDoubleTapTimeout * 2);
-
-      expect(h.taps, isEmpty);
-      expect(_pressedWords(tester, 'quick'), isEmpty);
-      expect(menuShown(), isFalse);
-    });
-
-    testWidgets('a touch that moves 20 px at 100 ms emits nothing', (
-      tester,
-    ) async {
-      final h = await _openText(tester, _fox);
-      final gesture = await tester.startGesture(
-        _centerOf(tester, 'quick', 'brown'),
-      );
-      await tester.pump(const Duration(milliseconds: 100));
-      await gesture.moveBy(const Offset(20, 0));
-      await tester.pump(full);
-      await gesture.up();
-      await tester.pump(kDoubleTapTimeout * 2);
-
-      expect(h.taps, isEmpty);
-      expect(_pressedWords(tester, 'quick'), isEmpty);
-    });
-
-    testWidgets('a hold on blank space marks and emits nothing', (
-      tester,
-    ) async {
-      final h = await _openText(tester, 'one   two');
-      final gesture = await tester.startGesture(_centerOf(tester, 'one', '  '));
-      await tester.pump(full);
-      expect(_pressedWords(tester, 'one'), isEmpty);
-      await gesture.up();
-      await tester.pump(kDoubleTapTimeout * 2);
-      expect(h.taps, isEmpty);
-    });
-
-    testWidgets('the press mark does not replace the reader highlight', (
-      tester,
-    ) async {
-      final h = await _openText(tester, _fox);
-      await _tap(tester, _centerOf(tester, 'quick', 'brown'));
-      final at = (h.taps.single as WordTapped).at;
-      h.engine.highlight([at]);
+      await _hold(tester, _centerOf(tester, 'quick', 'brown'));
+      await tester.tap(find.text('Translate'));
       await tester.pump();
 
-      final gesture = await tester.startGesture(
-        _centerOf(tester, 'quick', 'lazy'),
-      );
-      await tester.pump(const Duration(milliseconds: 50));
-      expect(_pressedWords(tester, 'quick'), ['lazy']);
-      expect([for (final s in _marked(tester, 'quick')) s.text], ['brown']);
-      await gesture.up();
-      await tester.pump(kDoubleTapTimeout * 2);
-      expect(_pressedWords(tester, 'quick'), isEmpty);
-      expect([for (final s in _marked(tester, 'quick')) s.text], ['brown']);
+      expect(h.taps.single.text, 'brown');
+      expect(_selectedText(tester), isEmpty);
+      expect(find.text('Translate'), findsNothing);
     });
 
-    testWidgets('a mouse held for 500 ms emits one WordTapped', (tester) async {
+    testWidgets('Copy puts the text on the clipboard and gives no event', (
+      tester,
+    ) async {
+      final copied = _mockClipboard(tester);
       final h = await _openText(tester, _fox);
+      await _hold(tester, _centerOf(tester, 'quick', 'brown'));
+      await tester.tap(find.text('Copy'));
+      await tester.pump();
+
+      expect(copied, ['brown']);
+      expect(h.taps, isEmpty);
+    });
+
+    testWidgets('a tap elsewhere hides the toolbar', (tester) async {
+      final h = await _openText(tester, _fox);
+      await _hold(tester, _centerOf(tester, 'quick', 'brown'));
+      await tester.tapAt(const Offset(300, 450));
+      await tester.pump(kDoubleTapTimeout * 2);
+
+      expect(find.text('Translate'), findsNothing);
+      expect(h.engine.hasSelection, isFalse);
+      expect(_viewTaps(h), isEmpty);
+    });
+  });
+
+  group('extending the selection', () {
+    testWidgets('a hold then a drag gives one event after release', (
+      tester,
+    ) async {
+      final h = await _openText(tester, _fox, translate: true);
       final gesture = await tester.startGesture(
         _centerOf(tester, 'quick', 'brown'),
-        kind: PointerDeviceKind.mouse,
       );
-      await tester.pump(const Duration(milliseconds: 50));
-      expect(_pressedWords(tester, 'quick'), ['brown']);
+      await tester.pump(_held);
+      await gesture.moveTo(_centerOf(tester, 'quick', 'jumps'));
+      await tester.pump(const Duration(milliseconds: 100));
+      await gesture.moveBy(const Offset(10, 0));
+      await tester.pump(const Duration(milliseconds: 100));
       expect(h.taps, isEmpty);
-      await tester.pump(full);
-      expect((h.taps.single as WordTapped).word, 'brown');
       await gesture.up();
       await tester.pump(kDoubleTapTimeout * 2);
+
       expect(h.taps, hasLength(1));
-      expect(_pressedWords(tester, 'quick'), isEmpty);
-    }, variant: _macOS);
+      expect(h.taps.single.text, contains('brown'));
+      expect(h.taps.single.text, contains('jump'));
+    });
 
-    testWidgets('a mouse released after 400 ms emits nothing', (tester) async {
+    testWidgets('dragging a handle gives no event until Translate', (
+      tester,
+    ) async {
       final h = await _openText(tester, _fox);
-      await _mouseHold(tester, _centerOf(tester, 'quick', 'brown'), early);
-      await tester.pump(full);
+      await _hold(tester, _centerOf(tester, 'quick', 'brown'));
+      expect(_selectedText(tester), 'brown');
+
+      final end = _endHandle(tester);
+      final target = _centerOf(tester, 'quick', 'fox');
+      final gesture = await tester.startGesture(end);
+      final dx = (target.dx - end.dx) / 8;
+      for (var i = 0; i < 8; i++) {
+        await gesture.moveBy(Offset(dx, 0));
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      await tester.pump(const Duration(milliseconds: 100));
+      await gesture.up();
+      await tester.pump(kDoubleTapTimeout * 2);
+
       expect(h.taps, isEmpty);
-      expect(_pressedWords(tester, 'quick'), isEmpty);
+      expect(_selectedText(tester), startsWith('brown'));
+      expect(_selectedText(tester).length, greaterThan('brown'.length));
+      await tester.tap(find.text('Translate'));
+      await tester.pump();
+      expect(h.taps, hasLength(1));
+      expect(h.taps.single.text, contains('brown'));
+      expect(h.taps.single.text, contains('fo'));
+    });
+
+    testWidgets('dragging a handle gives one event after release when '
+        'translate is on', (tester) async {
+      final h = await _openText(tester, _fox);
+      await _hold(tester, _centerOf(tester, 'quick', 'brown'));
+      h.engine.applySettings(const ReaderSettings(translateOnSelect: true));
+      await tester.pump();
+
+      final end = _endHandle(tester);
+      final target = _centerOf(tester, 'quick', 'fox');
+      final gesture = await tester.startGesture(end);
+      final dx = (target.dx - end.dx) / 8;
+      for (var i = 0; i < 8; i++) {
+        await gesture.moveBy(Offset(dx, 0));
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(h.taps, isEmpty);
+      await gesture.up();
+      await tester.pump(kDoubleTapTimeout * 2);
+
+      expect(h.taps, hasLength(1));
+      expect(h.taps.single.text, contains('fo'));
+      expect(_selectedText(tester), isEmpty);
+    });
+  });
+
+  group('mouse', () {
+    testWidgets('a double click selects the word and gives one event', (
+      tester,
+    ) async {
+      final h = await _openText(tester, _fox, translate: true);
+      final at = _centerOf(tester, 'quick', 'brown');
+      await _click(tester, at);
+      await tester.pump(kDoubleTapMinTime);
+      await _click(tester, at);
+      await tester.pump(kDoubleTapTimeout * 2);
+
+      expect(h.taps.map((e) => e.text), ['brown']);
+      expect(_selectedText(tester), isEmpty);
+      expect(_viewTaps(h), isEmpty);
     }, variant: _macOS);
 
-    testWidgets('a mouse drag selects and emits no lookup', (tester) async {
+    testWidgets('a double click shows the toolbar when translate is off', (
+      tester,
+    ) async {
+      final h = await _openText(tester, _fox);
+      final at = _centerOf(tester, 'quick', 'brown');
+      await _click(tester, at);
+      await tester.pump(kDoubleTapMinTime);
+      await _click(tester, at);
+      await tester.pump(kDoubleTapTimeout * 2);
+
+      expect(h.taps, isEmpty);
+      expect(_selectedText(tester), 'brown');
+      expect(find.text('Translate'), findsOneWidget);
+      expect(find.text('Copy'), findsOneWidget);
+      await tester.tap(find.text('Translate'));
+      await tester.pump();
+      expect(h.taps.map((e) => e.text), ['brown']);
+    }, variant: _macOS);
+
+    testWidgets('a drag gives one event after the button is released', (
+      tester,
+    ) async {
+      final h = await _openText(tester, _fox, translate: true);
+      final gesture = await tester.startGesture(
+        _centerOf(tester, 'quick', 'quick'),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+      await gesture.moveTo(_centerOf(tester, 'quick', 'brown'));
+      await tester.pump(const Duration(milliseconds: 100));
+      await gesture.moveTo(_centerOf(tester, 'quick', 'fox'));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(h.taps, isEmpty);
+      await gesture.up();
+      await tester.pump(kDoubleTapTimeout * 2);
+
+      expect(h.taps, hasLength(1));
+      expect(h.taps.single.text, contains('brown'));
+      expect(_selectedText(tester), isEmpty);
+    }, variant: _macOS);
+
+    testWidgets('a drag shows the toolbar when translate is off', (
+      tester,
+    ) async {
       final h = await _openText(tester, _fox);
       final gesture = await tester.startGesture(
         _centerOf(tester, 'quick', 'quick'),
@@ -708,16 +802,46 @@ void main() {
       );
       await tester.pump(const Duration(milliseconds: 100));
       await gesture.moveTo(_centerOf(tester, 'quick', 'fox'));
-      await tester.pump(full);
       await gesture.up();
       await tester.pump(kDoubleTapTimeout * 2);
 
       expect(h.taps, isEmpty);
-      expect(_pressedWords(tester, 'quick'), isEmpty);
-      expect(
-        editableOf(tester).textEditingValue.selection.isCollapsed,
-        isFalse,
+      expect(_selectedText(tester), isNotEmpty);
+      expect(find.text('Translate'), findsOneWidget);
+    }, variant: _macOS);
+
+    testWidgets('a held mouse button without moving selects nothing', (
+      tester,
+    ) async {
+      final h = await _openText(tester, _fox, translate: true);
+      final gesture = await tester.startGesture(
+        _centerOf(tester, 'quick', 'brown'),
+        kind: PointerDeviceKind.mouse,
       );
+      await tester.pump(_held);
+      await gesture.up();
+      await tester.pump(kDoubleTapTimeout * 2);
+
+      expect(h.taps, isEmpty);
+      expect(_selectedText(tester), isEmpty);
+    }, variant: _macOS);
+
+    testWidgets('a click clears a selection and gives no event', (
+      tester,
+    ) async {
+      final h = await _openText(tester, _fox);
+      final gesture = await tester.startGesture(
+        _centerOf(tester, 'quick', 'quick'),
+        kind: PointerDeviceKind.mouse,
+      );
+      await gesture.moveTo(_centerOf(tester, 'quick', 'fox'));
+      await gesture.up();
+      await tester.pump(kDoubleTapTimeout * 2);
+      expect(_selectedText(tester), isNotEmpty);
+
+      await _quickClick(tester, const Offset(300, 450));
+      expect(h.taps, isEmpty);
+      expect(_viewTaps(h), isEmpty);
     }, variant: _macOS);
   });
 
@@ -736,11 +860,11 @@ void main() {
     testWidgets('the end of a paragraph is not joined with the next one', (
       tester,
     ) async {
-      final h = await _openText(tester, '$first\n\n$second');
-      await _tap(tester, _centerOf(tester, 'old man', 'road'));
+      final h = await _openText(tester, '$first\n\n$second', translate: true);
+      await _hold(tester, _centerOf(tester, 'old man', 'road'));
 
-      final event = h.taps.single as WordTapped;
-      expect(event.word, 'road');
+      final event = h.taps.single;
+      expect(event.text, 'road');
       expect(event.sentence, first);
       expect(event.sentence, isNot(contains('and then')));
       expect(h.analyzer.sentenceCalls, [first]);
@@ -749,11 +873,11 @@ void main() {
     testWidgets('the start of a paragraph is not joined with the previous', (
       tester,
     ) async {
-      final h = await _openText(tester, '$first\n\n$second');
-      await _tap(tester, _centerOf(tester, 'and then', 'and'));
+      final h = await _openText(tester, '$first\n\n$second', translate: true);
+      await _hold(tester, _centerOf(tester, 'and then', 'and'));
 
-      final event = h.taps.single as WordTapped;
-      expect(event.word, 'and');
+      final event = h.taps.single;
+      expect(event.text, 'and');
       expect(event.sentence, 'and then he stopped.');
       expect(h.analyzer.sentenceCalls, [second]);
     });
@@ -769,7 +893,7 @@ void main() {
       await tester.pump();
 
       expect(h.taps, hasLength(1));
-      final event = h.taps.single as TextSelected;
+      final event = h.taps.single;
       expect(event.text, 'quick brown');
       expect(event.sentence, 'The quick brown fox jumps.');
       expect(event.at.engineHint, 'simple:1:0:0:4');
@@ -784,7 +908,7 @@ void main() {
       await tester.tap(find.text('Translate'));
       await tester.pump();
 
-      final event = h.taps.single as TextSelected;
+      final event = h.taps.single;
       expect(event.text, 'fox jumps. It');
       expect(event.sentence, _fox);
     });
@@ -795,7 +919,7 @@ void main() {
       await tester.tap(find.text('Translate'));
       await tester.pump();
 
-      final event = h.taps.single as TextSelected;
+      final event = h.taps.single;
       expect(event.text, 'quick brown');
       expect(event.at.engineHint, 'simple:1:0:0:4');
     });
@@ -814,9 +938,9 @@ void main() {
     testWidgets('a Locator from an event is drawn with a background', (
       tester,
     ) async {
-      final h = await _openText(tester, _fox);
-      await _tap(tester, _centerOf(tester, 'quick', 'brown'));
-      final at = (h.taps.single as WordTapped).at;
+      final h = await _openText(tester, _fox, translate: true);
+      await _hold(tester, _centerOf(tester, 'quick', 'brown'));
+      final at = h.taps.single.at;
 
       h.engine.highlight([at]);
       await tester.pump();
@@ -899,21 +1023,7 @@ void main() {
     });
   });
 
-  group('word and sentence helpers', () {
-    test('wordRangeAt takes the word before the caret at its end', () {
-      expect(wordRangeAt('ab cd', 0), (0, 2));
-      expect(wordRangeAt('ab cd', 2), (0, 2));
-      expect(wordRangeAt('ab cd', 3), (3, 5));
-      expect(wordRangeAt('ab cd', 5), (3, 5));
-      expect(wordRangeAt('ab  cd', 3), isNull);
-      expect(wordRangeAt('', 0), isNull);
-    });
-
-    test('wordRangeAt knows letters and digits of any alphabet', () {
-      expect(wordRangeAt('Привет, мир', 8), (8, 11));
-      expect(wordRangeAt('in 1984, then', 4), (3, 7));
-    });
-
+  group('sentence helper', () {
     test('sentenceAround falls back to the whole text', () {
       final analyzer = _NoSentences();
       expect(sentenceAround(analyzer, ' some text ', 1, 5), 'some text');

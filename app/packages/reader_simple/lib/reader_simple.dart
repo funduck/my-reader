@@ -1,6 +1,5 @@
 /// MVP reader engine: draws a `ContentDocument` as a lazy list of blocks.
 library;
 
-export 'src/block_view.dart' show lookupHoldDuration;
 export 'src/built_in_textures.dart';
 export 'src/simple_reader_engine.dart' show SimpleReaderEngine;

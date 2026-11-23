@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:core/domain_books.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/rendering.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'interactions.dart';
@@ -222,24 +221,25 @@ class BlockView extends StatelessWidget {
   }
 }
 
-/// Label of the context menu button that translates the selection.
+/// Label of the selection toolbar button that translates the selection.
 const String translateLabel = 'Translate';
 
-/// How long a finger or a mouse button must rest on a word to look it up.
-const Duration lookupHoldDuration = Duration(milliseconds: 500);
+/// Label of the selection toolbar button that copies the selection.
+const String copyLabel = 'Copy';
 
-/// A selectable text that reports a hold on a word and a "Translate" choice.
+/// A selectable text that reports a ready selection (T-088).
 ///
-/// Touching a word marks it at once (a mark under the text, separate from
-/// `ReaderEngine.highlight`). A hold of [lookupHoldDuration] without moving
-/// past [kTouchSlop] is reported as a word tap; releasing earlier or moving
-/// only clears the mark.
+/// Selecting is the standard behaviour of [SelectableText]: a hold selects the
+/// word and shows the handles, the handles are dragged, a mouse drags or
+/// double-clicks. A tap draws nothing. The selection is ready when the pointer
+/// goes up after it changed; the intermediate changes are not reported. Then,
+/// with `ReaderSettings.translateOnSelect`, the selection is reported at once
+/// and collapsed; otherwise the toolbar shows "Translate" and "Copy".
 ///
-/// A mouse has no long press, so a timer counts the hold. On touch the hold is
-/// the long press of [SelectableText] itself: its recognizer wins the gesture
-/// arena at [kLongPressTimeout], which equals [lookupHoldDuration], and it
-/// cannot be turned off. So the selection it makes is reported as the hold,
-/// then collapsed, and the toolbar it shows on release is suppressed.
+/// A double tap with a finger selects nothing (taps will turn pages): for
+/// [kDoubleTapTimeout] after a finger tap the text takes no touches, so the
+/// second tap never reaches the recognizer of [SelectableText]. A mouse is not
+/// affected.
 class _InteractiveText extends StatefulWidget {
   const new({
     required this.target,
@@ -263,17 +263,21 @@ class _InteractiveText extends StatefulWidget {
   State<_InteractiveText> createState() => _InteractiveTextState();
 }
 
+bool _isFinger(PointerDeviceKind kind) =>
+    kind == PointerDeviceKind.touch || kind == PointerDeviceKind.stylus;
+
 class _InteractiveTextState extends State<_InteractiveText> {
-  int? _pointer;
-  PointerDeviceKind? _kind;
-  Offset? _down;
-  int? _downOffset;
-  (int, int)? _pressed;
-  List<Rect> _pressBoxes = const [];
-  bool _selected = false;
-  bool _suppressMenu = false;
-  Timer? _hold;
   final FocusNode _focus = FocusNode(debugLabel: 'ReaderText');
+  bool _selected = false;
+  bool _armed = false;
+
+  // Finger tap tracking for the double tap gate.
+  final Set<int> _fingers = {};
+  Offset? _tapDown;
+  bool _tapLong = false;
+  Timer? _tapHold;
+  Timer? _gate;
+  bool _gated = false;
 
   @override
   void initState() {
@@ -284,12 +288,16 @@ class _InteractiveTextState extends State<_InteractiveText> {
   // A tap elsewhere takes the focus away and hides the selection, without a
   // selection-changed callback; the selection no longer counts.
   void _onFocus() {
-    if (!_focus.hasFocus) _setSelected(false);
+    if (_focus.hasFocus) return;
+    _disarm();
+    _setSelected(false);
   }
 
   @override
   void dispose() {
-    _hold?.cancel();
+    _disarm();
+    _tapHold?.cancel();
+    _gate?.cancel();
     _focus
       ..removeListener(_onFocus)
       ..dispose();
@@ -297,22 +305,6 @@ class _InteractiveTextState extends State<_InteractiveText> {
       widget.interactions.selectionChanged(widget.target, active: false);
     }
     super.dispose();
-  }
-
-  RenderEditable? _editable() {
-    RenderEditable? found;
-    void visit(RenderObject o) {
-      if (found != null) return;
-      if (o is RenderEditable) {
-        found = o;
-        return;
-      }
-      o.visitChildren(visit);
-    }
-
-    final root = context.findRenderObject();
-    if (root != null) visit(root);
-    return found;
   }
 
   EditableTextState? _editableState() {
@@ -331,72 +323,38 @@ class _InteractiveTextState extends State<_InteractiveText> {
   }
 
   void _onDown(PointerDownEvent event) {
-    if (_pointer != null) {
-      _clearPress();
-      _pointer = event.pointer;
-      return;
-    }
-    _pointer = event.pointer;
-    _kind = event.kind;
-    _down = event.position;
-    _suppressMenu = false;
-    if (event.kind == PointerDeviceKind.mouse &&
-        event.buttons != kPrimaryButton) {
-      return;
-    }
-    if (_selected) return;
-    final editable = _editable();
-    if (editable == null) return;
-    final offset = editable.getPositionForPoint(event.position).offset;
-    final word = wordRangeAt(widget.target.text, offset);
-    if (word == null) return;
-    _downOffset = offset;
-    final box = context.findRenderObject()! as RenderBox;
-    final boxes = [
-      for (final b in editable.getBoxesForSelection(
-        TextSelection(baseOffset: word.$1, extentOffset: word.$2),
-      ))
-        Rect.fromPoints(
-          box.globalToLocal(editable.localToGlobal(b.toRect().topLeft)),
-          box.globalToLocal(editable.localToGlobal(b.toRect().bottomRight)),
-        ),
-    ];
-    setState(() {
-      _pressed = word;
-      _pressBoxes = boxes;
-    });
-    if (event.kind == PointerDeviceKind.mouse) {
-      _hold = Timer(lookupHoldDuration, () {
-        _hold = null;
-        _lookup();
-      });
-    }
+    if (!_isFinger(event.kind)) return;
+    _fingers.add(event.pointer);
+    _tapDown = event.position;
+    // A second finger is never a tap.
+    _tapLong = _fingers.length > 1;
+    _tapHold?.cancel();
+    _tapHold = Timer(kLongPressTimeout, () => _tapLong = true);
   }
 
   void _onMove(PointerMoveEvent event) {
-    final down = _down;
-    if (event.pointer != _pointer || down == null) return;
-    if ((event.position - down).distance > kTouchSlop) _clearPress();
+    final down = _tapDown;
+    if (down == null || !_fingers.contains(event.pointer)) return;
+    if ((event.position - down).distance > kTouchSlop) _tapLong = true;
   }
 
-  void _onEnd(PointerEvent event) {
-    if (event.pointer != _pointer) return;
-    _clearPress();
-    _pointer = null;
-    _kind = null;
-    _down = null;
+  void _onUp(PointerUpEvent event) {
+    if (!_fingers.remove(event.pointer)) return;
+    final wasTap = !_tapLong && _fingers.isEmpty;
+    _tapHold?.cancel();
+    _tapHold = null;
+    if (!wasTap) return;
+    // A finger tap: the next touch within the double tap time is not for us.
+    setState(() => _gated = true);
+    _gate?.cancel();
+    _gate = Timer(kDoubleTapTimeout, () {
+      _gate = null;
+      if (mounted) setState(() => _gated = false);
+    });
   }
 
-  void _clearPress() {
-    _hold?.cancel();
-    _hold = null;
-    _downOffset = null;
-    if (_pressed != null && mounted) {
-      setState(() {
-        _pressed = null;
-        _pressBoxes = const [];
-      });
-    }
+  void _onCancel(PointerCancelEvent event) {
+    if (_fingers.remove(event.pointer)) _tapLong = true;
   }
 
   void _setSelected(bool value) {
@@ -405,60 +363,88 @@ class _InteractiveTextState extends State<_InteractiveText> {
     widget.interactions.selectionChanged(widget.target, active: value);
   }
 
-  void _lookup() {
-    final offset = _downOffset;
-    if (offset == null || _pressed == null) return;
-    widget.interactions.wordTapped(widget.target, offset);
-  }
-
   void _onSelectionChanged(
     TextSelection selection,
     SelectionChangedCause? cause,
   ) {
     _setSelected(!selection.isCollapsed);
-    if (cause != SelectionChangedCause.longPress ||
-        _kind == PointerDeviceKind.mouse ||
-        _pressed == null) {
-      return;
+    if (selection.isCollapsed) {
+      _disarm();
+    } else {
+      _arm();
     }
-    _suppressMenu = true;
-    _lookup();
-    _setSelected(false);
+  }
+
+  // The selection is ready when a pointer goes up after it changed. The handles
+  // live in the overlay, outside this widget, so the pointer is watched
+  // globally while a selection is waiting.
+  void _arm() {
+    if (_armed) return;
+    _armed = true;
+    GestureBinding.instance.pointerRouter.addGlobalRoute(_onPointer);
+  }
+
+  void _disarm() {
+    if (!_armed) return;
+    _armed = false;
+    GestureBinding.instance.pointerRouter.removeGlobalRoute(_onPointer);
+  }
+
+  void _onPointer(PointerEvent event) {
+    if (event is! PointerUpEvent && event is! PointerCancelEvent) return;
+    _disarm();
+    final mouse = !_isFinger(event.kind);
+    // After the gesture recognizers of the same event have finished.
+    scheduleMicrotask(() => _ready(mouse: mouse));
+  }
+
+  void _ready({required bool mouse}) {
+    if (!mounted) return;
     final state = _editableState();
     if (state == null) return;
-    // The selection is being set right now; undo it after this call.
-    scheduleMicrotask(() {
-      if (!mounted) return;
-      state
-        ..userUpdateTextEditingValue(
-          state.textEditingValue.copyWith(
-            selection: const TextSelection.collapsed(offset: 0),
-          ),
-          SelectionChangedCause.toolbar,
-        )
-        ..hideToolbar();
-    });
+    final selection = state.textEditingValue.selection;
+    if (selection.isCollapsed) return;
+    if (widget.readerStyle.settings.translateOnSelect) {
+      _translate(state, selection);
+    } else if (mouse) {
+      // A finger gets the toolbar from the framework.
+      state.showToolbar();
+    }
+  }
+
+  void _translate(EditableTextState state, TextSelection selection) {
+    widget.interactions.textSelected(
+      widget.target,
+      selection.start,
+      selection.end,
+    );
+    state
+      ..userUpdateTextEditingValue(
+        state.textEditingValue.copyWith(
+          selection: const TextSelection.collapsed(offset: 0),
+        ),
+        SelectionChangedCause.toolbar,
+      )
+      ..hideToolbar();
   }
 
   Widget _menu(BuildContext context, EditableTextState state) {
     final selection = state.textEditingValue.selection;
-    if (_suppressMenu) return const SizedBox.shrink();
+    if (selection.isCollapsed ||
+        widget.readerStyle.settings.translateOnSelect) {
+      return const SizedBox.shrink();
+    }
     return AdaptiveTextSelectionToolbar.buttonItems(
       anchors: state.contextMenuAnchors,
       buttonItems: [
-        ...state.contextMenuButtonItems,
-        if (!selection.isCollapsed)
-          ContextMenuButtonItem(
-            label: translateLabel,
-            onPressed: () {
-              widget.interactions.textSelected(
-                widget.target,
-                selection.start,
-                selection.end,
-              );
-              state.hideToolbar();
-            },
-          ),
+        ContextMenuButtonItem(
+          label: translateLabel,
+          onPressed: () => _translate(state, selection),
+        ),
+        ContextMenuButtonItem(
+          label: copyLabel,
+          onPressed: () => state.copySelection(SelectionChangedCause.toolbar),
+        ),
       ],
     );
   }
@@ -467,63 +453,23 @@ class _InteractiveTextState extends State<_InteractiveText> {
   Widget build(BuildContext context) => Listener(
     onPointerDown: _onDown,
     onPointerMove: _onMove,
-    onPointerUp: _onEnd,
-    onPointerCancel: _onEnd,
-    child: Stack(
-      children: [
-        // Drawn under the text instead of changing its span: a new span makes
-        // SelectableText drop the selection, which would break a double tap
-        // or a drag that starts on the press.
-        // Always present, so the text keeps its place in the tree.
-        Positioned.fill(
-          child: IgnorePointer(
-            child: CustomPaint(
-              painter: PressMarkPainter(
-                _pressBoxes,
-                widget.readerStyle.highlight,
-              ),
-            ),
-          ),
+    onPointerUp: _onUp,
+    onPointerCancel: _onCancel,
+    child: IgnorePointer(
+      ignoring: _gated,
+      child: SelectableText.rich(
+        inlineSpan(
+          widget.inlines,
+          widget.readerStyle,
+          highlights: widget.highlights,
         ),
-        SelectableText.rich(
-          inlineSpan(
-            widget.inlines,
-            widget.readerStyle,
-            highlights: widget.highlights,
-          ),
-          style: widget.style,
-          focusNode: _focus,
-          onSelectionChanged: _onSelectionChanged,
-          contextMenuBuilder: _menu,
-        ),
-      ],
+        style: widget.style,
+        focusNode: _focus,
+        onSelectionChanged: _onSelectionChanged,
+        contextMenuBuilder: _menu,
+      ),
     ),
   );
-}
-
-/// Paints the press mark of a word: [boxes] in the coordinates of the text
-/// widget, in [color].
-class PressMarkPainter extends CustomPainter {
-  /// Creates a painter that fills [boxes] with [color].
-  const new(this.boxes, this.color);
-
-  /// Rectangles of the marked word.
-  final List<Rect> boxes;
-
-  /// The fill, `ReaderStyle.highlight`.
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = color;
-    for (final box in boxes) {
-      canvas.drawRect(box, paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(PressMarkPainter old) =>
-      old.color != color || !listEquals(old.boxes, boxes);
 }
 
 class _ImageView extends StatefulWidget {

@@ -26,11 +26,10 @@ final String _enEnPack = _definedPack.isNotEmpty
 /// frame with the definition.
 const _limit = Duration(milliseconds: 300);
 
-/// The real engine that tells when it reported a tap.
+/// The real engine that tells when it reported a selection.
 ///
-/// `SimpleReaderEngine` reports a tap `kDoubleTapTimeout` (300 ms) after the
-/// finger, on purpose: a double click is a selection, not a tap. That wait is
-/// not the lookup, so the stopwatch starts when the event leaves the engine.
+/// The stopwatch starts when the event leaves the engine, so the selection
+/// gesture and the toolbar are not counted as the lookup.
 class _TimedEngine implements ReaderEngine {
   new(this.onTap)
     : _inner = SimpleReaderEngine(analyzer: const EnglishTextAnalyzer());
@@ -56,7 +55,7 @@ class _TimedEngine implements ReaderEngine {
 
   @override
   Stream<ReaderEvent> get events => _inner.events.map((event) {
-    if (event is WordTapped) onTap();
+    if (event is TextSelected) onTap();
     return event;
   });
 
@@ -80,17 +79,27 @@ void main() {
       ..stop()
       ..reset();
     final word = find.textContaining('Child', findRichText: true).first;
-    // The lookup opens on a hold of `lookupHoldDuration` (T-085); on macOS
-    // it is a mouse press, so the press is a mouse one.
-    final press = await tester.startGesture(
-      tester.getTopLeft(word) + const Offset(6, 10),
-      kind: PointerDeviceKind.mouse,
-    );
+    final at = tester.getTopLeft(word) + const Offset(6, 10);
+    // A double click with the mouse selects the word (T-088); with
+    // `translateOnSelect` off the toolbar offers "Translate".
+    for (var i = 0; i < 2; i++) {
+      final click = await tester.startGesture(
+        at,
+        kind: PointerDeviceKind.mouse,
+      );
+      await click.up();
+      await tester.pump(kDoubleTapMinTime);
+    }
+    final translate = find.text('Translate');
+    while (translate.evaluate().isEmpty) {
+      await tester.pump(const Duration(milliseconds: 10));
+      if (total.elapsed > const Duration(seconds: 5)) fail('no toolbar');
+    }
+    await tester.tap(translate);
     while (!eventWatch.isRunning) {
       await tester.pump(const Duration(milliseconds: 10));
       if (total.elapsed > const Duration(seconds: 5)) fail('no tap event');
     }
-    await press.up();
     while (shown.evaluate().isEmpty) {
       await tester.pump();
       if (eventWatch.elapsed > const Duration(seconds: 5)) {
@@ -116,10 +125,10 @@ void main() {
 
   testWidgets('tap -> definition offline -> journal and term; recount; '
       'under 300 ms on the mini pack', (tester) async {
-    // Opening the sheet during the hold makes the Navigator cancel the
-    // pointer. That cancel is a device event, which the live test binding
-    // does not pass to widgets by default; the text would then keep the press
-    // and take the next one for a second finger.
+    // Opening the sheet may make the Navigator cancel a pointer. That cancel
+    // is a device event, which the live test binding does not pass to widgets
+    // by default; the text would then keep the press and take the next one for
+    // a second finger.
     final binding = IntegrationTestWidgetsFlutterBinding.instance
       ..shouldPropagateDevicePointerEvents = true;
     addTearDown(() => binding.shouldPropagateDevicePointerEvents = false);

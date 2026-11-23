@@ -12,7 +12,6 @@ const _chapter = ChapterRef(href: 'c1.xhtml', index: 0);
 String describe(ReaderEvent event) => switch (event) {
   PositionChanged() => 'position',
   TextSelected(:final text) => 'selected $text',
-  WordTapped(:final word) => 'tapped $word',
   ViewTapped(:final position) => 'view tapped ${position.dx}',
   ChapterFinished(:final chapter) => 'finished ${chapter.index}',
 };
@@ -83,6 +82,14 @@ void main() {
     expect(b.fontSize, 22);
     expect(b.theme, ReaderTheme.dark);
     expect(b.horizontalPadding, a.horizontalPadding);
+  });
+
+  test('ReaderSettings.translateOnSelect is off by default and copyable', () {
+    expect(const ReaderSettings().translateOnSelect, isFalse);
+    final on = const ReaderSettings().copyWith(translateOnSelect: true);
+    expect(on.translateOnSelect, isTrue);
+    expect(on, isNot(const ReaderSettings()));
+    expect(on.copyWith(fontSize: 20).translateOnSelect, isTrue);
   });
 
   test('ReaderSettings copyWith sets and clears the texture', () {

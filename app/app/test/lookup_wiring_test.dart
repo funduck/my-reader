@@ -129,12 +129,12 @@ void main() {
     return events!;
   }
 
-  testWidgets('a tapped word opens the sheet and lands in the journal', (
+  testWidgets('a selected word opens the sheet and lands in the journal', (
     tester,
   ) async {
     await pumpReader(tester);
     engine.emit(
-      WordTapped(word: 'sand', at: at(0.25), sentence: 'The sand moves.'),
+      TextSelected(text: 'sand', at: at(0.25), sentence: 'The sand moves.'),
     );
     final events = await recorded(tester);
 

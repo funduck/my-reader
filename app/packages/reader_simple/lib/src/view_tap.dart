@@ -3,13 +3,11 @@ import 'dart:async';
 import 'package:flutter/gestures.dart';
 import 'package:material_ui/material_ui.dart';
 
-import 'block_view.dart' show lookupHoldDuration;
-
 /// Reports a single tap anywhere in [child] (T-087).
 ///
 /// A gesture recognizer here would lose the arena to the `SelectableText`
 /// inside, so the tap is read from raw pointer events. It is a tap when the
-/// pointer is released before [lookupHoldDuration] without moving past
+/// pointer is released before [kLongPressTimeout] without moving past
 /// [kTouchSlop], no other pointer was down, the primary mouse button was
 /// used, and no text had a selection when it went down. [onTap] is called
 /// [kDoubleTapTimeout] after the release; a second tap in that time makes
@@ -117,7 +115,7 @@ class _ViewTapDetectorState extends State<ViewTapDetector> {
     }
     _valid = true;
     _start = event.position;
-    _hold = Timer(lookupHoldDuration, _invalidate);
+    _hold = Timer(kLongPressTimeout, _invalidate);
   }
 
   void _onMove(PointerMoveEvent event) {

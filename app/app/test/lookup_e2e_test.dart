@@ -80,7 +80,7 @@ void main() {
     // An accidental tap: the sheet is closed before the threshold, so the
     // lookup reaches neither the journal nor the term (T-086).
     engine.emit(
-      WordTapped(word: 'Child', at: at(0.05), sentence: fixtureParagraph),
+      TextSelected(text: 'Child', at: at(0.05), sentence: fixtureParagraph),
     );
     await settle(shown);
     // The result appeared in the pump that `settle` just saw: 1.9 s on screen.
@@ -94,8 +94,8 @@ void main() {
 
     for (final taps in [1, 2]) {
       engine.emit(
-        WordTapped(
-          word: 'Child',
+        TextSelected(
+          text: 'Child',
           at: at(0.1 * taps),
           sentence: fixtureParagraph,
         ),
