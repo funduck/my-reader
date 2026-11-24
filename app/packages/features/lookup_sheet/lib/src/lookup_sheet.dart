@@ -17,6 +17,13 @@ import 'simple_html.dart';
 /// history and counted in the term (T-086).
 const Duration minLookupViewDuration = Duration(seconds: 2);
 
+/// Share of the screen height the sheet opens at (B-018). It does not shrink
+/// to short content, so switching the mode never changes its height.
+const double lookupSheetInitialSize = 0.66;
+
+/// Share of the screen height the sheet can be pulled up to.
+const double lookupSheetMaxSize = 0.9;
+
 /// Opens the lookup sheet for [query] and returns when it is closed.
 ///
 /// The sheet appears at once with a skeleton and fills in when the lookup
@@ -25,6 +32,10 @@ const Duration minLookupViewDuration = Duration(seconds: 2);
 /// [minLookupViewDuration]; closing the sheet earlier records nothing.
 /// [onOpenSettings] is called after the sheet closes when the user taps the
 /// settings button of the "dictionary unavailable" state.
+///
+/// The sheet opens at [lookupSheetInitialSize] of the screen whatever the
+/// content; longer content scrolls, and the sheet can be pulled up to
+/// [lookupSheetMaxSize] and stays there while the mode is switched.
 Future<void> showLookupSheet(
   BuildContext context,
   LookupQuery query, {
@@ -34,12 +45,19 @@ Future<void> showLookupSheet(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (sheetContext) => LookupSheet(
-      query: query,
-      onOpenSettings: () {
-        Navigator.of(sheetContext).pop();
-        onOpenSettings?.call();
-      },
+    builder: (sheetContext) => DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: lookupSheetInitialSize,
+      // Pulled down to the default minimum (25 %), the sheet closes.
+      maxChildSize: lookupSheetMaxSize,
+      builder: (_, controller) => LookupSheet(
+        query: query,
+        scrollController: controller,
+        onOpenSettings: () {
+          Navigator.of(sheetContext).pop();
+          onOpenSettings?.call();
+        },
+      ),
     ),
   );
 }
@@ -47,13 +65,22 @@ Future<void> showLookupSheet(
 /// Content of the lookup sheet; shown by [showLookupSheet].
 class LookupSheet extends ConsumerStatefulWidget {
   /// Creates the content for [query].
-  const new({required this.query, this.onOpenSettings, super.key});
+  const new({
+    required this.query,
+    this.onOpenSettings,
+    this.scrollController,
+    super.key,
+  });
 
   /// What is looked up.
   final LookupQuery query;
 
   /// Called by the settings button when no dictionary is available.
   final VoidCallback? onOpenSettings;
+
+  /// Controller of the [DraggableScrollableSheet] the content is in; `null`
+  /// — the content is not in one and takes at most 70 % of the screen.
+  final ScrollController? scrollController;
 
   @override
   ConsumerState<LookupSheet> createState() => _LookupSheetState();
@@ -69,7 +96,11 @@ class _LookupSheetState extends ConsumerState<LookupSheet> {
   Widget build(BuildContext context) {
     final source = widget.query;
     if (!isSingleWord(source.text)) {
-      return _PhraseView(query: source, onOpenSettings: widget.onOpenSettings);
+      return _PhraseView(
+        query: source,
+        onOpenSettings: widget.onOpenSettings,
+        scrollController: widget.scrollController,
+      );
     }
     final original = source.mode;
     final other = _otherMode(original);
@@ -131,6 +162,7 @@ class _LookupSheetState extends ConsumerState<LookupSheet> {
     };
     final level = (outcome.value ?? base.value)?.wordLevel;
     return _SheetFrame(
+      controller: widget.scrollController,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -207,21 +239,27 @@ class _LookupSheetState extends ConsumerState<LookupSheet> {
 
 /// Safe area, height limit and scrolling shared by both kinds of sheet.
 class _SheetFrame extends StatelessWidget {
-  const new({required this.child});
+  const new({required this.controller, required this.child});
 
+  /// Controller of the enclosing draggable sheet, or `null`.
+  final ScrollController? controller;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
+    final scroll = SingleChildScrollView(
+      controller: controller,
+      padding: const EdgeInsetsDirectional.fromSTEB(24, 0, 24, 24),
+      child: child,
+    );
+    // In a draggable sheet its size is the sheet's, not the content's.
+    if (controller != null) return SafeArea(top: false, child: scroll);
     return SafeArea(
       child: ConstrainedBox(
         constraints: BoxConstraints(
           maxHeight: MediaQuery.sizeOf(context).height * 0.7,
         ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsetsDirectional.fromSTEB(24, 0, 24, 24),
-          child: child,
-        ),
+        child: scroll,
       ),
     );
   }
@@ -474,16 +512,22 @@ class _Answer extends ConsumerWidget {
 /// Sheet of a phrase (more than one word): translation from the phrase
 /// provider only, no mode toggle, no level, no dictionary choice (T-094).
 class _PhraseView extends ConsumerWidget {
-  const new({required this.query, required this.onOpenSettings});
+  const new({
+    required this.query,
+    required this.onOpenSettings,
+    required this.scrollController,
+  });
 
   final LookupQuery query;
   final VoidCallback? onOpenSettings;
+  final ScrollController? scrollController;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final outcome = ref.watch(phraseOutcomeProvider(query));
     void retry() => ref.invalidate(phraseOutcomeProvider(query));
     return _SheetFrame(
+      controller: scrollController,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
