@@ -111,7 +111,7 @@ List<Override> buildLookupOverrides(
   if (dictionaries != null)
     dictionaryLibraryProvider.overrideWithValue(dictionaries),
   phraseProviderProvider.overrideWith(_buildPhraseProvider),
-  lookupPresenterProvider.overrideWith(_buildLookupPresenter),
+  lookupPresenterProvider.overrideWith(buildLookupPresenter),
   cheatSheetGeneratorProvider.overrideWith(_buildCheatSheetGenerator),
 ];
 
@@ -232,7 +232,7 @@ class StarDictDictionaries implements DictionaryLibrary {
 
 /// Opens the lookup sheet for a word the reader reports; the direction is the
 /// default of the profile, the sheet's "settings" button goes to settings.
-LookupPresenter _buildLookupPresenter(Ref ref) {
+LookupPresenter buildLookupPresenter(Ref ref) {
   return (
     BuildContext context, {
     required String text,

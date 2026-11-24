@@ -7,6 +7,8 @@ environment:
   sdk: ^3.14.0
 dependencies:
   core: any
+  # Fakes for the demo app (lib/main_demo.dart).
+  core_testing: any
   features_cheatsheet: any
   features_common: any
   features_history: any
@@ -33,7 +35,6 @@ dependencies:
   storage_drift: any
   text_en: any
 dev_dependencies:
-  core_testing: any
   flutter_test:
     sdk: flutter
   integration_test:

@@ -24,6 +24,15 @@ cd app && flutter run -d macos
 flutter build macos
 ```
 
+### Demo app
+
+Real screens over in-memory demo data: a short book, translations, levels. Nothing is read from or written to the app's data. Scenarios are in `app/lib/demo/scenarios.dart`.
+
+```sh
+cd app && flutter run -d macos -t lib/main_demo.dart                                   # list of scenarios
+cd app && flutter run -d macos -t lib/main_demo.dart --dart-define=SCENARIO=lookup_word # one scenario
+```
+
 ## Checks
 
 ```sh
