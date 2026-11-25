@@ -622,10 +622,15 @@ void main() {
         chapter: ChapterRef(href: 'c.xhtml', index: 0),
         progression: 0.1,
       );
-      engine.highlight([a]);
-      expect(engine.highlights, [a]);
-      engine.highlight(const []);
-      expect(engine.highlights, isEmpty);
+      const first = ReaderHighlights(
+        ranges: {
+          HighlightKind.focus: [a],
+        },
+      );
+      engine.highlight(first);
+      expect(engine.highlights, first);
+      engine.highlight(ReaderHighlights.none);
+      expect(engine.highlights.isEmpty, isTrue);
     });
   });
 }

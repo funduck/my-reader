@@ -37,7 +37,7 @@ class _FakeEngine implements ReaderEngine {
   void applySettings(ReaderSettings settings) {}
 
   @override
-  void highlight(List<Locator> ranges) {}
+  void highlight(ReaderHighlights highlights) {}
 
   @override
   Stream<ReaderEvent> get events => _events.stream;

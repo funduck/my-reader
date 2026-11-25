@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:reader_api/reader_api.dart';
 
+import 'highlights.dart';
 import 'interactions.dart';
 import 'position.dart';
 import 'reader_style.dart';
@@ -101,7 +102,9 @@ class SimpleReaderEngine implements ReaderEngine, TextInteractions {
   BookId? _bookId;
   ViewportBridge? _bridge;
   Locator? _lastReported;
-  final _highlights = ValueNotifier<List<Locator>>(const []);
+  final _highlights = ValueNotifier<ReaderHighlights>(ReaderHighlights.none);
+  ChapterLemmas? _lemmas;
+  ChapterHighlights? _resolved;
   int _generation = 0;
   bool _disposed = false;
 
@@ -114,30 +117,38 @@ class SimpleReaderEngine implements ReaderEngine, TextInteractions {
   /// Whether the last chapter switch from the list ends failed.
   ValueListenable<bool> get switchFailed => _failure;
 
-  /// The ranges last passed to [highlight].
-  List<Locator> get highlights => _highlights.value;
+  /// What was last passed to [highlight].
+  ReaderHighlights get highlights => _highlights.value;
 
-  /// Changes when [highlight] is called.
+  /// Changes when [highlight] is called with other highlights.
   @internal
   Listenable get highlightsListenable => _highlights;
 
-  /// The highlighted ranges of [chapter] by block: block index to
-  /// `(start, end)` offsets in the block text. A locator that is not in this
-  /// chapter, or whose quote is not found, is skipped.
+  /// What the current [highlights] mark in [chapter]. A place that is not in
+  /// this chapter, or whose quote is not found, is skipped. The words are
+  /// looked up block by block, as the blocks are drawn; the lemmas of a block
+  /// are computed once per chapter. The same object comes back until the
+  /// highlights or the chapter change.
   @internal
-  Map<int, List<(int, int)>> highlightsIn(ChapterState chapter) {
-    final ref = chapter.ref;
-    final result = <int, List<(int, int)>>{};
-    if (ref == null) return result;
-    for (final locator in _highlights.value) {
-      if (locator.chapter.index != ref.index) continue;
-      final range = chapter.text.rangeOfLocator(locator, ref.index);
-      if (range == null) continue;
-      chapter.text
-          .blockRanges(range.start, range.end)
-          .forEach((block, ranges) => (result[block] ??= []).addAll(ranges));
+  ChapterHighlights highlightsIn(ChapterState chapter) {
+    final text = chapter.text;
+    final source = _highlights.value;
+    final resolved = _resolved;
+    if (resolved != null &&
+        identical(resolved.text, text) &&
+        identical(resolved.source, source)) {
+      return resolved;
     }
-    return result;
+    var lemmas = _lemmas;
+    if (lemmas == null || !identical(lemmas.text, text)) {
+      lemmas = _lemmas = ChapterLemmas(text, _analyzer);
+    }
+    return _resolved = ChapterHighlights.resolve(
+      source,
+      text,
+      chapter.ref?.index ?? -1,
+      lemmas,
+    );
   }
 
   /// Loads the bytes of a resource of the current book.
@@ -218,9 +229,9 @@ class SimpleReaderEngine implements ReaderEngine, TextInteractions {
   }
 
   @override
-  void highlight(List<Locator> ranges) {
+  void highlight(ReaderHighlights highlights) {
     if (_disposed) return;
-    _highlights.value = List.unmodifiable(ranges);
+    _highlights.value = highlights;
   }
 
   @override

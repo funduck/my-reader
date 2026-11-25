@@ -50,7 +50,8 @@ class _FakeEngine implements ReaderEngine {
   void applySettings(ReaderSettings settings) => settingsApplied.add(settings);
 
   @override
-  void highlight(List<Locator> ranges) => highlights.add(ranges);
+  void highlight(ReaderHighlights highlights) =>
+      this.highlights.add(highlights.ranges[HighlightKind.focus] ?? const []);
 
   @override
   Stream<ReaderEvent> get events => _events.stream;

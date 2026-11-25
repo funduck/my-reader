@@ -3,6 +3,7 @@ import 'package:core/ports.dart';
 import 'package:flutter/widgets.dart';
 
 import 'reader_event.dart';
+import 'reader_highlights.dart';
 import 'reader_settings.dart';
 
 /// A renderer of an opened book.
@@ -32,9 +33,10 @@ abstract interface class ReaderEngine {
   /// Applies display settings (R-3) and keeps the current position.
   void applySettings(ReaderSettings settings);
 
-  /// Marks [ranges] as already looked up; replaces the previous set. An empty
-  /// list clears all highlights.
-  void highlight(List<Locator> ranges);
+  /// Marks places and words in the text by kind; replaces the previous set.
+  /// [ReaderHighlights.none] clears all highlights. Where several kinds meet
+  /// on one word, the kind declared first in [HighlightKind] is drawn.
+  void highlight(ReaderHighlights highlights);
 
   /// Broadcast stream of [ReaderEvent]s; closed by [dispose].
   Stream<ReaderEvent> get events;

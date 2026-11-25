@@ -36,7 +36,7 @@ class _FakeEngine implements ReaderEngine {
   void applySettings(ReaderSettings settings) {}
 
   @override
-  void highlight(List<Locator> ranges) {}
+  void highlight(ReaderHighlights highlights) {}
 
   @override
   Stream<ReaderEvent> get events => _controller.stream;
@@ -105,6 +105,61 @@ void main() {
     expect(a.copyWith(fontSize: 20).texture, same(image));
     expect(a.copyWith(texture: () => null).texture, isNull);
     expect(a, isNot(const ReaderSettings()));
+  });
+
+  test('HighlightKind order is the priority', () {
+    expect(HighlightKind.values, [
+      HighlightKind.focus,
+      HighlightKind.recent,
+      HighlightKind.lookedUp,
+      HighlightKind.cheatSheet,
+      HighlightKind.difficult,
+    ]);
+  });
+
+  test('ReaderHighlights has value equality over ranges and words', () {
+    const locator = Locator(
+      book: BookId('b'),
+      chapter: _chapter,
+      progression: 0.5,
+    );
+    ReaderHighlights make(String word, [Locator? at]) => ReaderHighlights(
+      ranges: {
+        HighlightKind.focus: [?at],
+      },
+      words: {
+        HighlightKind.difficult: {word, 'b'},
+      },
+    );
+    final a = make('a', locator);
+    expect(a, make('a', locator));
+    expect(a.hashCode, make('a', locator).hashCode);
+    expect(a, isNot(make('c', locator)));
+    expect(a, isNot(make('a')));
+    expect(
+      const ReaderHighlights(ranges: {HighlightKind.recent: []}),
+      isNot(const ReaderHighlights(ranges: {HighlightKind.focus: []})),
+    );
+  });
+
+  test('ReaderHighlights.none and kinds without entries are empty', () {
+    expect(ReaderHighlights.none.isEmpty, isTrue);
+    expect(ReaderHighlights.none, ReaderHighlights.none);
+    expect(
+      const ReaderHighlights(
+        ranges: {HighlightKind.focus: []},
+        words: {HighlightKind.recent: {}},
+      ).isEmpty,
+      isTrue,
+    );
+    expect(
+      const ReaderHighlights(
+        words: {
+          HighlightKind.recent: {'run'},
+        },
+      ).isEmpty,
+      isFalse,
+    );
   });
 
   test('ReaderEngineFactory produces an engine whose events can be listened '

@@ -4,4 +4,5 @@ library;
 
 export 'src/reader_engine.dart';
 export 'src/reader_event.dart';
+export 'src/reader_highlights.dart';
 export 'src/reader_settings.dart';

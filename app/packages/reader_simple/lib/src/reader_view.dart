@@ -1,11 +1,13 @@
 import 'dart:async';
 
 import 'package:core/domain_books.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import 'block_view.dart';
+import 'highlights.dart';
 import 'position.dart';
 import 'reader_style.dart';
 import 'simple_reader_engine.dart';
@@ -124,7 +126,7 @@ class _ChapterList extends StatefulWidget {
   final SimpleReaderEngine engine;
   final ChapterState chapter;
   final ReaderStyle style;
-  final Map<int, List<(int, int)>> highlights;
+  final ChapterHighlights highlights;
 
   @override
   State<_ChapterList> createState() => _ChapterListState();
@@ -135,6 +137,11 @@ class _ChapterListState extends State<_ChapterList> implements ViewportBridge {
   final ItemPositionsListener _positions = ItemPositionsListener.create();
   final GlobalKey _listKey = GlobalKey();
   final Map<int, GlobalKey> _blockKeys = {};
+  final Map<
+    int,
+    ({ReaderStyle style, List<BlockHighlight> highlights, Widget widget})
+  >
+  _items = {};
   late final VoidCallback _detach;
 
   @override
@@ -245,17 +252,19 @@ class _ChapterListState extends State<_ChapterList> implements ViewportBridge {
       initialScrollIndex: chapter.startBlock + 1,
       // Every item is a centred column no wider than the style allows; the
       // list itself, and so scrolling, spans the whole view.
-      itemBuilder: (context, i) => _Column(
-        width: style.maxColumnWidth,
-        child: _item(i, blocks, style, engine, hasPrevious, hasNext),
-      ),
+      itemBuilder: (context, i) => i == 0 || i == blocks.length + 1
+          ? _Column(
+              width: style.maxColumnWidth,
+              child: _edge(i, style, engine, hasPrevious, hasNext),
+            )
+          : _block(i - 1, blocks[i - 1], style, engine),
     );
   }
 
-  /// Item [i] of the list: the edge buttons around the blocks.
-  Widget _item(
+  /// Item [i] of the list: the edge button before the first block or after
+  /// the last.
+  Widget _edge(
     int i,
-    List<Block> blocks,
     ReaderStyle style,
     SimpleReaderEngine engine,
     bool hasPrevious,
@@ -269,25 +278,48 @@ class _ChapterListState extends State<_ChapterList> implements ViewportBridge {
         onPressed: hasPrevious ? engine.openPrevious : null,
       );
     }
-    if (i == blocks.length + 1) {
-      return _EdgeButton(
-        label: 'Next chapter',
-        style: style,
-        engine: engine,
-        onPressed: hasNext ? engine.openNext : null,
-      );
+    return _EdgeButton(
+      label: 'Next chapter',
+      style: style,
+      engine: engine,
+      onPressed: hasNext ? engine.openNext : null,
+    );
+  }
+
+  /// The list item of block [index].
+  ///
+  /// The widget is kept while neither the style nor what the block marks
+  /// changes, so that a change of the highlights rebuilds only the blocks it
+  /// touches: Flutter skips a subtree whose widget is the very same object.
+  Widget _block(
+    int index,
+    Block block,
+    ReaderStyle style,
+    SimpleReaderEngine engine,
+  ) {
+    final highlights = widget.highlights.forBlock(index);
+    final kept = _items[index];
+    if (kept != null &&
+        kept.style == style &&
+        listEquals(kept.highlights, highlights)) {
+      return kept.widget;
     }
-    return KeyedSubtree(
-      key: _blockKeys.putIfAbsent(i - 1, GlobalKey.new),
-      child: BlockView(
-        block: blocks[i - 1],
-        index: i - 1,
-        style: style,
-        loadResource: engine.loadResource,
-        interactions: engine,
-        highlights: widget.highlights[i - 1] ?? const [],
+    final item = _Column(
+      width: style.maxColumnWidth,
+      child: KeyedSubtree(
+        key: _blockKeys.putIfAbsent(index, GlobalKey.new),
+        child: BlockView(
+          block: block,
+          index: index,
+          style: style,
+          loadResource: engine.loadResource,
+          interactions: engine,
+          highlights: highlights,
+        ),
       ),
     );
+    _items[index] = (style: style, highlights: highlights, widget: item);
+    return item;
   }
 }
 

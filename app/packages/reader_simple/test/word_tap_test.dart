@@ -124,6 +124,9 @@ List<TextSpan> _marked(WidgetTester tester, String inParagraph) {
   return result;
 }
 
+ReaderHighlights _focus(List<Locator> places) =>
+    ReaderHighlights(ranges: {HighlightKind.focus: places});
+
 /// A click of the primary mouse button; a mouse has no selection handles that
 /// could catch a second click.
 Future<void> _click(WidgetTester tester, Offset at) async {
@@ -1262,7 +1265,7 @@ void main() {
       await _hold(tester, _centerOf(tester, 'quick', 'brown'));
       final at = h.taps.single.at;
 
-      h.engine.highlight([at]);
+      h.engine.highlight(_focus([at]));
       await tester.pump();
 
       expect([for (final s in _marked(tester, 'quick')) s.text], ['brown']);
@@ -1299,21 +1302,21 @@ void main() {
         engineHint: 'simple:1:0:0:$offset',
       );
 
-      h.engine.highlight([at('in heavy wor', 3)]);
+      h.engine.highlight(_focus([at('in heavy wor', 3)]));
       await tester.pump();
       expect(
         [for (final s in _marked(tester, 'plain')) s.text],
         ['in ', 'heavy wor'],
       );
 
-      h.engine.highlight([at('words after', 12)]);
+      h.engine.highlight(_focus([at('words after', 12)]));
       await tester.pump();
       expect(
         [for (final s in _marked(tester, 'plain')) s.text],
         ['words', ' after'],
       );
 
-      h.engine.highlight(const []);
+      h.engine.highlight(ReaderHighlights.none);
       await tester.pump();
       expect(_marked(tester, 'plain'), isEmpty);
     });
@@ -1323,21 +1326,23 @@ void main() {
     ) async {
       final h = await _openText(tester, _fox);
       final chapter = h.engine.chapter.value!.ref!;
-      h.engine.highlight([
-        const Locator(
-          book: _bookId,
-          chapter: ChapterRef(href: 'other.xhtml', index: 4),
-          progression: 0,
-          quote: TextQuote(exact: 'quick'),
-        ),
-        Locator(
-          book: _bookId,
-          chapter: chapter,
-          progression: 0.5,
-          quote: const TextQuote(exact: 'missing'),
-        ),
-        Locator(book: _bookId, chapter: chapter, progression: 0.5),
-      ]);
+      h.engine.highlight(
+        _focus([
+          const Locator(
+            book: _bookId,
+            chapter: ChapterRef(href: 'other.xhtml', index: 4),
+            progression: 0,
+            quote: TextQuote(exact: 'quick'),
+          ),
+          Locator(
+            book: _bookId,
+            chapter: chapter,
+            progression: 0.5,
+            quote: const TextQuote(exact: 'missing'),
+          ),
+          Locator(book: _bookId, chapter: chapter, progression: 0.5),
+        ]),
+      );
       await tester.pump();
       expect(_marked(tester, 'quick'), isEmpty);
     });
