@@ -65,6 +65,21 @@ void main() {
     expect((await profile.get()).display.day.text, 0xFF3B2F2F);
   });
 
+  testWidgets('the colour wheel saves the chosen colour', (tester) async {
+    final profile = FakeProfileRepository();
+    await pump(tester, profile);
+    await tester.tap(find.byKey(const Key('day-background-pick')));
+    await tester.pumpAndSettle();
+    expect(find.byType(ColorPickerDialog), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('color-hex')), 'E6F0E6');
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('color-select')));
+    await tester.pumpAndSettle();
+    expect((await profile.get()).display.day.background, 0xFFE6F0E6);
+    // The HEX field next to the chip shows it too.
+    expect(find.text('E6F0E6'), findsOneWidget);
+  });
+
   testWidgets('an invalid HEX is not saved and shows an error', (tester) async {
     final profile = FakeProfileRepository();
     await pump(tester, profile);

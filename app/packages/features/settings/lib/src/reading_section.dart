@@ -9,6 +9,7 @@ import 'package:logging/logging.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'background_texture.dart';
+import 'color_picker.dart';
 import 'font_editor.dart';
 
 final Logger _log = Logger('ReadingSection');
@@ -258,6 +259,14 @@ class _PaletteEditor extends StatelessWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            _ColorButton(
+              key: Key('$idPrefix-background-pick'),
+              title: '$title: background',
+              value: palette.background,
+              onPicked: (c) =>
+                  onChanged(Palette(text: palette.text, background: c)),
+            ),
+            const SizedBox(width: 8),
             Expanded(
               child: _HexField(
                 key: Key('$idPrefix-background'),
@@ -268,6 +277,14 @@ class _PaletteEditor extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 12),
+            _ColorButton(
+              key: Key('$idPrefix-text-pick'),
+              title: '$title: text',
+              value: palette.text,
+              onPicked: (c) =>
+                  onChanged(Palette(text: c, background: palette.background)),
+            ),
+            const SizedBox(width: 8),
             Expanded(
               child: _HexField(
                 key: Key('$idPrefix-text'),
@@ -362,6 +379,55 @@ class _Swatch extends StatelessWidget {
             ),
           ),
           child: Text('Аа', style: TextStyle(color: Color(palette.text))),
+        ),
+      ),
+    );
+  }
+}
+
+/// A round chip of [value]; a tap opens the colour wheel.
+class _ColorButton extends StatelessWidget {
+  const new({
+    required this.title,
+    required this.value,
+    required this.onPicked,
+    super.key,
+  });
+
+  final String title;
+  final int value;
+  final ValueChanged<int> onPicked;
+
+  Future<void> _pick(BuildContext context) async {
+    final color = await showColorPicker(context, title: title, initial: value);
+    if (color != null && color != value) onPicked(color);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: '$title ${formatHexColor(value)}, pick on the colour wheel',
+      child: ExcludeSemantics(
+        child: InkResponse(
+          onTap: () => unawaited(_pick(context)),
+          radius: 28,
+          child: Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Color(value),
+              border: Border.all(color: Colors.grey),
+            ),
+            child: Icon(
+              Icons.colorize,
+              size: 20,
+              color: relativeLuminance(value) > 0.4
+                  ? const Color(0xFF000000)
+                  : const Color(0xFFFFFFFF),
+            ),
+          ),
         ),
       ),
     );

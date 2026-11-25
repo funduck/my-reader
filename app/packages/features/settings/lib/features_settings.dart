@@ -13,6 +13,8 @@ export 'src/background_texture.dart'
         builtInTextureIds,
         importBackground,
         maxBackgroundBytes;
+export 'src/color_picker.dart'
+    show ColorPickerDialog, showColorPicker, wheelHueSaturation, wheelOffset;
 export 'src/dictionaries_controller.dart';
 export 'src/dictionaries_section.dart';
 export 'src/font_choice.dart'

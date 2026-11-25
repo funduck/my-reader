@@ -1,5 +1,6 @@
 import 'package:core/domain_books.dart';
 import 'package:core/domain_lookup.dart';
+import 'package:features_settings/features_settings.dart';
 import 'package:lookup_sheet/lookup_sheet.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:reader_api/reader_api.dart';
@@ -121,6 +122,21 @@ final List<DemoScenario> demoScenarios = [
     id: 'cheatsheet',
     title: 'Cheat sheet of the demo book',
     location: Routes.cheatsheetFor(demoBookId.value),
+  ),
+  const DemoScenario(
+    id: 'settings',
+    title: 'Settings',
+    location: Routes.settings,
+  ),
+  DemoScenario(
+    id: 'color_picker',
+    title: 'Settings + colour wheel (day background)',
+    location: Routes.settings,
+    afterFirstFrame: (navigator) => showColorPicker(
+      navigator,
+      title: 'Day palette: background',
+      initial: const UserProfile().display.day.background,
+    ),
   ),
 ];
 
