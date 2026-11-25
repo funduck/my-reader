@@ -102,6 +102,106 @@ void main() {
       selectCheatSheetItems(items, above: CefrLevel.a1, limit: 1);
       expect(items, copy);
     });
+
+    test('minBars drops rare words and words without Zipf', () {
+      List<String> pick(int minBars) => _texts(
+        selectCheatSheetItems(
+          items,
+          above: CefrLevel.a1,
+          limit: null,
+          minBars: minBars,
+        ),
+      );
+      // Bars: a 3, b 4, c 5, d 2, f none, g 3.
+      expect(pick(3), ['c', 'b', 'a', 'g']);
+      expect(pick(4), ['c', 'b']);
+      expect(pick(5), ['c']);
+      expect(pick(2), ['c', 'b', 'a', 'g', 'd']);
+    });
+
+    test('minBars: 1 gives the same result as no threshold', () {
+      final one = [1].first; // not a literal: 1 is the default
+      expect(
+        selectCheatSheetItems(
+          items,
+          above: CefrLevel.b1,
+          limit: null,
+          minBars: one,
+        ),
+        selectCheatSheetItems(items, above: CefrLevel.b1, limit: null),
+      );
+      expect(
+        _texts(
+          selectCheatSheetItems(
+            items,
+            above: CefrLevel.b1,
+            limit: null,
+            minBars: one,
+          ),
+        ),
+        ['b', 'a', 'g', 'd', 'f'],
+      );
+    });
+
+    test('minBars applies before the limit', () {
+      final picked = selectCheatSheetItems(
+        items,
+        above: CefrLevel.a1,
+        limit: 3,
+        minBars: 3,
+      );
+      expect(_texts(picked), ['c', 'b', 'a']);
+    });
+  });
+
+  group('isDifficult', () {
+    test('level above, not hidden, enough bars', () {
+      final item = _item('x', CefrLevel.c1, 4.5);
+      expect(isDifficult(item, above: CefrLevel.b2), isTrue);
+      expect(isDifficult(item, above: CefrLevel.c1), isFalse);
+      expect(isDifficult(item, above: CefrLevel.b2, hidden: {'x'}), isFalse);
+      expect(isDifficult(item, above: CefrLevel.b2, minBars: 4), isTrue);
+      expect(isDifficult(item, above: CefrLevel.b2, minBars: 5), isFalse);
+    });
+
+    test('without Zipf only passes minBars 1; unknown level never', () {
+      final noZipf = _item('x', CefrLevel.c1);
+      expect(isDifficult(noZipf, above: CefrLevel.b2), isTrue);
+      expect(isDifficult(noZipf, above: CefrLevel.b2, minBars: 2), isFalse);
+      expect(
+        isDifficult(_item('y', CefrLevel.unknown, 5), above: CefrLevel.a1),
+        isFalse,
+      );
+    });
+
+    test('matches selectCheatSheetItems without a limit', () {
+      final items = [
+        _item('a', CefrLevel.c1, 3),
+        _item('b', CefrLevel.b2, 4),
+        _item('c', CefrLevel.c2),
+        _item('d', CefrLevel.a2, 5),
+      ];
+      for (var bars = 1; bars <= 5; bars++) {
+        final picked = selectCheatSheetItems(
+          items,
+          above: CefrLevel.b1,
+          limit: null,
+          hidden: {'b'},
+          minBars: bars,
+        );
+        final difficult = [
+          for (final i in items)
+            if (isDifficult(
+              i,
+              above: CefrLevel.b1,
+              minBars: bars,
+              hidden: {'b'},
+            ))
+              i,
+        ];
+        expect(_texts(difficult), unorderedEquals(_texts(picked)));
+      }
+    });
   });
 
   group('zipfBars', () {

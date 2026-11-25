@@ -95,6 +95,45 @@ void main() {
       expect(profile.scope, CheatSheetScope.defaultScope);
     });
 
+    test('highlights default, round-trip and old JSON without them', () {
+      const defaults = HighlightPrefs();
+      expect(defaults.enabled, isTrue);
+      expect(defaults.difficult, isFalse);
+      expect(defaults.cheatSheet, isTrue);
+      expect(defaults.lookedUp, isTrue);
+      expect(defaults.recent, isTrue);
+      expect(defaults.minFrequencyBars, 1);
+      expect(UserProfile.fromJson(const {'level': 'c1'}).highlights, defaults);
+
+      const custom = HighlightPrefs(
+        enabled: false,
+        difficult: true,
+        cheatSheet: false,
+        lookedUp: false,
+        recent: false,
+        minFrequencyBars: 4,
+      );
+      final profile = const UserProfile().copyWith(highlights: custom);
+      final back = UserProfile.fromJson(_roundTrip(profile.toJson()));
+      expect(back.highlights, custom);
+      expect(back, profile);
+      expect(const UserProfile() == profile, isFalse);
+    });
+
+    test('highlights: bars are clamped, bad fields take defaults', () {
+      int bars(Object? v) =>
+          HighlightPrefs.fromJson({'minFrequencyBars': v}).minFrequencyBars;
+      expect(bars(0), 1);
+      expect(bars(9), 5);
+      expect(bars(3), 3);
+      expect(bars('3'), 1);
+      expect(HighlightPrefs.fromJson('x'), const HighlightPrefs());
+      expect(
+        HighlightPrefs.fromJson(const {'enabled': 'no', 'difficult': 1}),
+        const HighlightPrefs(),
+      );
+    });
+
     test('old profile without cheatSheetLimit reads 10', () {
       final profile = UserProfile.fromJson(const {'level': 'c1'});
       expect(profile.cheatSheetLimit, 10);

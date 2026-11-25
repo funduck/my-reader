@@ -184,13 +184,15 @@ cheatSheetItemsProvider = Provider.autoDispose
       final profile = ref.watch(cheatSheetProfileProvider);
       final hidden = ref.watch(cheatSheetKnownProvider(request));
       if (load case AsyncData(:final value) when profile.hasValue) {
-        final UserProfile(:level, :cheatSheetLimit) = profile.requireValue;
+        final UserProfile(:level, :cheatSheetLimit, :highlights) =
+            profile.requireValue;
         return AsyncData(
           selectCheatSheetItems(
             value.sheet?.items ?? const [],
             above: level,
             limit: cheatSheetLimit,
             hidden: hidden,
+            minBars: highlights.minFrequencyBars,
           ),
         );
       }
