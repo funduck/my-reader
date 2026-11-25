@@ -294,6 +294,20 @@ void main() {
       expect(shownWords(tester), ['w1', 'w2']);
     });
 
+    testWidgets('the frequency threshold of the profile shortens the list', (
+      tester,
+    ) async {
+      await profiles.save(
+        const UserProfile(
+          level: CefrLevel.a2,
+          highlights: HighlightPrefs(minFrequencyBars: 4),
+        ),
+      );
+      await open(tester, from: at(0, 0));
+      // Bars: w1 5, w2 4, w3 3, w4 3, w5 2.
+      expect(shownWords(tester), ['w1', 'w2']);
+    });
+
     testWidgets('changing the level and the limit keeps the sheet', (
       tester,
     ) async {

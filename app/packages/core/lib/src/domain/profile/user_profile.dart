@@ -5,6 +5,7 @@ import '../lookup/ids.dart';
 import '../lookup/lookup_mode.dart';
 import 'cheat_sheet_scope.dart';
 import 'display_prefs.dart';
+import 'highlight_prefs.dart';
 
 /// Cheat sheet limit of a new profile.
 const defaultCheatSheetLimit = 10;
@@ -38,6 +39,7 @@ final class UserProfile {
     this.providerOrder = const [],
     this.serviceUrl,
     this.display = const DisplayPrefs(),
+    this.highlights = const HighlightPrefs(),
   });
 
   /// Reads a profile; missing or invalid fields take defaults.
@@ -58,6 +60,7 @@ final class UserProfile {
           : const [],
       serviceUrl: url is String && url.isNotEmpty ? url : null,
       display: DisplayPrefs.fromJson(json['display']),
+      highlights: HighlightPrefs.fromJson(json['highlights']),
     );
   }
 
@@ -83,6 +86,9 @@ final class UserProfile {
   /// How the reader looks.
   final DisplayPrefs display;
 
+  /// Which text highlights are on and the frequency threshold.
+  final HighlightPrefs highlights;
+
   /// Copy with some fields replaced. [serviceUrl] takes a function so that
   /// `() => null` can clear it.
   UserProfile copyWith({
@@ -93,6 +99,7 @@ final class UserProfile {
     List<ProviderId>? providerOrder,
     String? Function()? serviceUrl,
     DisplayPrefs? display,
+    HighlightPrefs? highlights,
   }) => UserProfile(
     mode: mode ?? this.mode,
     level: level ?? this.level,
@@ -101,6 +108,7 @@ final class UserProfile {
     providerOrder: providerOrder ?? this.providerOrder,
     serviceUrl: serviceUrl != null ? serviceUrl() : this.serviceUrl,
     display: display ?? this.display,
+    highlights: highlights ?? this.highlights,
   );
 
   /// JSON form.
@@ -112,6 +120,7 @@ final class UserProfile {
     'providerOrder': [for (final p in providerOrder) p.value],
     'serviceUrl': serviceUrl,
     'display': display.toJson(),
+    'highlights': highlights.toJson(),
   };
 
   @override
@@ -123,6 +132,7 @@ final class UserProfile {
         other.cheatSheetLimit != cheatSheetLimit ||
         other.serviceUrl != serviceUrl ||
         other.display != display ||
+        other.highlights != highlights ||
         other.providerOrder.length != providerOrder.length) {
       return false;
     }
@@ -140,6 +150,7 @@ final class UserProfile {
     cheatSheetLimit,
     serviceUrl,
     display,
+    highlights,
     Object.hashAll(providerOrder),
   );
 }
