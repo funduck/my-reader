@@ -16,6 +16,7 @@ import 'display_settings.dart';
 import 'providers.dart';
 import 'quick_settings_sheet.dart';
 import 'system_chrome.dart';
+import 'word_highlights.dart';
 
 final Logger _log = Logger('ReaderScreen');
 
@@ -136,6 +137,19 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   /// must not mark a word.
   int _lookups = 0;
 
+  /// Which highlight kinds the reader switched on (T-115).
+  HighlightPrefs _highlightPrefs = const HighlightPrefs();
+
+  /// Lemmas of the `cheatSheet` and `lookedUp` highlights (T-119).
+  WordHighlightSets _wordSets = const WordHighlightSets();
+  WordHighlightSource? _wordSource;
+
+  /// The engine has loaded the book and takes highlights.
+  bool _highlightsReady = false;
+
+  /// What the engine was last given; equal highlights are not sent again.
+  ReaderHighlights _applied = ReaderHighlights.none;
+
   @override
   void initState() {
     super.initState();
@@ -238,7 +252,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     );
     if (!mounted) return;
     if (!_displayLoaded) {
-      _display.value = (await _profiles.get()).display;
+      final profile = await _profiles.get();
+      _display.value = profile.display;
+      _highlightPrefs = profile.highlights;
       _displayLoaded = true;
       if (!mounted) return;
     }
@@ -252,8 +268,10 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     final target = widget.locator;
     if (target != null) {
       _marks = [target];
-      _applyHighlights();
     }
+    _highlightsReady = true;
+    _applyHighlights();
+    _startWordHighlights();
     setState(() => _book = outcome.book);
     unawaited(_measure(opened));
   }
@@ -273,6 +291,10 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   }
 
   void _onProfile(UserProfile profile) {
+    if (profile.highlights != _highlightPrefs) {
+      _highlightPrefs = profile.highlights;
+      _applyHighlights();
+    }
     // While the user is changing a value here, the stored one is older.
     if (_displayDebounce != null) return;
     _displayLoaded = true;
@@ -381,18 +403,55 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     unawaited(_showLookup(text, at, sentence));
   }
 
+  /// Starts the lemma sets of the `cheatSheet` and `lookedUp` highlights.
+  void _startWordHighlights() {
+    try {
+      final source = WordHighlightSource(
+        book: widget.bookId,
+        cheatSheets: ref.read(cheatSheetLogProvider),
+        journal: ref.read(lookupJournalProvider),
+        terms: ref.read(termRepositoryProvider),
+        analyzer: ref.read(textAnalyzerProvider),
+        onChanged: (sets) {
+          _wordSets = sets;
+          _applyHighlights();
+        },
+      );
+      _wordSource = source;
+      source.start();
+    } on Object catch (e, s) {
+      // A scope without these ports reads without word highlights.
+      _log.warning('Word highlights are off', e, s);
+    }
+  }
+
   /// Collects every kind of highlight from its field and gives the engine the
-  /// whole set; the one place that calls `ReaderEngine.highlight`.
+  /// whole set; the one place that calls `ReaderEngine.highlight`. Word kinds
+  /// follow the switches of [_highlightPrefs]; empty kinds are left out, and
+  /// nothing is sent when the set equals what the engine already has.
   void _applyHighlights() {
+    final engine = _engine;
+    if (engine == null || !_highlightsReady || _closing) return;
     final focus = [..._marks, ?_looking];
     final recent = _recent;
-    final ranges = <HighlightKind, List<Locator>>{
-      if (focus.isNotEmpty) HighlightKind.focus: focus,
-      if (recent != null) HighlightKind.recent: [recent],
-    };
-    _engine?.highlight(
-      ranges.isEmpty ? ReaderHighlights.none : ReaderHighlights(ranges: ranges),
+    final prefs = _highlightPrefs;
+    final highlights = ReaderHighlights(
+      ranges: {
+        if (focus.isNotEmpty) HighlightKind.focus: focus,
+        if (recent != null) HighlightKind.recent: [recent],
+      },
+      words: {
+        if (prefs.enabled &&
+            prefs.cheatSheet &&
+            _wordSets.cheatSheet.isNotEmpty)
+          HighlightKind.cheatSheet: _wordSets.cheatSheet,
+        if (prefs.enabled && prefs.lookedUp && _wordSets.lookedUp.isNotEmpty)
+          HighlightKind.lookedUp: _wordSets.lookedUp,
+      },
     );
+    if (highlights == _applied) return;
+    _applied = highlights;
+    engine.highlight(highlights);
   }
 
   /// Takes the `recent` mark off now.
@@ -490,6 +549,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     _flush();
     _flushDisplay();
     unawaited(_profileSub?.cancel());
+    unawaited(_wordSource?.dispose());
     _display.dispose();
     _chapter.dispose();
     _position.dispose();
