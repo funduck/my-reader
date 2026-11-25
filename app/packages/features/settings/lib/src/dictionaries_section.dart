@@ -187,8 +187,8 @@ class ProviderOrderSection extends ConsumerWidget {
     ids.insert(to, ids.removeAt(from));
     try {
       final repository = ref.read(profileRepositoryProvider);
-      await repository.save(
-        (await repository.get()).copyWith(providerOrder: ids),
+      await repository.update(
+        (profile) => profile.copyWith(providerOrder: ids),
       );
     } on Exception catch (e, s) {
       _log.warning('Cannot save the provider order', e, s);

@@ -1508,6 +1508,12 @@ class _CountingProfiles implements ProfileRepository {
     _onSave();
     return _inner.save(profile);
   }
+
+  @override
+  Future<UserProfile> update(UserProfile Function(UserProfile) change) {
+    _onSave();
+    return _inner.update(change);
+  }
 }
 
 /// A [FakeBookFormatAdapter] whose books have no table of contents and/or

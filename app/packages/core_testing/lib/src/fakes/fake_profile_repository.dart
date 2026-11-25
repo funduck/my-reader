@@ -22,4 +22,13 @@ class FakeProfileRepository implements ProfileRepository {
     _profile = profile;
     _feed.notify();
   }
+
+  /// Applies [change] in one synchronous step, so no other write can come
+  /// in between.
+  @override
+  Future<UserProfile> update(UserProfile Function(UserProfile) change) async {
+    _profile = change(_profile);
+    _feed.notify();
+    return _profile;
+  }
 }

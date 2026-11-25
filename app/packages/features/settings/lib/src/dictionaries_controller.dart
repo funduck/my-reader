@@ -131,18 +131,17 @@ class DictionariesController extends Notifier<DictionariesState> {
       await library.remove(id);
       if (dictionary.isNotEmpty) {
         final repository = ref.read(profileRepositoryProvider);
-        final profile = await repository.get();
         final gone = dictionary.first.providerId;
-        if (profile.providerOrder.contains(gone)) {
-          await repository.save(
-            profile.copyWith(
-              providerOrder: [
-                for (final p in profile.providerOrder)
-                  if (p != gone) p,
-              ],
-            ),
-          );
-        }
+        await repository.update(
+          (profile) => profile.providerOrder.contains(gone)
+              ? profile.copyWith(
+                  providerOrder: [
+                    for (final p in profile.providerOrder)
+                      if (p != gone) p,
+                  ],
+                )
+              : profile,
+        );
       }
       await refresh();
       if (ref.mounted) state = state.copyWith(busy: false);

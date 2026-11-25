@@ -104,6 +104,13 @@ class _Profiles implements ProfileRepository {
   Stream<UserProfile> watch() => Stream.value(const UserProfile());
   @override
   Future<void> save(UserProfile profile) async {}
+
+  @override
+  Future<UserProfile> update(UserProfile Function(UserProfile) change) async {
+    final next = change(await get());
+    await save(next);
+    return next;
+  }
 }
 
 class _Analyzer implements TextAnalyzer {

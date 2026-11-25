@@ -73,8 +73,9 @@ Future<void> _updateDisplay(
 ) async {
   final repository = ref.read(profileRepositoryProvider);
   try {
-    final profile = await repository.get();
-    await repository.save(profile.copyWith(display: change(profile.display)));
+    await repository.update(
+      (profile) => profile.copyWith(display: change(profile.display)),
+    );
   } on Exception catch (e, s) {
     _log.warning('Cannot save the display settings', e, s);
   }
@@ -480,11 +481,13 @@ Future<void> _setTexture(WidgetRef ref, BackgroundTexture texture) async {
   final repository = ref.read(profileRepositoryProvider);
   final directory = ref.read(backgroundsDirectoryProvider);
   try {
-    final profile = await repository.get();
-    final old = profile.display.texture;
-    await repository.save(
-      profile.copyWith(display: profile.display.copyWith(texture: texture)),
-    );
+    BackgroundTexture old = const NoTexture();
+    await repository.update((profile) {
+      old = profile.display.texture;
+      return profile.copyWith(
+        display: profile.display.copyWith(texture: texture),
+      );
+    });
     await deleteUnusedBackground(old, texture, directory);
   } on Exception catch (e, s) {
     _log.warning('Cannot save the background texture', e, s);

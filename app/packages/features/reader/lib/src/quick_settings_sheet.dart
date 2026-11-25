@@ -119,9 +119,8 @@ class _HighlightsSection extends ConsumerWidget {
   ) async {
     final repository = ref.read(profileRepositoryProvider);
     try {
-      final profile = await repository.get();
-      await repository.save(
-        profile.copyWith(highlights: change(profile.highlights)),
+      await repository.update(
+        (profile) => profile.copyWith(highlights: change(profile.highlights)),
       );
     } on Object catch (e, s) {
       _log.severe('Saving the highlight settings failed', e, s);

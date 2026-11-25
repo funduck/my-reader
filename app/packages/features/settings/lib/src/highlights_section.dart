@@ -14,9 +14,8 @@ Future<void> _updateHighlights(
 ) async {
   final repository = ref.read(profileRepositoryProvider);
   try {
-    final profile = await repository.get();
-    await repository.save(
-      profile.copyWith(highlights: change(profile.highlights)),
+    await repository.update(
+      (profile) => profile.copyWith(highlights: change(profile.highlights)),
     );
   } on Object catch (e, s) {
     _log.severe('Cannot save the highlight settings', e, s);

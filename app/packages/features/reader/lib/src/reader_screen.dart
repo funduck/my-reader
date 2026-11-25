@@ -375,7 +375,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
 
   Future<void> _saveDisplay(DisplayPrefs prefs) async {
     try {
-      await _profiles.save((await _profiles.get()).copyWith(display: prefs));
+      await _profiles.update((profile) => profile.copyWith(display: prefs));
     } on Object catch (e, s) {
       _log.severe('Saving the display settings failed', e, s);
     }

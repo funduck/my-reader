@@ -156,6 +156,16 @@ final class DriftProfileRepository implements ProfileRepository {
           data: profile,
         ),
       );
+
+  /// Runs in a transaction; drift runs transactions of a database one at a
+  /// time, so concurrent updates do not overwrite each other.
+  @override
+  Future<UserProfile> update(UserProfile Function(UserProfile) change) =>
+      _db.transaction(() async {
+        final next = change(await get());
+        await save(next);
+        return next;
+      });
 }
 
 /// [LookupJournal] on top of `AppDatabase`.

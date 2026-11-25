@@ -34,6 +34,30 @@ void profileRepositoryContract(FutureOr<ProfileRepository> Function() create) {
       expect((await repo.get()).level, CefrLevel.a2);
     });
 
+    test('update changes only what it changes', () async {
+      await repo.save(const UserProfile(level: CefrLevel.c1));
+      final saved = await repo.update((p) => p.copyWith(mode: LookupMode.enRu));
+      expect(
+        saved,
+        const UserProfile(level: CefrLevel.c1, mode: LookupMode.enRu),
+      );
+      expect(await repo.get(), saved);
+    });
+
+    test('concurrent updates lose nothing', () async {
+      await Future.wait([
+        for (var i = 0; i < 20; i++)
+          repo.update(
+            (p) => p.copyWith(
+              providerOrder: [...p.providerOrder, ProviderId('p$i')],
+            ),
+          ),
+      ]);
+      expect((await repo.get()).providerOrder.map((id) => id.value).toSet(), {
+        for (var i = 0; i < 20; i++) 'p$i',
+      });
+    });
+
     test('watch emits the current profile first, then every save', () async {
       final emitted = <UserProfile>[];
       final sub = repo.watch().listen(emitted.add);

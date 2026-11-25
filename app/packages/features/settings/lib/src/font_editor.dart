@@ -89,8 +89,9 @@ class _FontEditorState extends ConsumerState<FontEditor> {
   Future<void> _update(DisplayPrefs Function(DisplayPrefs) change) async {
     final repository = ref.read(profileRepositoryProvider);
     try {
-      final profile = await repository.get();
-      await repository.save(profile.copyWith(display: change(profile.display)));
+      await repository.update(
+        (profile) => profile.copyWith(display: change(profile.display)),
+      );
     } on Exception catch (e, s) {
       _log.warning('Cannot save the font', e, s);
     }

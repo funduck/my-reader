@@ -75,6 +75,13 @@ class _Profiles implements ProfileRepository {
 
   @override
   Future<void> save(UserProfile profile) async => this.profile = profile;
+
+  @override
+  Future<UserProfile> update(UserProfile Function(UserProfile) change) async {
+    final next = change(await get());
+    await save(next);
+    return next;
+  }
 }
 
 class _Terms implements TermRepository {

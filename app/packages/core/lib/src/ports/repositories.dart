@@ -111,5 +111,12 @@ abstract interface class ProfileRepository {
   Stream<UserProfile> watch();
 
   /// Saves the profile.
+  ///
+  /// Replaces the whole profile: to change part of it use [update], so that
+  /// two changes at the same time do not lose one another.
   Future<void> save(UserProfile profile);
+
+  /// Reads the profile, applies [change] and saves the result, with no other
+  /// write in between; returns the saved profile (T-120).
+  Future<UserProfile> update(UserProfile Function(UserProfile) change);
 }

@@ -139,7 +139,7 @@ Future<void> _updateProfile(
 ) async {
   try {
     final repository = ref.read(profileRepositoryProvider);
-    await repository.save(change(await repository.get()));
+    await repository.update(change);
   } on Object catch (error, stack) {
     _log.warning('Cannot save the profile', error, stack);
   }

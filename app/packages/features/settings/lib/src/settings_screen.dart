@@ -80,7 +80,7 @@ Future<void> _update(
   UserProfile Function(UserProfile) change,
 ) async {
   final repository = ref.read(profileRepositoryProvider);
-  await repository.save(change(await repository.get()));
+  await repository.update(change);
 }
 
 class _ServiceUrlField extends ConsumerStatefulWidget {
