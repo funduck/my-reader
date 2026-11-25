@@ -12,6 +12,7 @@ import 'package:logging/logging.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:reader_api/reader_api.dart';
 
+import 'difficult_words.dart';
 import 'display_settings.dart';
 import 'providers.dart';
 import 'quick_settings_sheet.dart';
@@ -124,6 +125,13 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   /// Ranges marked in the text apart from the word being looked up: the
   /// place opened from a route link (history).
   List<Locator> _marks = const [];
+
+  /// Computes the difficult words of the open chapter (T-117); created once
+  /// the book is open. Its result is [_difficult].
+  DifficultWordsTracker? _difficultTracker;
+
+  /// Lemmas of the `difficult` highlight (T-117).
+  Set<String> _difficult = const {};
 
   /// The place of the open translation (`focus`); `null` when none is open.
   Locator? _looking;
@@ -274,6 +282,33 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     _startWordHighlights();
     setState(() => _book = outcome.book);
     unawaited(_measure(opened));
+    unawaited(_startDifficult(opened));
+  }
+
+  /// Starts the `difficult` highlight for the open chapter (T-117).
+  Future<void> _startDifficult(OpenedBook opened) async {
+    final tracker = DifficultWordsTracker(
+      bookId: widget.bookId,
+      book: opened,
+      useCase: () => ChapterDifficultWords(
+        generator: ref.read(cheatSheetGeneratorProvider),
+      ),
+      terms: () => ref.read(termRepositoryProvider),
+      onChanged: (words) {
+        _difficult = words;
+        _applyHighlights();
+      },
+    );
+    _difficultTracker = tracker;
+    try {
+      final profile = await _profiles.get();
+      if (_closing) return;
+      tracker.setProfile(profile);
+      final chapter = _current?.chapter;
+      if (chapter != null) tracker.setChapter(chapter);
+    } on Object catch (e, s) {
+      _log.warning('Starting the difficult words failed', e, s);
+    }
   }
 
   /// Measures the chapters of [opened] in the background; the fraction of the
@@ -291,6 +326,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   }
 
   void _onProfile(UserProfile profile) {
+    _difficultTracker?.setProfile(profile);
     if (profile.highlights != _highlightPrefs) {
       _highlightPrefs = profile.highlights;
       _applyHighlights();
@@ -391,6 +427,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
         break;
     }
     _current = event.locator;
+    _difficultTracker?.setChapter(event.locator.chapter);
     _position.value = event.locator;
     _chapter.value = event.locator.chapter.index;
     _pending = event.locator;
@@ -447,6 +484,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
           HighlightKind.cheatSheet: _wordSets.cheatSheet,
         if (prefs.enabled && prefs.lookedUp && _wordSets.lookedUp.isNotEmpty)
           HighlightKind.lookedUp: _wordSets.lookedUp,
+        if (prefs.enabled && prefs.difficult && _difficult.isNotEmpty)
+          HighlightKind.difficult: _difficult,
       },
     );
     if (highlights == _applied) return;
@@ -549,6 +588,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     _flush();
     _flushDisplay();
     unawaited(_profileSub?.cancel());
+    _difficultTracker?.dispose();
     unawaited(_wordSource?.dispose());
     _display.dispose();
     _chapter.dispose();

@@ -3,6 +3,7 @@ library;
 
 export 'src/application/book_fraction.dart';
 export 'src/application/cheatsheet/build_cheat_sheet.dart';
+export 'src/application/cheatsheet/chapter_difficult_words.dart';
 export 'src/application/cheatsheet/cheat_sheet_config.dart';
 export 'src/application/cheatsheet/level_cheat_sheet_generator.dart';
 export 'src/application/cheatsheet/select_cheat_sheet_items.dart';
