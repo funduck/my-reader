@@ -28,6 +28,7 @@ class _FakeEngine implements ReaderEngine {
   final List<Locator> goTos = [];
   final List<ReaderSettings> settingsApplied = [];
   final List<List<Locator>> highlights = [];
+  final List<ReaderHighlights> allHighlights = [];
   bool disposed = false;
 
   void emit(ReaderEvent event) => _events.add(event);
@@ -50,8 +51,10 @@ class _FakeEngine implements ReaderEngine {
   void applySettings(ReaderSettings settings) => settingsApplied.add(settings);
 
   @override
-  void highlight(ReaderHighlights highlights) =>
-      this.highlights.add(highlights.ranges[HighlightKind.focus] ?? const []);
+  void highlight(ReaderHighlights highlights) {
+    allHighlights.add(highlights);
+    this.highlights.add(highlights.ranges[HighlightKind.focus] ?? const []);
+  }
 
   @override
   Stream<ReaderEvent> get events => _events.stream;
@@ -60,6 +63,24 @@ class _FakeEngine implements ReaderEngine {
   Future<void> dispose() async {
     disposed = true;
     await _events.close();
+  }
+}
+
+class _WordAnalyzer implements TextAnalyzer {
+  @override
+  List<SentenceSpan> sentences(String text) => [SentenceSpan(0, text.length)];
+
+  @override
+  List<TextToken> tokens(String text) => [
+    for (final m in RegExp('[A-Za-z]+').allMatches(text))
+      TextToken(m[0]!, m.start, m.end),
+  ];
+
+  /// `running` -> `run`, so that a form maps to its lemma.
+  @override
+  String lemma(String word) {
+    final w = word.toLowerCase();
+    return w == 'running' ? 'run' : w;
   }
 }
 
@@ -78,6 +99,9 @@ void main() {
   late FakeBookFormatAdapter adapter;
   late List<_FakeEngine> engines;
   late _FakeChrome chrome;
+  late FakeCheatSheetLog cheatSheets;
+  late FakeLookupJournal journal;
+  late FakeTermRepository terms;
   final navigator = GlobalKey<NavigatorState>();
   late List<({String text, Locator at, String sentence})> lookups;
 
@@ -102,6 +126,9 @@ void main() {
       );
     engines = [];
     chrome = _FakeChrome();
+    cheatSheets = FakeCheatSheetLog();
+    journal = FakeLookupJournal();
+    terms = FakeTermRepository();
     _engineView = null;
     lookups = [];
     lookupOpen = null;
@@ -128,6 +155,10 @@ void main() {
       bookRepositoryProvider.overrideWithValue(books),
       progressRepositoryProvider.overrideWithValue(progress),
       profileRepositoryProvider.overrideWithValue(profiles),
+      cheatSheetLogProvider.overrideWithValue(cheatSheets),
+      lookupJournalProvider.overrideWithValue(journal),
+      termRepositoryProvider.overrideWithValue(terms),
+      textAnalyzerProvider.overrideWithValue(_WordAnalyzer()),
       bookFormatsProvider.overrideWithValue([adapter]),
       clockProvider.overrideWithValue(FakeClock()),
       systemChromeProvider.overrideWithValue(chrome),
@@ -676,6 +707,205 @@ void main() {
     await close(tester);
   });
 
+  group('word highlights (T-119)', () {
+    final shownAt = DateTime.utc(2024, 5, 1, 12);
+    var eventNo = 0;
+
+    LookupEvent event(String text, DateTime when) => LookupEvent(
+      id: LookupEventId('e${eventNo++}'),
+      query: LookupQuery(text: text, mode: LookupMode.enEn, locator: at(0, 0)),
+      result: const LookupResult(provider: ProviderId('p'), senses: []),
+      at: when,
+    );
+
+    Set<String> words(_FakeEngine e, HighlightKind kind) =>
+        e.allHighlights.isEmpty
+        ? const {}
+        : e.allHighlights.last.words[kind] ?? const {};
+
+    Future<void> saveSheet(List<String> lemmas, {DateTime? when}) =>
+        cheatSheets.save(
+          CheatSheetSnapshot(
+            book: id,
+            shownAt: when ?? shownAt,
+            lemmas: lemmas,
+          ),
+        );
+
+    Future<void> settle(WidgetTester tester) async {
+      await tester.pump();
+      await tester.pump();
+    }
+
+    macTest('the words of the last cheat sheet are cheatSheet', (tester) async {
+      await saveSheet(['Dune', 'sand', 'take off']);
+      await open(tester);
+      final engine = engines.single;
+      // A phrase is not a lemma; the rest is lower case.
+      expect(words(engine, HighlightKind.cheatSheet), {'dune', 'sand'});
+      expect(words(engine, HighlightKind.lookedUp), isEmpty);
+      await close(tester);
+    });
+
+    macTest('a lookup after the cheat sheet is lookedUp, one before is not', (
+      tester,
+    ) async {
+      await saveSheet(['sand']);
+      await journal.record(
+        event('spice', shownAt.subtract(const Duration(minutes: 1))),
+      );
+      await journal.record(
+        event('running', shownAt.add(const Duration(minutes: 1))),
+      );
+      await journal.record(
+        event('take off', shownAt.add(const Duration(minutes: 2))),
+      );
+      await open(tester);
+      final engine = engines.single;
+      // By the lemma of the term; a phrase is left out.
+      expect(words(engine, HighlightKind.lookedUp), {'run'});
+      expect(words(engine, HighlightKind.cheatSheet), {'sand'});
+      await close(tester);
+    });
+
+    macTest('without a cheat sheet every lookup of the book counts', (
+      tester,
+    ) async {
+      await journal.record(event('spice', DateTime.utc(2020)));
+      await open(tester);
+      expect(words(engines.single, HighlightKind.lookedUp), {'spice'});
+      await close(tester);
+    });
+
+    macTest('a lookup of another book does not count', (tester) async {
+      await journal.record(
+        LookupEvent(
+          id: const LookupEventId('other'),
+          query: const LookupQuery(
+            text: 'water',
+            mode: LookupMode.enEn,
+            locator: Locator(
+              book: BookId('b2'),
+              chapter: ChapterRef(href: 'c.xhtml', index: 0),
+              progression: 0,
+            ),
+          ),
+          result: const LookupResult(provider: ProviderId('p'), senses: []),
+          at: shownAt,
+        ),
+      );
+      await open(tester);
+      expect(words(engines.single, HighlightKind.lookedUp), isEmpty);
+      await close(tester);
+    });
+
+    macTest('a new lookup is marked at once', (tester) async {
+      await open(tester);
+      final engine = engines.single;
+      expect(words(engine, HighlightKind.lookedUp), isEmpty);
+      await journal.record(event('water', shownAt));
+      await settle(tester);
+      expect(words(engine, HighlightKind.lookedUp), {'water'});
+      await close(tester);
+    });
+
+    macTest('a new cheat sheet resets lookedUp', (tester) async {
+      await saveSheet(['sand']);
+      await journal.record(
+        event('spice', shownAt.add(const Duration(minutes: 1))),
+      );
+      await open(tester);
+      final engine = engines.single;
+      expect(words(engine, HighlightKind.lookedUp), {'spice'});
+
+      await saveSheet(['water'], when: shownAt.add(const Duration(minutes: 5)));
+      await settle(tester);
+      expect(words(engine, HighlightKind.cheatSheet), {'water'});
+      expect(words(engine, HighlightKind.lookedUp), isEmpty);
+      await close(tester);
+    });
+
+    macTest('known words are not marked', (tester) async {
+      await saveSheet(['sand', 'dune']);
+      await journal.record(
+        event('spice', shownAt.add(const Duration(minutes: 1))),
+      );
+      for (final lemma in ['sand', 'spice']) {
+        await terms.save(
+          Term(
+            id: TermId('t-$lemma'),
+            normalized: lemma,
+            language: 'en',
+            lookupCount: 1,
+            eventIds: const [],
+            status: TermStatus.known,
+          ),
+        );
+      }
+      await open(tester);
+      final engine = engines.single;
+      expect(words(engine, HighlightKind.cheatSheet), {'dune'});
+      expect(words(engine, HighlightKind.lookedUp), isEmpty);
+      await close(tester);
+    });
+
+    macTest('the switches turn their own kinds off', (tester) async {
+      await profiles.save(
+        const UserProfile(highlights: HighlightPrefs(cheatSheet: false)),
+      );
+      await saveSheet(['sand']);
+      await journal.record(
+        event('spice', shownAt.add(const Duration(minutes: 1))),
+      );
+      await open(tester);
+      final engine = engines.single;
+      expect(words(engine, HighlightKind.cheatSheet), isEmpty);
+      expect(words(engine, HighlightKind.lookedUp), {'spice'});
+
+      await profiles.save(
+        const UserProfile(highlights: HighlightPrefs(lookedUp: false)),
+      );
+      await settle(tester);
+      expect(words(engine, HighlightKind.cheatSheet), {'sand'});
+      expect(words(engine, HighlightKind.lookedUp), isEmpty);
+
+      await profiles.save(
+        const UserProfile(highlights: HighlightPrefs(enabled: false)),
+      );
+      await settle(tester);
+      expect(engine.allHighlights.last.isEmpty, isTrue);
+
+      await profiles.save(const UserProfile());
+      await settle(tester);
+      expect(words(engine, HighlightKind.cheatSheet), {'sand'});
+      expect(words(engine, HighlightKind.lookedUp), {'spice'});
+      await close(tester);
+    });
+
+    macTest('the open lookup keeps its focus mark beside the words', (
+      tester,
+    ) async {
+      await saveSheet(['sand']);
+      await open(tester);
+      final engine = engines.single;
+      lookupOpen = Completer<void>();
+      engine.emit(
+        TextSelected(text: 'sand', at: at(1, 0.25), sentence: 'A sand.'),
+      );
+      await tester.pump();
+      final open_ = engine.allHighlights.last;
+      expect(open_.ranges[HighlightKind.focus], [at(1, 0.25)]);
+      expect(open_.words[HighlightKind.cheatSheet], {'sand'});
+      lookupOpen!.complete();
+      await tester.pump();
+      expect(engine.allHighlights.last.ranges, isEmpty);
+      expect(engine.allHighlights.last.words[HighlightKind.cheatSheet], {
+        'sand',
+      });
+      await close(tester);
+    });
+  });
+
   macTest('the selected word is marked while its lookup is open', (
     tester,
   ) async {
@@ -745,6 +975,10 @@ void main() {
           bookRepositoryProvider.overrideWithValue(books),
           progressRepositoryProvider.overrideWithValue(progress),
           profileRepositoryProvider.overrideWithValue(profiles),
+          cheatSheetLogProvider.overrideWithValue(cheatSheets),
+          lookupJournalProvider.overrideWithValue(journal),
+          termRepositoryProvider.overrideWithValue(terms),
+          textAnalyzerProvider.overrideWithValue(_WordAnalyzer()),
           bookFormatsProvider.overrideWithValue([adapter]),
           clockProvider.overrideWithValue(FakeClock()),
           readerEngineFactoryProvider.overrideWithValue(() {
@@ -865,6 +1099,10 @@ void main() {
             bookRepositoryProvider.overrideWithValue(books),
             progressRepositoryProvider.overrideWithValue(progress),
             profileRepositoryProvider.overrideWithValue(counting),
+            cheatSheetLogProvider.overrideWithValue(cheatSheets),
+            lookupJournalProvider.overrideWithValue(journal),
+            termRepositoryProvider.overrideWithValue(terms),
+            textAnalyzerProvider.overrideWithValue(_WordAnalyzer()),
             bookFormatsProvider.overrideWithValue([adapter]),
             clockProvider.overrideWithValue(FakeClock()),
             readerEngineFactoryProvider.overrideWithValue(() {

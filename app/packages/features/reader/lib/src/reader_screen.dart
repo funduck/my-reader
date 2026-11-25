@@ -16,6 +16,7 @@ import 'display_settings.dart';
 import 'providers.dart';
 import 'quick_settings_sheet.dart';
 import 'system_chrome.dart';
+import 'word_highlights.dart';
 
 final Logger _log = Logger('ReaderScreen');
 
@@ -120,6 +121,22 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   /// place opened from a route link (history).
   List<Locator> _marks = const [];
 
+  /// The place of the word whose lookup is open; `null` when none is.
+  Locator? _openLookup;
+
+  /// Which highlight kinds the reader switched on (T-115).
+  HighlightPrefs _highlightPrefs = const HighlightPrefs();
+
+  /// Lemmas of the `cheatSheet` and `lookedUp` highlights (T-119).
+  WordHighlightSets _wordSets = const WordHighlightSets();
+  WordHighlightSource? _wordSource;
+
+  /// The engine has loaded the book and takes highlights.
+  bool _highlightsReady = false;
+
+  /// What the engine was last given; equal highlights are not sent again.
+  ReaderHighlights _applied = ReaderHighlights.none;
+
   @override
   void initState() {
     super.initState();
@@ -222,7 +239,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     );
     if (!mounted) return;
     if (!_displayLoaded) {
-      _display.value = (await _profiles.get()).display;
+      final profile = await _profiles.get();
+      _display.value = profile.display;
+      _highlightPrefs = profile.highlights;
       _displayLoaded = true;
       if (!mounted) return;
     }
@@ -236,8 +255,10 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     final target = widget.locator;
     if (target != null) {
       _marks = [target];
-      engine.highlight(_focus(_marks));
     }
+    _highlightsReady = true;
+    _applyHighlights();
+    _startWordHighlights();
     setState(() => _book = outcome.book);
     unawaited(_measure(opened));
   }
@@ -257,6 +278,10 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   }
 
   void _onProfile(UserProfile profile) {
+    if (profile.highlights != _highlightPrefs) {
+      _highlightPrefs = profile.highlights;
+      _applyHighlights();
+    }
     // While the user is changing a value here, the stored one is older.
     if (_displayDebounce != null) return;
     _displayLoaded = true;
@@ -365,16 +390,52 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     unawaited(_showLookup(text, at, sentence));
   }
 
-  /// [places] as the `focus` highlights: the open translation and the place
-  /// of a history link; no places clear everything.
-  ReaderHighlights _focus(List<Locator> places) => places.isEmpty
-      ? ReaderHighlights.none
-      : ReaderHighlights(ranges: {HighlightKind.focus: places});
+  /// Starts the lemma sets of the `cheatSheet` and `lookedUp` highlights.
+  void _startWordHighlights() {
+    final source = WordHighlightSource(
+      book: widget.bookId,
+      cheatSheets: ref.read(cheatSheetLogProvider),
+      journal: ref.read(lookupJournalProvider),
+      terms: ref.read(termRepositoryProvider),
+      analyzer: ref.read(textAnalyzerProvider),
+      onChanged: (sets) {
+        _wordSets = sets;
+        _applyHighlights();
+      },
+    );
+    _wordSource = source;
+    source.start();
+  }
+
+  /// Gives the engine everything that is marked: the focus places and, per
+  /// the switches of [_highlightPrefs], the word kinds. Nothing is sent when
+  /// it equals what the engine already has.
+  void _applyHighlights() {
+    final engine = _engine;
+    if (engine == null || !_highlightsReady || _closing) return;
+    final focus = [..._marks, ?_openLookup];
+    final prefs = _highlightPrefs;
+    final highlights = ReaderHighlights(
+      ranges: {if (focus.isNotEmpty) HighlightKind.focus: focus},
+      words: {
+        if (prefs.enabled &&
+            prefs.cheatSheet &&
+            _wordSets.cheatSheet.isNotEmpty)
+          HighlightKind.cheatSheet: _wordSets.cheatSheet,
+        if (prefs.enabled && prefs.lookedUp && _wordSets.lookedUp.isNotEmpty)
+          HighlightKind.lookedUp: _wordSets.lookedUp,
+      },
+    );
+    if (highlights == _applied) return;
+    _applied = highlights;
+    engine.highlight(highlights);
+  }
 
   /// Shows the lookup of [text]; while it is open, [at] is marked in the
   /// text so that the reader sees which word the tap hit.
   Future<void> _showLookup(String text, Locator at, String sentence) async {
-    _engine?.highlight(_focus([..._marks, at]));
+    _openLookup = at;
+    _applyHighlights();
     try {
       await ref.read(lookupPresenterProvider)(
         context,
@@ -385,7 +446,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     } on Object catch (e, s) {
       _log.severe('Showing the lookup of "$text" failed', e, s);
     } finally {
-      if (mounted) _engine?.highlight(_focus(_marks));
+      _openLookup = null;
+      if (mounted) _applyHighlights();
     }
   }
 
@@ -431,6 +493,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     _flush();
     _flushDisplay();
     unawaited(_profileSub?.cancel());
+    unawaited(_wordSource?.dispose());
     _display.dispose();
     _chapter.dispose();
     _position.dispose();
