@@ -13,7 +13,7 @@ packages/
 
 ## Requirements
 
-Flutter 3.50.1 / Dart 3.14.0, Xcode and CocoaPods for the macOS build.
+Flutter 3.50.1 / Dart 3.14.0, Xcode for the macOS build (plugins come as Swift packages, no CocoaPods).
 
 ## Build and run
 
