@@ -44,6 +44,20 @@ final class UserProfileConverter extends TypeConverter<UserProfile, String> {
   String toSql(UserProfile value) => jsonEncode(value.toJson());
 }
 
+/// Stores a list of strings as a JSON array.
+final class StringListConverter extends TypeConverter<List<String>, String> {
+  /// Creates the converter.
+  const new();
+
+  @override
+  List<String> fromSql(String fromDb) => [
+    for (final item in jsonDecode(fromDb) as List<Object?>) item! as String,
+  ];
+
+  @override
+  String toSql(List<String> value) => jsonEncode(value);
+}
+
 /// Stores a list of [Sense] as a JSON string.
 final class SensesConverter extends TypeConverter<List<Sense>, String> {
   /// Creates the converter.

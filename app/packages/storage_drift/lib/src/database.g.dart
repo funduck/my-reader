@@ -3031,6 +3031,281 @@ class PhraseLookupsCompanion extends UpdateCompanion<PhraseLookupRow> {
   }
 }
 
+class $CheatSheetSnapshotsTable extends CheatSheetSnapshots
+    with TableInfo<$CheatSheetSnapshotsTable, CheatSheetSnapshotRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CheatSheetSnapshotsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _bookIdMeta = const VerificationMeta('bookId');
+  @override
+  late final GeneratedColumn<String> bookId = GeneratedColumn<String>(
+    'book_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  late final GeneratedColumnWithTypeConverter<DateTime, int> shownAt =
+      GeneratedColumn<int>(
+        'shown_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: true,
+      ).withConverter<DateTime>($CheatSheetSnapshotsTable.$convertershownAt);
+  @override
+  late final GeneratedColumnWithTypeConverter<List<String>, String> lemmas =
+      GeneratedColumn<String>(
+        'lemmas',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+      ).withConverter<List<String>>($CheatSheetSnapshotsTable.$converterlemmas);
+  @override
+  List<GeneratedColumn> get $columns => [bookId, shownAt, lemmas];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'cheat_sheet_snapshots';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<CheatSheetSnapshotRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('book_id')) {
+      context.handle(
+        _bookIdMeta,
+        bookId.isAcceptableOrUnknown(data['book_id']!, _bookIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_bookIdMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {bookId};
+  @override
+  CheatSheetSnapshotRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CheatSheetSnapshotRow(
+      bookId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}book_id'],
+      )!,
+      shownAt: $CheatSheetSnapshotsTable.$convertershownAt.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}shown_at'],
+        )!,
+      ),
+      lemmas: $CheatSheetSnapshotsTable.$converterlemmas.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}lemmas'],
+        )!,
+      ),
+    );
+  }
+
+  @override
+  $CheatSheetSnapshotsTable createAlias(String alias) {
+    return $CheatSheetSnapshotsTable(attachedDatabase, alias);
+  }
+
+  static TypeConverter<DateTime, int> $convertershownAt =
+      const UtcDateTimeConverter();
+  static TypeConverter<List<String>, String> $converterlemmas =
+      const StringListConverter();
+}
+
+class CheatSheetSnapshotRow extends DataClass
+    implements Insertable<CheatSheetSnapshotRow> {
+  /// `BookId.value`.
+  final String bookId;
+
+  /// When the list was shown, microseconds since epoch (UTC).
+  final DateTime shownAt;
+
+  /// The words of the list in the order shown, as a JSON array of strings.
+  final List<String> lemmas;
+  const CheatSheetSnapshotRow({
+    required this.bookId,
+    required this.shownAt,
+    required this.lemmas,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['book_id'] = Variable<String>(bookId);
+    {
+      map['shown_at'] = Variable<int>(
+        $CheatSheetSnapshotsTable.$convertershownAt.toSql(shownAt),
+      );
+    }
+    {
+      map['lemmas'] = Variable<String>(
+        $CheatSheetSnapshotsTable.$converterlemmas.toSql(lemmas),
+      );
+    }
+    return map;
+  }
+
+  CheatSheetSnapshotsCompanion toCompanion(bool nullToAbsent) {
+    return CheatSheetSnapshotsCompanion(
+      bookId: Value(bookId),
+      shownAt: Value(shownAt),
+      lemmas: Value(lemmas),
+    );
+  }
+
+  factory CheatSheetSnapshotRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CheatSheetSnapshotRow(
+      bookId: serializer.fromJson<String>(json['bookId']),
+      shownAt: serializer.fromJson<DateTime>(json['shownAt']),
+      lemmas: serializer.fromJson<List<String>>(json['lemmas']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'bookId': serializer.toJson<String>(bookId),
+      'shownAt': serializer.toJson<DateTime>(shownAt),
+      'lemmas': serializer.toJson<List<String>>(lemmas),
+    };
+  }
+
+  CheatSheetSnapshotRow copyWith({
+    String? bookId,
+    DateTime? shownAt,
+    List<String>? lemmas,
+  }) => CheatSheetSnapshotRow(
+    bookId: bookId ?? this.bookId,
+    shownAt: shownAt ?? this.shownAt,
+    lemmas: lemmas ?? this.lemmas,
+  );
+  CheatSheetSnapshotRow copyWithCompanion(CheatSheetSnapshotsCompanion data) {
+    return CheatSheetSnapshotRow(
+      bookId: data.bookId.present ? data.bookId.value : this.bookId,
+      shownAt: data.shownAt.present ? data.shownAt.value : this.shownAt,
+      lemmas: data.lemmas.present ? data.lemmas.value : this.lemmas,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CheatSheetSnapshotRow(')
+          ..write('bookId: $bookId, ')
+          ..write('shownAt: $shownAt, ')
+          ..write('lemmas: $lemmas')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(bookId, shownAt, lemmas);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CheatSheetSnapshotRow &&
+          other.bookId == this.bookId &&
+          other.shownAt == this.shownAt &&
+          other.lemmas == this.lemmas);
+}
+
+class CheatSheetSnapshotsCompanion
+    extends UpdateCompanion<CheatSheetSnapshotRow> {
+  final Value<String> bookId;
+  final Value<DateTime> shownAt;
+  final Value<List<String>> lemmas;
+  final Value<int> rowid;
+  const CheatSheetSnapshotsCompanion({
+    this.bookId = const Value.absent(),
+    this.shownAt = const Value.absent(),
+    this.lemmas = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  CheatSheetSnapshotsCompanion.insert({
+    required String bookId,
+    required DateTime shownAt,
+    required List<String> lemmas,
+    this.rowid = const Value.absent(),
+  }) : bookId = Value(bookId),
+       shownAt = Value(shownAt),
+       lemmas = Value(lemmas);
+  static Insertable<CheatSheetSnapshotRow> custom({
+    Expression<String>? bookId,
+    Expression<int>? shownAt,
+    Expression<String>? lemmas,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (bookId != null) 'book_id': bookId,
+      if (shownAt != null) 'shown_at': shownAt,
+      if (lemmas != null) 'lemmas': lemmas,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  CheatSheetSnapshotsCompanion copyWith({
+    Value<String>? bookId,
+    Value<DateTime>? shownAt,
+    Value<List<String>>? lemmas,
+    Value<int>? rowid,
+  }) {
+    return CheatSheetSnapshotsCompanion(
+      bookId: bookId ?? this.bookId,
+      shownAt: shownAt ?? this.shownAt,
+      lemmas: lemmas ?? this.lemmas,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (bookId.present) {
+      map['book_id'] = Variable<String>(bookId.value);
+    }
+    if (shownAt.present) {
+      map['shown_at'] = Variable<int>(
+        $CheatSheetSnapshotsTable.$convertershownAt.toSql(shownAt.value),
+      );
+    }
+    if (lemmas.present) {
+      map['lemmas'] = Variable<String>(
+        $CheatSheetSnapshotsTable.$converterlemmas.toSql(lemmas.value),
+      );
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CheatSheetSnapshotsCompanion(')
+          ..write('bookId: $bookId, ')
+          ..write('shownAt: $shownAt, ')
+          ..write('lemmas: $lemmas, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -3042,6 +3317,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $TermsTable terms = $TermsTable(this);
   late final $TermEventsTable termEvents = $TermEventsTable(this);
   late final $PhraseLookupsTable phraseLookups = $PhraseLookupsTable(this);
+  late final $CheatSheetSnapshotsTable cheatSheetSnapshots =
+      $CheatSheetSnapshotsTable(this);
   late final Index booksContentHash = Index(
     'books_content_hash',
     'CREATE INDEX books_content_hash ON books (content_hash)',
@@ -3082,6 +3359,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     terms,
     termEvents,
     phraseLookups,
+    cheatSheetSnapshots,
     booksContentHash,
     lookupEventsAt,
     lookupEventsBook,
@@ -4706,6 +4984,197 @@ typedef $$PhraseLookupsTableProcessedTableManager =
       PhraseLookupRow,
       PrefetchHooks Function()
     >;
+typedef $$CheatSheetSnapshotsTableCreateCompanionBuilder =
+    CheatSheetSnapshotsCompanion Function({
+      required String bookId,
+      required DateTime shownAt,
+      required List<String> lemmas,
+      Value<int> rowid,
+    });
+typedef $$CheatSheetSnapshotsTableUpdateCompanionBuilder =
+    CheatSheetSnapshotsCompanion Function({
+      Value<String> bookId,
+      Value<DateTime> shownAt,
+      Value<List<String>> lemmas,
+      Value<int> rowid,
+    });
+
+class $$CheatSheetSnapshotsTableFilterComposer
+    extends Composer<_$AppDatabase, $CheatSheetSnapshotsTable> {
+  $$CheatSheetSnapshotsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get bookId => $composableBuilder(
+    column: $table.bookId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<DateTime, DateTime, int> get shownAt =>
+      $composableBuilder(
+        column: $table.shownAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
+
+  ColumnWithTypeConverterFilters<List<String>, List<String>, String>
+  get lemmas => $composableBuilder(
+    column: $table.lemmas,
+    builder: (column) => ColumnWithTypeConverterFilters(column),
+  );
+}
+
+class $$CheatSheetSnapshotsTableOrderingComposer
+    extends Composer<_$AppDatabase, $CheatSheetSnapshotsTable> {
+  $$CheatSheetSnapshotsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get bookId => $composableBuilder(
+    column: $table.bookId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get shownAt => $composableBuilder(
+    column: $table.shownAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lemmas => $composableBuilder(
+    column: $table.lemmas,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$CheatSheetSnapshotsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CheatSheetSnapshotsTable> {
+  $$CheatSheetSnapshotsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get bookId =>
+      $composableBuilder(column: $table.bookId, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<DateTime, int> get shownAt =>
+      $composableBuilder(column: $table.shownAt, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<List<String>, String> get lemmas =>
+      $composableBuilder(column: $table.lemmas, builder: (column) => column);
+}
+
+class $$CheatSheetSnapshotsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $CheatSheetSnapshotsTable,
+          CheatSheetSnapshotRow,
+          $$CheatSheetSnapshotsTableFilterComposer,
+          $$CheatSheetSnapshotsTableOrderingComposer,
+          $$CheatSheetSnapshotsTableAnnotationComposer,
+          $$CheatSheetSnapshotsTableCreateCompanionBuilder,
+          $$CheatSheetSnapshotsTableUpdateCompanionBuilder,
+          (
+            CheatSheetSnapshotRow,
+            BaseReferences<
+              _$AppDatabase,
+              $CheatSheetSnapshotsTable,
+              CheatSheetSnapshotRow
+            >,
+          ),
+          CheatSheetSnapshotRow,
+          PrefetchHooks Function()
+        > {
+  $$CheatSheetSnapshotsTableTableManager(
+    _$AppDatabase db,
+    $CheatSheetSnapshotsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CheatSheetSnapshotsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CheatSheetSnapshotsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$CheatSheetSnapshotsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> bookId = const Value.absent(),
+                Value<DateTime> shownAt = const Value.absent(),
+                Value<List<String>> lemmas = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CheatSheetSnapshotsCompanion(
+                bookId: bookId,
+                shownAt: shownAt,
+                lemmas: lemmas,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String bookId,
+                required DateTime shownAt,
+                required List<String> lemmas,
+                Value<int> rowid = const Value.absent(),
+              }) => CheatSheetSnapshotsCompanion.insert(
+                bookId: bookId,
+                shownAt: shownAt,
+                lemmas: lemmas,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$CheatSheetSnapshotsTable, CheatSheetSnapshotRow>(
+                    table,
+                  ),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $CheatSheetSnapshotsTable,
+                    CheatSheetSnapshotRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$CheatSheetSnapshotsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $CheatSheetSnapshotsTable,
+      CheatSheetSnapshotRow,
+      $$CheatSheetSnapshotsTableFilterComposer,
+      $$CheatSheetSnapshotsTableOrderingComposer,
+      $$CheatSheetSnapshotsTableAnnotationComposer,
+      $$CheatSheetSnapshotsTableCreateCompanionBuilder,
+      $$CheatSheetSnapshotsTableUpdateCompanionBuilder,
+      (
+        CheatSheetSnapshotRow,
+        BaseReferences<
+          _$AppDatabase,
+          $CheatSheetSnapshotsTable,
+          CheatSheetSnapshotRow
+        >,
+      ),
+      CheatSheetSnapshotRow,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -4724,4 +5193,6 @@ class $AppDatabaseManager {
       $$TermEventsTableTableManager(_db, _db.termEvents);
   $$PhraseLookupsTableTableManager get phraseLookups =>
       $$PhraseLookupsTableTableManager(_db, _db.phraseLookups);
+  $$CheatSheetSnapshotsTableTableManager get cheatSheetSnapshots =>
+      $$CheatSheetSnapshotsTableTableManager(_db, _db.cheatSheetSnapshots);
 }

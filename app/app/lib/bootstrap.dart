@@ -69,6 +69,7 @@ Future<List<Override>> buildDeviceOverrides() async {
     lookupJournalProvider.overrideWithValue(database.lookupJournal),
     termRepositoryProvider.overrideWithValue(database.termRepository),
     phraseJournalProvider.overrideWithValue(database.phraseJournal),
+    cheatSheetLogProvider.overrideWithValue(database.cheatSheetLog),
     bookFormatsProvider.overrideWithValue(const [EpubFormatAdapter()]),
     booksDirectoryProvider.overrideWithValue('${support.path}/books'),
     backgroundsDirectoryProvider.overrideWithValue(

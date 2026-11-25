@@ -35,6 +35,9 @@ void main() {
   group('FakeProgressRepository', () {
     progressRepositoryContract(FakeProgressRepository.new);
   });
+  group('FakeCheatSheetLog', () {
+    cheatSheetLogContract(FakeCheatSheetLog.new);
+  });
   group('FakeSecretStore', () {
     secretStoreContract(FakeSecretStore.new);
   });

@@ -56,6 +56,8 @@ void main() {
   late _FakeGenerator generator;
   late FakeLookupProvider dictionary;
   late FakeTermRepository terms;
+  late FakeCheatSheetLog log;
+  late FakeClock clock;
 
   Locator at(int chapter, double progression) => Locator(
     book: id,
@@ -66,6 +68,8 @@ void main() {
   setUp(() async {
     books = FakeBookRepository();
     terms = FakeTermRepository();
+    log = FakeCheatSheetLog();
+    clock = FakeClock(DateTime.utc(2024, 3, 4, 5, 6));
     adapter = FakeBookFormatAdapter()
       ..register(
         '/x/b1.epub',
@@ -128,6 +132,8 @@ void main() {
           bookFormatsProvider.overrideWithValue([adapter]),
           profileRepositoryProvider.overrideWithValue(profiles),
           termRepositoryProvider.overrideWithValue(terms),
+          cheatSheetLogProvider.overrideWithValue(log),
+          clockProvider.overrideWithValue(clock),
           textAnalyzerProvider.overrideWithValue(_Analyzer()),
           levelDictionaryProvider.overrideWithValue(_NoLevels()),
           idGeneratorProvider.overrideWithValue(SeqIdGenerator(prefix: 't')),
@@ -478,6 +484,113 @@ void main() {
     });
   });
 
+  group('last shown list', () {
+    setUp(() {
+      generator = _FakeGenerator([
+        word('w1', level: CefrLevel.b2, zipf: 5),
+        word('w2', zipf: 4.5),
+        word('w3', level: CefrLevel.b2, zipf: 3.5),
+        word('w4', level: CefrLevel.b1, zipf: 3),
+        word('w5', zipf: 2),
+      ]);
+    });
+
+    CheatSheetSnapshot snapshot(List<String> lemmas, {DateTime? at}) =>
+        CheatSheetSnapshot(
+          book: id,
+          shownAt: at ?? DateTime.utc(2024, 3, 4, 5, 6),
+          lemmas: lemmas,
+        );
+
+    Future<CheatSheetSnapshot?> stored(WidgetTester tester) =>
+        tester.runAsync(() => log.watch(id).first).then((s) => s);
+
+    testWidgets('the shown list is saved once, with the time of showing', (
+      tester,
+    ) async {
+      await open(tester, from: at(0, 0));
+      // The profile of the test: B1, limit 10; w4 is B1, not above it.
+      expect(shownWords(tester), ['w1', 'w2', 'w3', 'w5']);
+      expect(log.saved, [
+        snapshot(['w1', 'w2', 'w3', 'w5']),
+      ]);
+      expect(await stored(tester), log.saved.single);
+    });
+
+    testWidgets('a new limit saves the list that is shown now', (tester) async {
+      await open(tester, from: at(0, 0));
+      clock.advance(const Duration(minutes: 1));
+
+      await enterLimit(tester, '2');
+
+      expect(shownWords(tester), ['w1', 'w2']);
+      expect(log.saved, hasLength(2));
+      expect(
+        await stored(tester),
+        snapshot(['w1', 'w2'], at: DateTime.utc(2024, 3, 4, 5, 7)),
+      );
+      // The older snapshot is replaced, not kept beside the new one.
+      expect((await stored(tester))?.lemmas, ['w1', 'w2']);
+    });
+
+    testWidgets('a new level saves the list that is shown now', (tester) async {
+      await open(tester, from: at(0, 0));
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const Key('cheatsheet-level')),
+          matching: find.text('B2'),
+        ),
+      );
+      await settle(tester);
+      expect(shownWords(tester), ['w2', 'w5']);
+      expect((await stored(tester))?.lemmas, ['w2', 'w5']);
+    });
+
+    testWidgets('"Знаю" and Undo follow the list on screen', (tester) async {
+      await open(tester, from: at(0, 0));
+      await tester.tap(find.byKey(const Key('cheatsheet-known-w1')));
+      await settle(tester);
+      expect((await stored(tester))?.lemmas, ['w2', 'w3', 'w5']);
+
+      await tester.pump(const Duration(seconds: 1));
+      await tester.tap(find.text('Undo'));
+      await settle(tester);
+      expect((await stored(tester))?.lemmas, ['w1', 'w2', 'w3', 'w5']);
+    });
+
+    testWidgets('a change that keeps the words writes nothing', (tester) async {
+      await open(tester, from: at(0, 0));
+      final before = log.saved.length;
+      // The profile emits again, the shown words are the same.
+      await profiles.save(
+        const UserProfile(level: CefrLevel.b1, serviceUrl: 'http://host:1'),
+      );
+      await settle(tester);
+      expect(log.saved, hasLength(before));
+    });
+
+    testWidgets('an empty list is saved as an empty snapshot', (tester) async {
+      generator = _FakeGenerator(const []);
+      await open(tester, from: at(0, 0));
+      expect(log.saved, [snapshot([])]);
+    });
+
+    testWidgets('an unbuilt sheet saves nothing', (tester) async {
+      books = FakeBookRepository();
+      await open(tester, from: at(0, 0));
+      expect(find.text('Не удалось подготовить разминку.'), findsOneWidget);
+      expect(log.saved, isEmpty);
+    });
+
+    testWidgets('a failing log does not break the screen', (tester) async {
+      log = _FailingLog();
+      await open(tester, from: at(0, 0));
+      expect(shownWords(tester), ['w1', 'w2', 'w3', 'w5']);
+      await enterLimit(tester, '2');
+      expect(shownWords(tester), ['w1', 'w2']);
+    });
+  });
+
   group('frequency bars', () {
     setUp(() {
       generator = _FakeGenerator([word('w1', zipf: 4.2), word('w2')]);
@@ -494,6 +607,12 @@ void main() {
       semantics.dispose();
     });
   });
+}
+
+class _FailingLog extends FakeCheatSheetLog {
+  @override
+  Future<void> save(CheatSheetSnapshot snapshot) =>
+      Future<void>.error(StateError('disk'));
 }
 
 class _FailingTerms extends FakeTermRepository {

@@ -62,6 +62,9 @@ final class DriftBookRepository implements BookRepository {
     await (_db.delete(
       _db.readingProgressTable,
     )..where((t) => t.bookId.equals(id.value))).go();
+    await (_db.delete(
+      _db.cheatSheetSnapshots,
+    )..where((t) => t.bookId.equals(id.value))).go();
     await (_db.delete(_db.books)..where((t) => t.id.equals(id.value))).go();
   });
 
@@ -337,6 +340,42 @@ final class DriftPhraseJournal implements PhraseJournal {
     locator: row.locator,
     sentence: row.sentence,
   );
+}
+
+/// [CheatSheetLog] on top of `AppDatabase`: one row per book, replaced on save.
+final class DriftCheatSheetLog implements CheatSheetLog {
+  /// Creates a log over the database.
+  new(this._db);
+
+  final AppDatabase _db;
+
+  @override
+  Future<void> save(CheatSheetSnapshot snapshot) => _db
+      .into(_db.cheatSheetSnapshots)
+      .insertOnConflictUpdate(
+        CheatSheetSnapshotsCompanion.insert(
+          bookId: snapshot.book.value,
+          shownAt: snapshot.shownAt,
+          lemmas: snapshot.lemmas,
+        ),
+      );
+
+  @override
+  Stream<CheatSheetSnapshot?> watch(BookId book) =>
+      (_db.select(_db.cheatSheetSnapshots)
+            ..where((t) => t.bookId.equals(book.value)))
+          .watchSingleOrNull()
+          .map(
+            (row) => row == null
+                ? null
+                : CheatSheetSnapshot(
+                    book: BookId(row.bookId),
+                    shownAt: row.shownAt,
+                    lemmas: row.lemmas,
+                  ),
+          )
+          // drift re-runs the query on any change of the table.
+          .distinct();
 }
 
 /// [TermRepository] on top of `AppDatabase`.

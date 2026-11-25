@@ -60,6 +60,7 @@ Future<List<Override>> buildDemoOverrides(DemoScenario scenario) async {
     ),
     lookupJournalProvider.overrideWithValue(FakeLookupJournal()),
     phraseJournalProvider.overrideWithValue(FakePhraseJournal()),
+    cheatSheetLogProvider.overrideWithValue(FakeCheatSheetLog()),
     termRepositoryProvider.overrideWithValue(FakeTermRepository()),
     packStoreProvider.overrideWithValue(FakePackStore()),
     textAnalyzerProvider.overrideWithValue(analyzer),

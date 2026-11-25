@@ -26,6 +26,7 @@ part 'database.g.dart';
     Terms,
     TermEvents,
     PhraseLookups,
+    CheatSheetSnapshots,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -33,7 +34,7 @@ class AppDatabase extends _$AppDatabase {
   new(super.e);
 
   /// Current schema version; bump it and add a step to [migration] together.
-  static const int currentSchemaVersion = 3;
+  static const int currentSchemaVersion = 4;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -59,6 +60,10 @@ class AppDatabase extends _$AppDatabase {
         await m.create(phraseLookupsAt);
         await m.create(phraseLookupsBook);
       }
+      if (from < 4) {
+        // v4: the last cheat sheet of each book.
+        await m.createTable(cheatSheetSnapshots);
+      }
     },
   );
 
@@ -67,6 +72,9 @@ class AppDatabase extends _$AppDatabase {
 
   /// Journal of translated phrases.
   DriftPhraseJournal get phraseJournal => DriftPhraseJournal(this);
+
+  /// The last cheat sheet shown for each book.
+  DriftCheatSheetLog get cheatSheetLog => DriftCheatSheetLog(this);
 
   /// Terms aggregated from the journal.
   DriftTermRepository get termRepository => DriftTermRepository(this);
