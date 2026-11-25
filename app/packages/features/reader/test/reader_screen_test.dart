@@ -66,6 +66,40 @@ class _FakeEngine implements ReaderEngine {
   }
 }
 
+/// A generator that finds the same candidates in every chapter: a word each
+/// of A2, C1 and C2, with frequencies. Records the texts it was given.
+class _FakeGenerator implements CheatSheetGenerator {
+  final List<String> texts = [];
+
+  @override
+  Future<CheatSheet> generate({
+    required String text,
+    required Locator from,
+    required Locator to,
+    Set<String> knownTerms = const {},
+    CancelToken? cancel,
+  }) async {
+    texts.add(text);
+    CheatSheetItem item(String word, CefrLevel level, double zipf) =>
+        CheatSheetItem(
+          text: word,
+          kind: CheatSheetItemKind.word,
+          level: level,
+          zipf: zipf,
+        );
+    return CheatSheet(
+      from: from,
+      to: to,
+      items: [
+        item('apple', CefrLevel.a2, 6),
+        item('cargo', CefrLevel.c1, 5),
+        item('dusk', CefrLevel.c2, 2),
+        if (text == 'Two.') item('ember', CefrLevel.c1, 4),
+      ],
+    );
+  }
+}
+
 class _WordAnalyzer implements TextAnalyzer {
   @override
   List<SentenceSpan> sentences(String text) => [SentenceSpan(0, text.length)];
@@ -96,6 +130,7 @@ void main() {
   late FakeBookRepository books;
   late FakeProgressRepository progress;
   late FakeProfileRepository profiles;
+  late _FakeGenerator generator;
   late FakeBookFormatAdapter adapter;
   late List<_FakeEngine> engines;
   late _FakeChrome chrome;
@@ -118,6 +153,8 @@ void main() {
     books = FakeBookRepository();
     progress = FakeProgressRepository();
     profiles = FakeProfileRepository();
+    terms = FakeTermRepository();
+    generator = _FakeGenerator();
     adapter = FakeBookFormatAdapter()
       ..register(
         '/x/b1.epub',
@@ -128,7 +165,6 @@ void main() {
     chrome = _FakeChrome();
     cheatSheets = FakeCheatSheetLog();
     journal = FakeLookupJournal();
-    terms = FakeTermRepository();
     _engineView = null;
     lookups = [];
     lookupOpen = null;
@@ -159,6 +195,7 @@ void main() {
       lookupJournalProvider.overrideWithValue(journal),
       termRepositoryProvider.overrideWithValue(terms),
       textAnalyzerProvider.overrideWithValue(_WordAnalyzer()),
+      cheatSheetGeneratorProvider.overrideWithValue(generator),
       bookFormatsProvider.overrideWithValue([adapter]),
       clockProvider.overrideWithValue(FakeClock()),
       systemChromeProvider.overrideWithValue(chrome),
@@ -1044,6 +1081,141 @@ void main() {
         HighlightKind.focus: [target],
         HighlightKind.recent: [at(2, 0.75)],
       });
+      await close(tester);
+    });
+  });
+
+  group('difficult words (T-117)', () {
+    const on = HighlightPrefs(difficult: true);
+
+    Set<String> difficult(_FakeEngine e) =>
+        e.allHighlights.last.words[HighlightKind.difficult] ?? const {};
+
+    macTest('the open chapter gives its words above the level', (tester) async {
+      await profiles.save(const UserProfile(highlights: on));
+      await open(tester);
+      final engine = engines.single;
+      expect(difficult(engine), {'cargo', 'dusk'});
+      expect(generator.texts, ['One.']);
+      await close(tester);
+    });
+
+    macTest('a switched off highlight computes nothing', (tester) async {
+      await open(tester);
+      final engine = engines.single;
+      expect(engine.allHighlights, isEmpty);
+      expect(generator.texts, isEmpty);
+
+      // The master toggle off with the kind on: still nothing.
+      await profiles.save(
+        const UserProfile(
+          highlights: HighlightPrefs(enabled: false, difficult: true),
+        ),
+      );
+      await tester.pump();
+      expect(engine.allHighlights, isEmpty);
+      expect(generator.texts, isEmpty);
+      await close(tester);
+    });
+
+    macTest('switching the toggle on and off', (tester) async {
+      await open(tester);
+      final engine = engines.single;
+      await profiles.save(const UserProfile(highlights: on));
+      await tester.pump();
+      await tester.pump();
+      expect(difficult(engine), {'cargo', 'dusk'});
+
+      await profiles.save(const UserProfile());
+      await tester.pump();
+      expect(engine.allHighlights.last, ReaderHighlights.none);
+      await close(tester);
+    });
+
+    macTest('a new level or threshold picks again without a new analysis', (
+      tester,
+    ) async {
+      await profiles.save(const UserProfile(highlights: on));
+      await open(tester);
+      final engine = engines.single;
+
+      await profiles.save(
+        const UserProfile(level: CefrLevel.c1, highlights: on),
+      );
+      await tester.pump();
+      expect(difficult(engine), {'dusk'});
+
+      await profiles.save(
+        const UserProfile(
+          highlights: HighlightPrefs(difficult: true, minFrequencyBars: 5),
+        ),
+      );
+      await tester.pump();
+      expect(difficult(engine), {'cargo'});
+      expect(generator.texts, ['One.']);
+      await close(tester);
+    });
+
+    macTest('a word marked known leaves the set', (tester) async {
+      await profiles.save(const UserProfile(highlights: on));
+      await open(tester);
+      final engine = engines.single;
+      expect(difficult(engine), {'cargo', 'dusk'});
+
+      await terms.save(
+        const Term(
+          id: TermId('t-cargo'),
+          normalized: 'cargo',
+          language: 'en',
+          lookupCount: 1,
+          eventIds: [],
+          status: TermStatus.known,
+        ),
+      );
+      await tester.pump();
+      expect(difficult(engine), {'dusk'});
+      expect(generator.texts, ['One.']);
+      await close(tester);
+    });
+
+    macTest('another chapter has its own set, the old one is dropped', (
+      tester,
+    ) async {
+      await profiles.save(const UserProfile(highlights: on));
+      await open(tester);
+      final engine = engines.single;
+
+      engines.single.emit(PositionChanged(at(1, 0.1)));
+      await tester.pumpAndSettle();
+      expect(engine.allHighlights.reversed.skip(1).first.words, isEmpty);
+      expect(difficult(engine), {'cargo', 'dusk', 'ember'});
+      expect(generator.texts, ['One.', 'Two.']);
+
+      // The same chapter again: nothing is analysed.
+      engine.emit(PositionChanged(at(1, 0.6)));
+      await tester.pump();
+      expect(generator.texts, ['One.', 'Two.']);
+      await close(tester);
+    });
+
+    macTest('it is drawn together with the place of a translation', (
+      tester,
+    ) async {
+      await profiles.save(const UserProfile(highlights: on));
+      await open(tester);
+      final engine = engines.single;
+      lookupOpen = Completer<void>();
+      engine.emit(
+        TextSelected(text: 'sand', at: at(0, 0.25), sentence: 'The sand.'),
+      );
+      await tester.pump();
+      expect(engine.allHighlights.last.ranges, {
+        HighlightKind.focus: [at(0, 0.25)],
+      });
+      expect(difficult(engine), {'cargo', 'dusk'});
+      lookupOpen!.complete();
+      await tester.pump();
+      await tester.pump();
       await close(tester);
     });
   });
