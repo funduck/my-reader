@@ -6,6 +6,7 @@ library;
 
 export 'src/fakes/fake_book_format_adapter.dart';
 export 'src/fakes/fake_book_repository.dart';
+export 'src/fakes/fake_cheat_sheet_log.dart';
 export 'src/fakes/fake_clock.dart';
 export 'src/fakes/fake_lookup_journal.dart';
 export 'src/fakes/fake_lookup_provider.dart';

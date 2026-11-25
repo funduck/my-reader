@@ -8,6 +8,7 @@ import 'package:drift/internal/migrations.dart';
 import 'schema_v1.g.dart' as v1;
 import 'schema_v2.g.dart' as v2;
 import 'schema_v3.g.dart' as v3;
+import 'schema_v4.g.dart' as v4;
 
 class GeneratedHelper implements SchemaInstantiationHelper {
   @override
@@ -19,10 +20,12 @@ class GeneratedHelper implements SchemaInstantiationHelper {
         return v2.DatabaseAtV2(db);
       case 3:
         return v3.DatabaseAtV3(db);
+      case 4:
+        return v4.DatabaseAtV4(db);
       default:
         throw MissingSchemaException(version, versions);
     }
   }
 
-  static const versions = const [1, 2, 3];
+  static const versions = const [1, 2, 3, 4];
 }

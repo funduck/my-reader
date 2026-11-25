@@ -212,3 +212,22 @@ class PhraseLookups extends Table {
   @override
   Set<Column<Object>> get primaryKey => {id};
 }
+
+/// The last cheat sheet shown for each book (`CheatSheetSnapshot`).
+///
+/// One row per book, replaced on every save. No foreign key to [Books]:
+/// `BookRepository.remove` deletes the row explicitly, like the progress.
+@DataClassName('CheatSheetSnapshotRow')
+class CheatSheetSnapshots extends Table {
+  /// `BookId.value`.
+  TextColumn get bookId => text()();
+
+  /// When the list was shown, microseconds since epoch (UTC).
+  IntColumn get shownAt => integer().map(const UtcDateTimeConverter())();
+
+  /// The words of the list in the order shown, as a JSON array of strings.
+  TextColumn get lemmas => text().map(const StringListConverter())();
+
+  @override
+  Set<Column<Object>> get primaryKey => {bookId};
+}

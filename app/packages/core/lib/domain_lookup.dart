@@ -5,6 +5,7 @@ library;
 
 export 'src/domain/lookup/cefr_level.dart';
 export 'src/domain/lookup/cheat_sheet.dart';
+export 'src/domain/lookup/cheat_sheet_snapshot.dart';
 export 'src/domain/lookup/ids.dart';
 export 'src/domain/lookup/lookup_event.dart';
 export 'src/domain/lookup/lookup_mode.dart';

@@ -7,3 +7,4 @@
 - Секреты (T-092): `secretStoreProvider` в `port_providers.dart`, без override бросает `PortNotWiredError`.
 - Журнал фраз (T-093): провайдер порта `phraseJournalProvider` (`PhraseJournal` из `core`); подключён в `bootstrap.dart` к `database.phraseJournal`.
 - «Знаю» (T-098): `setTermStatusProvider` (`scenario_providers.dart`) — `SetTermStatus` из `termRepositoryProvider`, `levelDictionaryProvider` и `idGeneratorProvider`; не порт, в `bootstrap.dart` ничего не добавляется. Общий для модалки, истории и (T-099) шпаргалки.
+- Последняя шпаргалка (T-118): провайдер порта `cheatSheetLogProvider` (`CheatSheetLog` из `core`); подключён в `bootstrap.dart` к `database.cheatSheetLog`, в демо — `FakeCheatSheetLog`.

@@ -1,3 +1,6 @@
+import 'package:features_cheatsheet/features_cheatsheet.dart';
+import 'package:features_common/features_common.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:my_reader_app/demo/demo_app.dart';
@@ -65,6 +68,22 @@ void main() {
     await tester.pumpWidget(const DemoApp(initial: 'cheatsheet'));
     await settle(tester);
     expect(find.text('mischievous'), findsOneWidget);
+    await unmount(tester);
+  });
+
+  testWidgets('the cheat sheet of the demo book lands in the log port', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const DemoApp(initial: 'cheatsheet'));
+    await settle(tester);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(CheatSheetScreen)),
+    );
+    final snapshot = await tester.runAsync(
+      () => container.read(cheatSheetLogProvider).watch(demoBookId).first,
+    );
+    expect(snapshot, isNotNull);
+    expect(snapshot!.lemmas, contains('mischievous'));
     await unmount(tester);
   });
 

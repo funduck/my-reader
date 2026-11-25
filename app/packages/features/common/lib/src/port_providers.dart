@@ -41,6 +41,11 @@ final Provider<PhraseJournal> phraseJournalProvider = _port<PhraseJournal>(
   'phraseJournalProvider',
 );
 
+/// The last cheat sheet shown for each book.
+final Provider<CheatSheetLog> cheatSheetLogProvider = _port<CheatSheetLog>(
+  'cheatSheetLogProvider',
+);
+
 /// Storage of terms and their statuses.
 final Provider<TermRepository> termRepositoryProvider = _port<TermRepository>(
   'termRepositoryProvider',

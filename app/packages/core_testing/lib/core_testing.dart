@@ -5,6 +5,7 @@
 library;
 
 export 'src/contracts/book_repository_contract.dart';
+export 'src/contracts/cheat_sheet_log_contract.dart';
 export 'src/contracts/format_adapter_contract.dart';
 export 'src/contracts/lookup_journal_contract.dart';
 export 'src/contracts/lookup_provider_contract.dart';
@@ -15,6 +16,7 @@ export 'src/contracts/secret_store_contract.dart';
 export 'src/contracts/term_repository_contract.dart';
 export 'src/fakes/fake_book_format_adapter.dart';
 export 'src/fakes/fake_book_repository.dart';
+export 'src/fakes/fake_cheat_sheet_log.dart';
 export 'src/fakes/fake_clock.dart';
 export 'src/fakes/fake_lookup_journal.dart';
 export 'src/fakes/fake_lookup_provider.dart';

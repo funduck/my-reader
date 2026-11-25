@@ -4,6 +4,7 @@ library;
 export 'src/ports/book_format_adapter.dart';
 export 'src/ports/cancel_token.dart';
 export 'src/ports/cheat_sheet_generator.dart';
+export 'src/ports/cheat_sheet_log.dart';
 export 'src/ports/clock.dart';
 export 'src/ports/id_generator.dart';
 export 'src/ports/level_dictionary.dart';

@@ -152,4 +152,56 @@ void main() {
     await db.phraseJournal.record(phrase);
     expect(await db.phraseJournal.byBook(const BookId('b1')), [phrase]);
   });
+
+  test('v3 data survives migration to v4, the cheat sheet log works', () async {
+    final schema = await verifier.schemaAt(3);
+    const locator = Locator(
+      book: BookId('b1'),
+      chapter: ChapterRef(href: 'c1.xhtml', index: 0),
+      progression: 0.5,
+    );
+    final at = DateTime.utc(2024, 1, 2, 3, 4, 5);
+    schema.rawDatabase
+      ..execute(
+        'INSERT INTO books (id, title, author, language, format, file_path, '
+        'content_hash, added_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        ['b1', 'Moby-Dick', null, 'en', 'epub', '/b1.epub', 'h1', 1],
+      )
+      ..execute(
+        'INSERT INTO phrase_lookups (id, phrase, translation, provider, at, '
+        'locator, book_id, sentence) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [
+          'p1',
+          'gave up',
+          'сдался',
+          'deepl',
+          at.microsecondsSinceEpoch,
+          jsonEncode(locator.toJson()),
+          'b1',
+          null,
+        ],
+      );
+
+    final db = AppDatabase(schema.newConnection());
+    addTearDown(db.close);
+    await verifier.migrateAndValidate(db, 4);
+
+    expect(
+      (await db.bookRepository.get(const BookId('b1')))?.metadata.title,
+      'Moby-Dick',
+    );
+    expect(
+      (await db.phraseJournal.byBook(const BookId('b1'))).single.id,
+      const PhraseLookupId('p1'),
+    );
+
+    expect(await db.cheatSheetLog.watch(const BookId('b1')).first, isNull);
+    final snapshot = CheatSheetSnapshot(
+      book: const BookId('b1'),
+      shownAt: at,
+      lemmas: const ['spice', 'flow'],
+    );
+    await db.cheatSheetLog.save(snapshot);
+    expect(await db.cheatSheetLog.watch(const BookId('b1')).first, snapshot);
+  });
 }

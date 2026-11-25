@@ -63,7 +63,10 @@ class CheatSheetScreen extends ConsumerWidget {
     final request = (bookId: bookId, from: from);
     final load = ref.watch(cheatSheetProvider(request));
     // Subscribed with the sheet, not after it, so the list is ready at once.
-    ref.watch(cheatSheetProfileProvider);
+    ref
+      ..watch(cheatSheetProfileProvider)
+      // Remembers the list on screen for the highlights in the text.
+      ..watch(cheatSheetSnapshotSaverProvider(request));
     return Scaffold(
       appBar: AppBar(
         title: Text(load.maybeWhen(data: _title, orElse: () => 'Разминка')),

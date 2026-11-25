@@ -40,6 +40,7 @@ void main() {
   lookupJournalContract(() => _inMemory().lookupJournal);
   termRepositoryContract(() => _inMemory().termRepository);
   phraseJournalContract(() => _inMemory().phraseJournal);
+  cheatSheetLogContract(() => _inMemory().cheatSheetLog);
 
   group('storage_drift', () {
     test(
@@ -70,6 +71,33 @@ void main() {
         expect(await progress.watch(const BookId('a')).first, isNull);
         expect(await progress.get(const BookId('b')), other);
         expect(await books.get(const BookId('b')), isNotNull);
+      },
+    );
+
+    test(
+      'removing a book removes its last cheat sheet, not the others',
+      () async {
+        final db = _inMemory();
+        final snapshot = CheatSheetSnapshot(
+          book: const BookId('b'),
+          shownAt: DateTime.utc(2024),
+          lemmas: const ['spice'],
+        );
+        await db.bookRepository.save(_book('a'));
+        await db.bookRepository.save(_book('b'));
+        await db.cheatSheetLog.save(
+          CheatSheetSnapshot(
+            book: const BookId('a'),
+            shownAt: DateTime.utc(2024),
+            lemmas: const ['flow'],
+          ),
+        );
+        await db.cheatSheetLog.save(snapshot);
+
+        await db.bookRepository.remove(const BookId('a'));
+
+        expect(await db.cheatSheetLog.watch(const BookId('a')).first, isNull);
+        expect(await db.cheatSheetLog.watch(const BookId('b')).first, snapshot);
       },
     );
 

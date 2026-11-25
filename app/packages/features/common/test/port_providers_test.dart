@@ -37,6 +37,15 @@ void main() {
     );
   });
 
+  test('the cheat sheet log port is unwired until bootstrap', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    expect(
+      () => container.read(cheatSheetLogProvider),
+      throwsA(anyOf(isA<PortNotWiredError>(), isA<ProviderException>())),
+    );
+  });
+
   test('an override supplies the port', () {
     final container = ProviderContainer(
       overrides: [clockProvider.overrideWithValue(_Clock())],
