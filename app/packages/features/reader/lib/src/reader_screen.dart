@@ -25,6 +25,10 @@ const Duration saveDebounce = Duration(seconds: 1);
 /// How long display settings must stay unchanged before they are saved.
 const Duration displaySaveDebounce = Duration(milliseconds: 300);
 
+/// How long the word that was just translated stays marked after its
+/// translation is closed (B-019).
+const Duration recentHighlightDuration = Duration(seconds: 10);
+
 /// Shows a book: the engine's view, the table of contents in a side drawer.
 ///
 /// The position is restored on open (from [locator] if given, else from the
@@ -119,6 +123,18 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   /// Ranges marked in the text apart from the word being looked up: the
   /// place opened from a route link (history).
   List<Locator> _marks = const [];
+
+  /// The place of the open translation (`focus`); `null` when none is open.
+  Locator? _looking;
+
+  /// The word that was just translated (`recent`, T-114) and the timer that
+  /// takes the mark off after [recentHighlightDuration].
+  Locator? _recent;
+  Timer? _recentTimer;
+
+  /// Counts lookups; a profile read that finished after a newer lookup began
+  /// must not mark a word.
+  int _lookups = 0;
 
   @override
   void initState() {
@@ -236,7 +252,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     final target = widget.locator;
     if (target != null) {
       _marks = [target];
-      engine.highlight(_focus(_marks));
+      _applyHighlights();
     }
     setState(() => _book = outcome.book);
     unawaited(_measure(opened));
@@ -365,16 +381,50 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     unawaited(_showLookup(text, at, sentence));
   }
 
-  /// [places] as the `focus` highlights: the open translation and the place
-  /// of a history link; no places clear everything.
-  ReaderHighlights _focus(List<Locator> places) => places.isEmpty
-      ? ReaderHighlights.none
-      : ReaderHighlights(ranges: {HighlightKind.focus: places});
+  /// Collects every kind of highlight from its field and gives the engine the
+  /// whole set; the one place that calls `ReaderEngine.highlight`.
+  void _applyHighlights() {
+    final focus = [..._marks, ?_looking];
+    final recent = _recent;
+    final ranges = <HighlightKind, List<Locator>>{
+      if (focus.isNotEmpty) HighlightKind.focus: focus,
+      if (recent != null) HighlightKind.recent: [recent],
+    };
+    _engine?.highlight(
+      ranges.isEmpty ? ReaderHighlights.none : ReaderHighlights(ranges: ranges),
+    );
+  }
+
+  /// Takes the `recent` mark off now.
+  void _clearRecent() {
+    _recentTimer?.cancel();
+    _recentTimer = null;
+    _recent = null;
+  }
+
+  /// After the translation of [at] is closed, marks it as `recent` for
+  /// [recentHighlightDuration] if the profile has that highlight on.
+  Future<void> _markRecent(Locator at, int lookup) async {
+    final prefs = (await _profiles.get()).highlights;
+    if (!mounted || lookup != _lookups) return;
+    if (!(prefs.enabled && prefs.recent)) return;
+    _recent = at;
+    _recentTimer = Timer(recentHighlightDuration, () {
+      _recent = null;
+      _recentTimer = null;
+      if (mounted) _applyHighlights();
+    });
+    _applyHighlights();
+  }
 
   /// Shows the lookup of [text]; while it is open, [at] is marked in the
-  /// text so that the reader sees which word the tap hit.
+  /// text so that the reader sees which word the tap hit; after it closes the
+  /// word stays marked for a while as `recent`.
   Future<void> _showLookup(String text, Locator at, String sentence) async {
-    _engine?.highlight(_focus([..._marks, at]));
+    final lookup = ++_lookups;
+    _clearRecent();
+    _looking = at;
+    _applyHighlights();
     try {
       await ref.read(lookupPresenterProvider)(
         context,
@@ -385,7 +435,15 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     } on Object catch (e, s) {
       _log.severe('Showing the lookup of "$text" failed', e, s);
     } finally {
-      if (mounted) _engine?.highlight(_focus(_marks));
+      if (mounted) {
+        _looking = null;
+        _applyHighlights();
+        unawaited(
+          _markRecent(at, lookup).catchError((Object e, StackTrace st) {
+            _log.warning('Marking the recent word failed', e, st);
+          }),
+        );
+      }
     }
   }
 
@@ -427,6 +485,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _closing = true;
+    _recentTimer?.cancel();
     _applyBars(visible: true);
     _flush();
     _flushDisplay();

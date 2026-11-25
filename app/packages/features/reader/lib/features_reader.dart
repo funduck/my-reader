@@ -11,6 +11,10 @@ export 'src/providers.dart'
         openBookProvider,
         saveProgressProvider;
 export 'src/reader_screen.dart'
-    show ReaderScreen, displaySaveDebounce, saveDebounce;
+    show
+        ReaderScreen,
+        displaySaveDebounce,
+        recentHighlightDuration,
+        saveDebounce;
 export 'src/system_chrome.dart'
     show PlatformSystemChrome, SystemChromeGateway, systemChromeProvider;
