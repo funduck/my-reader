@@ -27,6 +27,7 @@ export 'src/font_choice.dart'
         fontsDirectoryProvider,
         fontsFromFiles,
         importFont;
+export 'src/highlights_section.dart' show FrequencyThreshold, HighlightsSection;
 export 'src/packs_controller.dart';
 export 'src/reading_section.dart';
 export 'src/settings_screen.dart';
