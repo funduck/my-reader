@@ -12,6 +12,8 @@ import 'package:features_settings/features_settings.dart'
     show backgroundsDirectoryProvider, fontsDirectoryProvider;
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:lookup_sheet/lookup_sheet.dart';
+import 'package:material_ui/material_ui.dart';
+import 'package:reader_api/reader_api.dart';
 import 'package:reader_simple/reader_simple.dart';
 import 'package:text_en/text_en.dart';
 
@@ -111,7 +113,10 @@ Future<List<Override>> buildDemoOverrides(DemoScenario scenario) async {
     dictionaryLibraryProvider.overrideWithValue(const DemoDictionaryLibrary()),
     lookupPresenterProvider.overrideWith(buildLookupPresenter),
     readerEngineFactoryProvider.overrideWithValue(
-      () => SimpleReaderEngine(analyzer: analyzer),
+      () => DemoReaderEngine(
+        SimpleReaderEngine(analyzer: analyzer),
+        scenario.highlights,
+      ),
     ),
     booksDirectoryProvider.overrideWithValue('$files/books'),
     backgroundsDirectoryProvider.overrideWithValue('$files/backgrounds'),
@@ -148,4 +153,53 @@ class DemoDictionaryLibrary implements DictionaryLibrary {
 
   @override
   Future<bool> remove(String id) async => false;
+}
+
+/// A [ReaderEngine] that always shows the [fixed] highlights of a scenario on
+/// top of those the reader screen sets.
+class DemoReaderEngine implements ReaderEngine {
+  /// Wraps the engine `inner`.
+  new(this._inner, this.fixed) {
+    _inner.highlight(fixed);
+  }
+
+  final ReaderEngine _inner;
+
+  /// Highlights of the scenario.
+  final ReaderHighlights fixed;
+
+  @override
+  Widget buildView(BuildContext context) => _inner.buildView(context);
+
+  @override
+  Future<void> load(OpenedBook book, {required BookId bookId, Locator? at}) =>
+      _inner.load(book, bookId: bookId, at: at);
+
+  @override
+  Future<void> goTo(Locator locator) => _inner.goTo(locator);
+
+  @override
+  void applySettings(ReaderSettings settings) => _inner.applySettings(settings);
+
+  @override
+  void highlight(ReaderHighlights highlights) => _inner.highlight(
+    ReaderHighlights(
+      ranges: {
+        ...fixed.ranges,
+        for (final MapEntry(:key, :value) in highlights.ranges.entries)
+          key: [...?fixed.ranges[key], ...value],
+      },
+      words: {
+        ...fixed.words,
+        for (final MapEntry(:key, :value) in highlights.words.entries)
+          key: {...?fixed.words[key], ...value},
+      },
+    ),
+  );
+
+  @override
+  Stream<ReaderEvent> get events => _inner.events;
+
+  @override
+  Future<void> dispose() => _inner.dispose();
 }

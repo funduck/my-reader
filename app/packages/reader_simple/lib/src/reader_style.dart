@@ -56,8 +56,9 @@ final class ReaderStyle {
     required this.highlights,
   });
 
-  // Temporary colours (T-112): `focus` is the former single highlight, the
-  // other kinds only differ in hue. The final look is chosen in T-113.
+  // Colours of the kinds, accepted in the demo (T-113): `focus` is the former
+  // single highlight, the other kinds are fills of different hues. The user
+  // will be able to change them with B-020.
   static const Map<HighlightKind, HighlightStyle> _lightHighlights = {
     HighlightKind.focus: HighlightStyle(background: Color(0x80FFEB3B)),
     HighlightKind.recent: HighlightStyle(background: Color(0x6666BB6A)),

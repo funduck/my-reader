@@ -30,6 +30,8 @@ dependencies:
   material_ui: ^1.1.0
   packs_http: any
   path_provider: ^2.1.0
+  # ReaderEngine and highlights for the demo app.
+  reader_api: any
   reader_simple: any
   secrets_os: any
   storage_drift: any
@@ -39,6 +41,5 @@ dev_dependencies:
     sdk: flutter
   integration_test:
     sdk: flutter
-  reader_api: any
 flutter:
   uses-material-design: true

@@ -2,6 +2,7 @@ import 'package:core/domain_books.dart';
 import 'package:core/domain_lookup.dart';
 import 'package:lookup_sheet/lookup_sheet.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:reader_api/reader_api.dart';
 
 import '../router.dart';
 import 'demo_data.dart';
@@ -23,6 +24,7 @@ final class DemoScenario {
     required this.location,
     this.profile = const UserProfile(),
     this.afterFirstFrame,
+    this.highlights = ReaderHighlights.none,
   });
 
   /// Value of `--dart-define=SCENARIO=<id>`.
@@ -39,6 +41,9 @@ final class DemoScenario {
 
   /// Action after the first frame; `null` — none.
   final DemoAction? afterFirstFrame;
+
+  /// Highlights always shown in the reader on top of those of the screen.
+  final ReaderHighlights highlights;
 }
 
 /// Locator of [quote] in the first chapter of the demo book.
@@ -107,6 +112,12 @@ final List<DemoScenario> demoScenarios = [
     afterFirstFrame: _lookup(demoPhrase, LookupMode.enRu),
   ),
   DemoScenario(
+    id: 'reader_highlights',
+    title: 'Reader, every kind of highlight (T-113)',
+    location: _reader,
+    highlights: demoAllHighlights,
+  ),
+  DemoScenario(
     id: 'cheatsheet',
     title: 'Cheat sheet of the demo book',
     location: Routes.cheatsheetFor(demoBookId.value),
@@ -120,3 +131,17 @@ DemoScenario? demoScenarioById(String id) {
   }
   return null;
 }
+
+/// Every kind of highlight in the first chapter of the demo book; "lantern"
+/// is both a cheat sheet word and a difficult one.
+final ReaderHighlights demoAllHighlights = ReaderHighlights(
+  ranges: {
+    HighlightKind.focus: [demoLocator('stories')],
+    HighlightKind.recent: [demoLocator('dusty')],
+  },
+  words: const {
+    HighlightKind.lookedUp: {'reluctant'},
+    HighlightKind.cheatSheet: {'lantern', 'harbour'},
+    HighlightKind.difficult: {'lantern', 'mischievous', 'threshold', 'weary'},
+  },
+);
