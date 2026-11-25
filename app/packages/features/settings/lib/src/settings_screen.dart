@@ -7,6 +7,7 @@ import 'package:logging/logging.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'dictionaries_section.dart';
+import 'highlights_section.dart';
 import 'packs_controller.dart';
 import 'reading_section.dart';
 import 'translation_section.dart';
@@ -49,6 +50,8 @@ class SettingsScreen extends ConsumerWidget {
           padding: const EdgeInsets.all(16),
           children: [
             ReadingSection(display: p.display),
+            const SizedBox(height: 24),
+            HighlightsSection(highlights: p.highlights),
             const SizedBox(height: 24),
             _ServiceUrlField(initial: p.serviceUrl),
             const SizedBox(height: 24),

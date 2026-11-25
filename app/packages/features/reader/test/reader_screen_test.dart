@@ -1010,6 +1010,76 @@ void main() {
       await tester.pumpWidget(const SizedBox());
       await tester.pump();
     });
+
+    macTest('a highlight switch in the panel saves the profile', (
+      tester,
+    ) async {
+      await open(tester);
+      await tester.tap(find.byTooltip('Text'));
+      await tester.pumpAndSettle();
+      expect((await profiles.get()).highlights.difficult, isFalse);
+      final difficult = find.byKey(const Key('highlight-difficult'));
+      await tester.ensureVisible(difficult);
+      await tester.tap(difficult);
+      await tester.pumpAndSettle();
+      var highlights = (await profiles.get()).highlights;
+      expect(highlights.difficult, isTrue);
+      // Other fields and the display settings stay as they were.
+      expect(highlights.cheatSheet, isTrue);
+      await tester.tap(find.byKey(const Key('highlight-recent')));
+      await tester.pumpAndSettle();
+      highlights = (await profiles.get()).highlights;
+      expect(highlights.recent, isFalse);
+      expect(highlights.difficult, isTrue);
+      expect(
+        tester
+            .widget<SwitchListTile>(find.byKey(const Key('highlight-recent')))
+            .value,
+        isFalse,
+      );
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+    });
+
+    macTest('with the master switch off the kind switches are inactive', (
+      tester,
+    ) async {
+      await profiles.save(
+        const UserProfile(highlights: HighlightPrefs(enabled: false)),
+      );
+      await open(tester);
+      await tester.tap(find.byTooltip('Text'));
+      await tester.pumpAndSettle();
+      const kinds = [
+        'highlight-difficult',
+        'highlight-cheat-sheet',
+        'highlight-looked-up',
+        'highlight-recent',
+      ];
+      SwitchListTile tile(String key) =>
+          tester.widget<SwitchListTile>(find.byKey(Key(key)));
+      for (final key in kinds) {
+        expect(tile(key).onChanged, isNull, reason: key);
+      }
+      final master = find.byKey(const Key('highlights-enabled'));
+      await tester.ensureVisible(master);
+      await tester.tap(master);
+      await tester.pumpAndSettle();
+      expect((await profiles.get()).highlights.enabled, isTrue);
+      for (final key in kinds) {
+        expect(tile(key).onChanged, isNotNull, reason: key);
+      }
+      // The kinds keep their values while the master switch is off.
+      await tester.tap(master);
+      await tester.pumpAndSettle();
+      final highlights = (await profiles.get()).highlights;
+      expect(highlights.enabled, isFalse);
+      expect(highlights.cheatSheet, isTrue);
+      expect(tile('highlight-cheat-sheet').value, isTrue);
+      expect(tile('highlight-cheat-sheet').onChanged, isNull);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+    });
   });
 }
 
