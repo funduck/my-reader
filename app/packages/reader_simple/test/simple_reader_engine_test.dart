@@ -163,6 +163,28 @@ void main() {
       expect(find.text('•'), findsOneWidget);
     });
 
+    testWidgets('body text is justified, headings are not', (tester) async {
+      await _open(
+        tester,
+        _DocBook(const [
+          ContentDocument([
+            HeadingBlock(level: 1, inlines: [TextInline('Title')]),
+            ParagraphBlock([TextInline('Body text.')]),
+            ListBlock(
+              ordered: false,
+              items: [
+                [TextInline('Item.')],
+              ],
+            ),
+          ]),
+        ]),
+      );
+
+      expect(_text(tester, 'Title').textAlign, TextAlign.start);
+      expect(_text(tester, 'Body text.').textAlign, TextAlign.justify);
+      expect(_text(tester, 'Item.').textAlign, TextAlign.justify);
+    });
+
     testWidgets('an image is read through OpenedBook.resource', (tester) async {
       final book = _DocBook(
         [

@@ -138,6 +138,7 @@ class BlockView extends StatelessWidget {
       inlines,
       style.heading(level),
       base,
+      align: TextAlign.start,
     ),
     QuoteBlock(:final blocks) => DecoratedBox(
       decoration: BoxDecoration(
@@ -204,7 +205,14 @@ class BlockView extends StatelessWidget {
     return rows;
   }
 
-  Widget _text(List<Inline> inlines, TextStyle textStyle, int base) {
+  /// Body text is justified (B-014, item 5); headings pass
+  /// [TextAlign.start].
+  Widget _text(
+    List<Inline> inlines,
+    TextStyle textStyle,
+    int base, {
+    TextAlign align = TextAlign.justify,
+  }) {
     final text = inlinesText(inlines);
     final local = [
       for (final (start, end) in highlights)
@@ -217,6 +225,7 @@ class BlockView extends StatelessWidget {
       readerStyle: style,
       highlights: local,
       style: textStyle,
+      align: align,
       interactions: interactions,
     );
   }
@@ -248,6 +257,7 @@ class _InteractiveText extends StatefulWidget {
     required this.readerStyle,
     required this.highlights,
     required this.style,
+    required this.align,
     required this.interactions,
   });
 
@@ -258,6 +268,7 @@ class _InteractiveText extends StatefulWidget {
   /// Highlight ranges in `target.text`.
   final List<(int, int)> highlights;
   final TextStyle style;
+  final TextAlign align;
   final TextInteractions interactions;
 
   @override
@@ -466,6 +477,7 @@ class _InteractiveTextState extends State<_InteractiveText> {
             highlights: widget.highlights,
           ),
           style: widget.style,
+          textAlign: widget.align,
           focusNode: _focus,
           onSelectionChanged: _onSelectionChanged,
           contextMenuBuilder: _menu,

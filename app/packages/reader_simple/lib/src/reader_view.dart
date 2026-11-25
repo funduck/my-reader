@@ -243,37 +243,69 @@ class _ChapterListState extends State<_ChapterList> implements ViewportBridge {
       ),
       itemCount: blocks.length + 2,
       initialScrollIndex: chapter.startBlock + 1,
-      itemBuilder: (context, i) {
-        if (i == 0) {
-          return _EdgeButton(
-            label: 'Previous chapter',
-            style: style,
-            engine: engine,
-            onPressed: hasPrevious ? engine.openPrevious : null,
-          );
-        }
-        if (i == blocks.length + 1) {
-          return _EdgeButton(
-            label: 'Next chapter',
-            style: style,
-            engine: engine,
-            onPressed: hasNext ? engine.openNext : null,
-          );
-        }
-        return KeyedSubtree(
-          key: _blockKeys.putIfAbsent(i - 1, GlobalKey.new),
-          child: BlockView(
-            block: blocks[i - 1],
-            index: i - 1,
-            style: style,
-            loadResource: engine.loadResource,
-            interactions: engine,
-            highlights: widget.highlights[i - 1] ?? const [],
-          ),
-        );
-      },
+      // Every item is a centred column no wider than the style allows; the
+      // list itself, and so scrolling, spans the whole view.
+      itemBuilder: (context, i) => _Column(
+        width: style.maxColumnWidth,
+        child: _item(i, blocks, style, engine, hasPrevious, hasNext),
+      ),
     );
   }
+
+  /// Item [i] of the list: the edge buttons around the blocks.
+  Widget _item(
+    int i,
+    List<Block> blocks,
+    ReaderStyle style,
+    SimpleReaderEngine engine,
+    bool hasPrevious,
+    bool hasNext,
+  ) {
+    if (i == 0) {
+      return _EdgeButton(
+        label: 'Previous chapter',
+        style: style,
+        engine: engine,
+        onPressed: hasPrevious ? engine.openPrevious : null,
+      );
+    }
+    if (i == blocks.length + 1) {
+      return _EdgeButton(
+        label: 'Next chapter',
+        style: style,
+        engine: engine,
+        onPressed: hasNext ? engine.openNext : null,
+      );
+    }
+    return KeyedSubtree(
+      key: _blockKeys.putIfAbsent(i - 1, GlobalKey.new),
+      child: BlockView(
+        block: blocks[i - 1],
+        index: i - 1,
+        style: style,
+        loadResource: engine.loadResource,
+        interactions: engine,
+        highlights: widget.highlights[i - 1] ?? const [],
+      ),
+    );
+  }
+}
+
+/// [child] centred, as wide as the view but at most [width].
+class _Column extends StatelessWidget {
+  const new({required this.width, required this.child});
+
+  final double width;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: width),
+      // Fills the column even when the content is narrower.
+      child: SizedBox(width: double.infinity, child: child),
+    ),
+  );
 }
 
 /// The control at the start or end of the list; empty when there is no

@@ -47,6 +47,13 @@ final class ReaderStyle {
   /// Vertical padding above and below each block.
   static const double blockPadding = 8;
 
+  /// Widest text column in units of the body font size: about 65–75
+  /// characters a line (T-111). Long lines on a wide window are hard to read.
+  static const double maxColumnEms = 34;
+
+  /// Widest text column, in logical pixels; the side padding is inside it.
+  double get maxColumnWidth => settings.fontSize * maxColumnEms;
+
   /// Style of body text.
   TextStyle get body => TextStyle(
     fontFamily: settings.fontFamily,
