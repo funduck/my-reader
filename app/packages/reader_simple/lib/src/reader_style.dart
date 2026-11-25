@@ -1,6 +1,36 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:reader_api/reader_api.dart';
 
+/// How text of one [HighlightKind] is drawn: a background, an underline or
+/// both; a `null` colour draws nothing of that sort.
+@immutable
+final class HighlightStyle {
+  /// Creates a style; a style with neither colour draws nothing.
+  const new({this.background, this.underline});
+
+  /// Background colour behind the text.
+  final Color? background;
+
+  /// Colour of a line under the text.
+  final Color? underline;
+
+  /// The text style that draws this highlight.
+  TextStyle get textStyle => TextStyle(
+    backgroundColor: background,
+    decoration: underline == null ? null : TextDecoration.underline,
+    decorationColor: underline,
+  );
+
+  @override
+  bool operator ==(Object other) =>
+      other is HighlightStyle &&
+      other.background == background &&
+      other.underline == underline;
+
+  @override
+  int get hashCode => Object.hash(background, underline);
+}
+
 /// Colours and text styles derived from [ReaderSettings].
 @immutable
 final class ReaderStyle {
@@ -13,7 +43,7 @@ final class ReaderStyle {
       text: settings.text,
       link: dark ? const Color(0xFF90CAF9) : const Color(0xFF1565C0),
       muted: Color.lerp(settings.text, settings.background, 0.45)!,
-      highlight: dark ? const Color(0x66FFD54F) : const Color(0x80FFEB3B),
+      highlights: dark ? _darkHighlights : _lightHighlights,
     );
   }
 
@@ -23,8 +53,26 @@ final class ReaderStyle {
     required this.text,
     required this.link,
     required this.muted,
-    required this.highlight,
+    required this.highlights,
   });
+
+  // Temporary colours (T-112): `focus` is the former single highlight, the
+  // other kinds only differ in hue. The final look is chosen in T-113.
+  static const Map<HighlightKind, HighlightStyle> _lightHighlights = {
+    HighlightKind.focus: HighlightStyle(background: Color(0x80FFEB3B)),
+    HighlightKind.recent: HighlightStyle(background: Color(0x6666BB6A)),
+    HighlightKind.lookedUp: HighlightStyle(background: Color(0x5542A5F5)),
+    HighlightKind.cheatSheet: HighlightStyle(background: Color(0x55AB47BC)),
+    HighlightKind.difficult: HighlightStyle(background: Color(0x55FF7043)),
+  };
+
+  static const Map<HighlightKind, HighlightStyle> _darkHighlights = {
+    HighlightKind.focus: HighlightStyle(background: Color(0x66FFD54F)),
+    HighlightKind.recent: HighlightStyle(background: Color(0x6681C784)),
+    HighlightKind.lookedUp: HighlightStyle(background: Color(0x6664B5F6)),
+    HighlightKind.cheatSheet: HighlightStyle(background: Color(0x66CE93D8)),
+    HighlightKind.difficult: HighlightStyle(background: Color(0x66FF8A65)),
+  };
 
   /// The settings this style was derived from.
   final ReaderSettings settings;
@@ -41,8 +89,11 @@ final class ReaderStyle {
   /// Colour of secondary elements: quote bar, bullets, captions.
   final Color muted;
 
-  /// Background of text marked by `highlight`.
-  final Color highlight;
+  /// How each [HighlightKind] is drawn; has every kind.
+  final Map<HighlightKind, HighlightStyle> highlights;
+
+  /// The style of [kind].
+  HighlightStyle highlightOf(HighlightKind kind) => highlights[kind]!;
 
   /// Vertical padding above and below each block.
   static const double blockPadding = 8;

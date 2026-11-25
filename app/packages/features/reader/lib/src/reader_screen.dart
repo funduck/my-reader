@@ -236,7 +236,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     final target = widget.locator;
     if (target != null) {
       _marks = [target];
-      engine.highlight(_marks);
+      engine.highlight(_focus(_marks));
     }
     setState(() => _book = outcome.book);
     unawaited(_measure(opened));
@@ -365,10 +365,16 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     unawaited(_showLookup(text, at, sentence));
   }
 
+  /// [places] as the `focus` highlights: the open translation and the place
+  /// of a history link; no places clear everything.
+  ReaderHighlights _focus(List<Locator> places) => places.isEmpty
+      ? ReaderHighlights.none
+      : ReaderHighlights(ranges: {HighlightKind.focus: places});
+
   /// Shows the lookup of [text]; while it is open, [at] is marked in the
   /// text so that the reader sees which word the tap hit.
   Future<void> _showLookup(String text, Locator at, String sentence) async {
-    _engine?.highlight([..._marks, at]);
+    _engine?.highlight(_focus([..._marks, at]));
     try {
       await ref.read(lookupPresenterProvider)(
         context,
@@ -379,7 +385,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     } on Object catch (e, s) {
       _log.severe('Showing the lookup of "$text" failed', e, s);
     } finally {
-      if (mounted) _engine?.highlight(_marks);
+      if (mounted) _engine?.highlight(_focus(_marks));
     }
   }
 

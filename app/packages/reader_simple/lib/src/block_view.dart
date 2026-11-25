@@ -5,7 +5,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:reader_api/reader_api.dart';
 
+import 'highlights.dart';
 import 'interactions.dart';
 import 'position.dart';
 import 'reader_style.dart';
@@ -15,12 +17,12 @@ typedef ResourceLoader = Future<Uint8List> Function(String href);
 
 /// Builds the span for [inlines]: italic, bold and link runs nest.
 ///
-/// [highlights] are `(start, end)` ranges in the text of [inlines] that get
-/// the background `style.highlight`.
+/// [highlights] are ranges in the text of [inlines] drawn in the style of
+/// their kind; where ranges overlap, the kind declared first wins.
 TextSpan inlineSpan(
   List<Inline> inlines,
   ReaderStyle style, {
-  List<(int, int)> highlights = const [],
+  List<BlockHighlight> highlights = const [],
 }) {
   final builder = _SpanBuilder(style, highlights);
   return TextSpan(children: [for (final i in inlines) builder.span(i)]);
@@ -30,7 +32,7 @@ class _SpanBuilder {
   new(this.style, this.highlights);
 
   final ReaderStyle style;
-  final List<(int, int)> highlights;
+  final List<BlockHighlight> highlights;
 
   /// Offset in the text of the inlines of the next character.
   int _at = 0;
@@ -61,7 +63,7 @@ class _SpanBuilder {
     _at = to;
     final cuts = <int>{0, text.length};
     var touched = false;
-    for (final (start, end) in highlights) {
+    for (final (:start, :end, kind: _) in highlights) {
       if (end <= from || start >= to) continue;
       touched = true;
       cuts
@@ -75,16 +77,23 @@ class _SpanBuilder {
         for (var i = 0; i + 1 < sorted.length; i++)
           TextSpan(
             text: text.substring(sorted[i], sorted[i + 1]),
-            style: _marked(from + sorted[i], from + sorted[i + 1])
-                ? TextStyle(backgroundColor: style.highlight)
-                : null,
+            style: _styleOf(from + sorted[i], from + sorted[i + 1]),
           ),
       ],
     );
   }
 
-  bool _marked(int start, int end) =>
-      highlights.any((r) => r.$1 <= start && end <= r.$2);
+  /// The style of the kind that has priority over the text `[start, end)`,
+  /// or `null` when nothing marks it.
+  TextStyle? _styleOf(int start, int end) {
+    HighlightKind? best;
+    for (final h in highlights) {
+      if (h.start <= start && end <= h.end) {
+        if (best == null || h.kind.index < best.index) best = h.kind;
+      }
+    }
+    return best == null ? null : style.highlightOf(best).textStyle;
+  }
 }
 
 /// One block of a chapter. A block is one list item of the reader, so the
@@ -92,7 +101,7 @@ class _SpanBuilder {
 class BlockView extends StatelessWidget {
   /// Creates the view of [block], which has index [index] in its chapter;
   /// [loadResource] feeds [ImageBlock]s, taps and selections go to
-  /// [interactions], [highlights] are ranges of the block text to mark.
+  /// [interactions], [highlights] are the ranges of the block text to mark.
   const new({
     required this.block,
     required this.index,
@@ -118,8 +127,8 @@ class BlockView extends StatelessWidget {
   /// Receiver of taps and selections.
   final TextInteractions interactions;
 
-  /// `(start, end)` ranges of `blockText(block)` drawn with a background.
-  final List<(int, int)> highlights;
+  /// Ranges of `blockText(block)` drawn in the style of their kind.
+  final List<BlockHighlight> highlights;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -215,9 +224,9 @@ class BlockView extends StatelessWidget {
   }) {
     final text = inlinesText(inlines);
     final local = [
-      for (final (start, end) in highlights)
-        if (end > base && start < base + text.length)
-          (start - base, end - base),
+      for (final h in highlights)
+        if (h.end > base && h.start < base + text.length)
+          (start: h.start - base, end: h.end - base, kind: h.kind),
     ];
     return _InteractiveText(
       target: TextTarget(block: index, base: base, text: text),
@@ -266,7 +275,7 @@ class _InteractiveText extends StatefulWidget {
   final ReaderStyle readerStyle;
 
   /// Highlight ranges in `target.text`.
-  final List<(int, int)> highlights;
+  final List<BlockHighlight> highlights;
   final TextStyle style;
   final TextAlign align;
   final TextInteractions interactions;

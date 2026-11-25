@@ -51,7 +51,7 @@ class _TimedEngine implements ReaderEngine {
   void applySettings(ReaderSettings settings) => _inner.applySettings(settings);
 
   @override
-  void highlight(List<Locator> ranges) => _inner.highlight(ranges);
+  void highlight(ReaderHighlights highlights) => _inner.highlight(highlights);
 
   @override
   Stream<ReaderEvent> get events => _inner.events.map((event) {
