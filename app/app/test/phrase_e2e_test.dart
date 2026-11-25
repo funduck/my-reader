@@ -147,7 +147,6 @@ void main() {
     expect(body['text'], [phrase]);
     expect(body['context'], fixtureParagraph);
 
-    await tester.pumpWidget(const SizedBox());
-    await tester.pump(const Duration(milliseconds: 1));
+    await unmountApp(tester);
   });
 }

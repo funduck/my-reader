@@ -240,6 +240,7 @@ void main() {
           bookFormatsProvider.overrideWithValue([adapter]),
           lookupJournalProvider.overrideWithValue(FakeLookupJournal()),
           termRepositoryProvider.overrideWithValue(FakeTermRepository()),
+          cheatSheetLogProvider.overrideWithValue(FakeCheatSheetLog()),
           readerEngineFactoryProvider.overrideWithValue(
             () => SimpleReaderEngine(analyzer: const EnglishTextAnalyzer()),
           ),

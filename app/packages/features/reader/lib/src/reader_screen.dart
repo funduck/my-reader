@@ -442,24 +442,19 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
 
   /// Starts the lemma sets of the `cheatSheet` and `lookedUp` highlights.
   void _startWordHighlights() {
-    try {
-      final source = WordHighlightSource(
-        book: widget.bookId,
-        cheatSheets: ref.read(cheatSheetLogProvider),
-        journal: ref.read(lookupJournalProvider),
-        terms: ref.read(termRepositoryProvider),
-        analyzer: ref.read(textAnalyzerProvider),
-        onChanged: (sets) {
-          _wordSets = sets;
-          _applyHighlights();
-        },
-      );
-      _wordSource = source;
-      source.start();
-    } on Object catch (e, s) {
-      // A scope without these ports reads without word highlights.
-      _log.warning('Word highlights are off', e, s);
-    }
+    final source = WordHighlightSource(
+      book: widget.bookId,
+      cheatSheets: ref.read(cheatSheetLogProvider),
+      journal: ref.read(lookupJournalProvider),
+      terms: ref.read(termRepositoryProvider),
+      analyzer: ref.read(textAnalyzerProvider),
+      onChanged: (sets) {
+        _wordSets = sets;
+        _applyHighlights();
+      },
+    );
+    _wordSource = source;
+    source.start();
   }
 
   /// Collects every kind of highlight from its field and gives the engine the

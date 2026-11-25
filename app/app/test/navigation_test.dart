@@ -96,6 +96,7 @@ void main() {
           bookFormatsProvider.overrideWithValue([adapter]),
           lookupJournalProvider.overrideWithValue(FakeLookupJournal()),
           termRepositoryProvider.overrideWithValue(FakeTermRepository()),
+          cheatSheetLogProvider.overrideWithValue(FakeCheatSheetLog()),
           readerEngineFactoryProvider.overrideWithValue(() => engine),
           if (at != null)
             routerProvider.overrideWith(

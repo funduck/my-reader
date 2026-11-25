@@ -132,6 +132,8 @@ void main() {
           ),
           lookupJournalProvider.overrideWithValue(database.lookupJournal),
           termRepositoryProvider.overrideWithValue(database.termRepository),
+          cheatSheetLogProvider.overrideWithValue(FakeCheatSheetLog()),
+          textAnalyzerProvider.overrideWithValue(const EnglishTextAnalyzer()),
           bookFormatsProvider.overrideWithValue([adapter]),
           readerEngineFactoryProvider.overrideWithValue(() {
             final engine = _FakeEngine();
@@ -163,13 +165,20 @@ void main() {
     expect(find.text('engine view'), findsOneWidget);
     expect(engines, hasLength(1));
     expect(engines.single.loadedAt, [place]);
-    expect(engines.single.highlights, [
-      [place],
-    ]);
+    // The place is marked; word highlights (T-119: the looked-up word) may
+    // follow in a later call, with the same focus.
+    expect(engines.single.highlights, isNotEmpty);
+    expect(engines.single.highlights, everyElement([place]));
 
     // Unmount so that the reader saves and releases the engine.
     await tester.pumpWidget(const SizedBox());
-    // Drift cancels its streams on a zero-duration timer.
-    await tester.pump(const Duration(milliseconds: 1));
+    // Drift cancels its streams on a zero-duration timer; the word
+    // highlights (T-119) cancel theirs one after another.
+    for (var i = 0; i < 3; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 10)),
+      );
+      await tester.pump(const Duration(milliseconds: 1));
+    }
   });
 }

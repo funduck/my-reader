@@ -5,6 +5,7 @@ import 'package:core/domain_books.dart';
 import 'package:core/domain_lookup.dart';
 import 'package:core_testing/core_testing.dart';
 import 'package:features_common/features_common.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -137,6 +138,7 @@ class LookupFixture {
     profileRepositoryProvider.overrideWithValue(FakeProfileRepository()),
     lookupJournalProvider.overrideWithValue(database.lookupJournal),
     termRepositoryProvider.overrideWithValue(database.termRepository),
+    cheatSheetLogProvider.overrideWithValue(database.cheatSheetLog),
     bookFormatsProvider.overrideWithValue([adapter]),
     readerEngineFactoryProvider.overrideWithValue(engine),
     routerProvider.overrideWith(
@@ -178,4 +180,17 @@ Future<void> expectLookups(
   expect(terms.single.lookupCount, taps);
   expect(terms.single.eventIds, hasLength(taps));
   expect(fixture.client.attempts, isEmpty, reason: 'the lookup is offline');
+}
+
+/// Unmounts the app and lets drift close its streams: the reader's word
+/// highlights (T-119) cancel their drift subscriptions one after another,
+/// and drift closes each on a zero-duration timer.
+Future<void> unmountApp(WidgetTester tester) async {
+  await tester.pumpWidget(const SizedBox());
+  for (var i = 0; i < 3; i++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 10)),
+    );
+    await tester.pump(const Duration(milliseconds: 1));
+  }
 }

@@ -123,7 +123,6 @@ void main() {
 
     // Unmount; drift cancels its streams on a zero-duration timer. The
     // database is not closed: closing inside runAsync hangs.
-    await tester.pumpWidget(const SizedBox());
-    await tester.pump(const Duration(milliseconds: 1));
+    await unmountApp(tester);
   });
 }

@@ -13,6 +13,7 @@ import 'package:my_reader_app/bootstrap.dart';
 import 'package:my_reader_app/router.dart';
 import 'package:reader_api/reader_api.dart';
 import 'package:storage_drift/storage_drift.dart';
+import 'package:text_en/text_en.dart';
 
 class _FakeEngine implements ReaderEngine {
   final _events = StreamController<ReaderEvent>.broadcast();
@@ -95,6 +96,10 @@ void main() {
             database.progressRepository,
           ),
           bookFormatsProvider.overrideWithValue([_adapter]),
+          lookupJournalProvider.overrideWithValue(FakeLookupJournal()),
+          termRepositoryProvider.overrideWithValue(FakeTermRepository()),
+          textAnalyzerProvider.overrideWithValue(const EnglishTextAnalyzer()),
+          cheatSheetLogProvider.overrideWithValue(FakeCheatSheetLog()),
           readerEngineFactoryProvider.overrideWithValue(() {
             final engine = _FakeEngine();
             engines.add(engine);
