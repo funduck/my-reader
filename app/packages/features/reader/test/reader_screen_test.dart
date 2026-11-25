@@ -898,7 +898,7 @@ void main() {
       expect(open_.words[HighlightKind.cheatSheet], {'sand'});
       lookupOpen!.complete();
       await tester.pump();
-      expect(engine.allHighlights.last.ranges, isEmpty);
+      expect(engine.allHighlights.last.ranges[HighlightKind.focus], isNull);
       expect(engine.allHighlights.last.words[HighlightKind.cheatSheet], {
         'sand',
       });
@@ -947,6 +947,105 @@ void main() {
     await tester.pump();
     expect(engine.highlights.last, [target]);
     await close(tester);
+  });
+
+  group('the just translated word (T-114)', () {
+    List<Locator> recent(_FakeEngine e) =>
+        e.allHighlights.last.ranges[HighlightKind.recent] ?? const [];
+
+    Future<void> select(
+      WidgetTester tester,
+      _FakeEngine e,
+      Locator place,
+    ) async {
+      lookupOpen = Completer<void>();
+      e.emit(TextSelected(text: 'sand', at: place, sentence: 'The sand.'));
+      await tester.pump();
+    }
+
+    Future<void> closeLookup(WidgetTester tester) async {
+      lookupOpen!.complete();
+      await tester.pump();
+      await tester.pump();
+    }
+
+    macTest('is marked after the lookup closes and for 10 seconds only', (
+      tester,
+    ) async {
+      await open(tester);
+      final engine = engines.single;
+      await select(tester, engine, at(1, 0.25));
+      expect(recent(engine), isEmpty);
+      await closeLookup(tester);
+      expect(recent(engine), [at(1, 0.25)]);
+      expect(engine.highlights.last, isEmpty);
+
+      await tester.pump(recentHighlightDuration - const Duration(seconds: 1));
+      expect(recent(engine), [at(1, 0.25)]);
+      await tester.pump(const Duration(seconds: 1));
+      expect(engine.allHighlights.last, ReaderHighlights.none);
+      await close(tester);
+    });
+
+    macTest('a new lookup takes the previous mark off at once', (tester) async {
+      await open(tester);
+      final engine = engines.single;
+      await select(tester, engine, at(1, 0.25));
+      await closeLookup(tester);
+      await tester.pump(const Duration(seconds: 3));
+      expect(recent(engine), [at(1, 0.25)]);
+
+      await select(tester, engine, at(1, 0.5));
+      expect(recent(engine), isEmpty);
+      expect(engine.highlights.last, [at(1, 0.5)]);
+      await closeLookup(tester);
+      expect(recent(engine), [at(1, 0.5)]);
+
+      // The first mark's timer is gone: only 10 s after the second lookup
+      // the mark leaves.
+      await tester.pump(const Duration(seconds: 8));
+      expect(recent(engine), [at(1, 0.5)]);
+      await tester.pump(const Duration(seconds: 2));
+      expect(engine.allHighlights.last, ReaderHighlights.none);
+      await close(tester);
+    });
+
+    macTest('stays off when the profile has it off', (tester) async {
+      await profiles.save(
+        const UserProfile(highlights: HighlightPrefs(recent: false)),
+      );
+      await open(tester);
+      final engine = engines.single;
+      await select(tester, engine, at(1, 0.25));
+      await closeLookup(tester);
+      expect(engine.allHighlights.last, ReaderHighlights.none);
+      await close(tester);
+    });
+
+    macTest('stays off when all highlights are off', (tester) async {
+      await profiles.save(
+        const UserProfile(highlights: HighlightPrefs(enabled: false)),
+      );
+      await open(tester);
+      final engine = engines.single;
+      await select(tester, engine, at(1, 0.25));
+      await closeLookup(tester);
+      expect(engine.allHighlights.last, ReaderHighlights.none);
+      await close(tester);
+    });
+
+    macTest('keeps the place from history while it is marked', (tester) async {
+      final target = at(2, 0.5);
+      await open(tester, locator: target);
+      final engine = engines.single;
+      await select(tester, engine, at(2, 0.75));
+      await closeLookup(tester);
+      expect(engine.allHighlights.last.ranges, {
+        HighlightKind.focus: [target],
+        HighlightKind.recent: [at(2, 0.75)],
+      });
+      await close(tester);
+    });
   });
 
   macTest('a selected phrase is passed to the lookup the same way', (

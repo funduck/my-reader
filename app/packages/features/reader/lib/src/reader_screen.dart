@@ -26,6 +26,10 @@ const Duration saveDebounce = Duration(seconds: 1);
 /// How long display settings must stay unchanged before they are saved.
 const Duration displaySaveDebounce = Duration(milliseconds: 300);
 
+/// How long the word that was just translated stays marked after its
+/// translation is closed (B-019).
+const Duration recentHighlightDuration = Duration(seconds: 10);
+
 /// Shows a book: the engine's view, the table of contents in a side drawer.
 ///
 /// The position is restored on open (from [locator] if given, else from the
@@ -121,8 +125,17 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   /// place opened from a route link (history).
   List<Locator> _marks = const [];
 
-  /// The place of the word whose lookup is open; `null` when none is.
-  Locator? _openLookup;
+  /// The place of the open translation (`focus`); `null` when none is open.
+  Locator? _looking;
+
+  /// The word that was just translated (`recent`, T-114) and the timer that
+  /// takes the mark off after [recentHighlightDuration].
+  Locator? _recent;
+  Timer? _recentTimer;
+
+  /// Counts lookups; a profile read that finished after a newer lookup began
+  /// must not mark a word.
+  int _lookups = 0;
 
   /// Which highlight kinds the reader switched on (T-115).
   HighlightPrefs _highlightPrefs = const HighlightPrefs();
@@ -392,31 +405,41 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
 
   /// Starts the lemma sets of the `cheatSheet` and `lookedUp` highlights.
   void _startWordHighlights() {
-    final source = WordHighlightSource(
-      book: widget.bookId,
-      cheatSheets: ref.read(cheatSheetLogProvider),
-      journal: ref.read(lookupJournalProvider),
-      terms: ref.read(termRepositoryProvider),
-      analyzer: ref.read(textAnalyzerProvider),
-      onChanged: (sets) {
-        _wordSets = sets;
-        _applyHighlights();
-      },
-    );
-    _wordSource = source;
-    source.start();
+    try {
+      final source = WordHighlightSource(
+        book: widget.bookId,
+        cheatSheets: ref.read(cheatSheetLogProvider),
+        journal: ref.read(lookupJournalProvider),
+        terms: ref.read(termRepositoryProvider),
+        analyzer: ref.read(textAnalyzerProvider),
+        onChanged: (sets) {
+          _wordSets = sets;
+          _applyHighlights();
+        },
+      );
+      _wordSource = source;
+      source.start();
+    } on Object catch (e, s) {
+      // A scope without these ports reads without word highlights.
+      _log.warning('Word highlights are off', e, s);
+    }
   }
 
-  /// Gives the engine everything that is marked: the focus places and, per
-  /// the switches of [_highlightPrefs], the word kinds. Nothing is sent when
-  /// it equals what the engine already has.
+  /// Collects every kind of highlight from its field and gives the engine the
+  /// whole set; the one place that calls `ReaderEngine.highlight`. Word kinds
+  /// follow the switches of [_highlightPrefs]; empty kinds are left out, and
+  /// nothing is sent when the set equals what the engine already has.
   void _applyHighlights() {
     final engine = _engine;
     if (engine == null || !_highlightsReady || _closing) return;
-    final focus = [..._marks, ?_openLookup];
+    final focus = [..._marks, ?_looking];
+    final recent = _recent;
     final prefs = _highlightPrefs;
     final highlights = ReaderHighlights(
-      ranges: {if (focus.isNotEmpty) HighlightKind.focus: focus},
+      ranges: {
+        if (focus.isNotEmpty) HighlightKind.focus: focus,
+        if (recent != null) HighlightKind.recent: [recent],
+      },
       words: {
         if (prefs.enabled &&
             prefs.cheatSheet &&
@@ -431,10 +454,35 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     engine.highlight(highlights);
   }
 
+  /// Takes the `recent` mark off now.
+  void _clearRecent() {
+    _recentTimer?.cancel();
+    _recentTimer = null;
+    _recent = null;
+  }
+
+  /// After the translation of [at] is closed, marks it as `recent` for
+  /// [recentHighlightDuration] if the profile has that highlight on.
+  Future<void> _markRecent(Locator at, int lookup) async {
+    final prefs = (await _profiles.get()).highlights;
+    if (!mounted || lookup != _lookups) return;
+    if (!(prefs.enabled && prefs.recent)) return;
+    _recent = at;
+    _recentTimer = Timer(recentHighlightDuration, () {
+      _recent = null;
+      _recentTimer = null;
+      if (mounted) _applyHighlights();
+    });
+    _applyHighlights();
+  }
+
   /// Shows the lookup of [text]; while it is open, [at] is marked in the
-  /// text so that the reader sees which word the tap hit.
+  /// text so that the reader sees which word the tap hit; after it closes the
+  /// word stays marked for a while as `recent`.
   Future<void> _showLookup(String text, Locator at, String sentence) async {
-    _openLookup = at;
+    final lookup = ++_lookups;
+    _clearRecent();
+    _looking = at;
     _applyHighlights();
     try {
       await ref.read(lookupPresenterProvider)(
@@ -446,8 +494,15 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     } on Object catch (e, s) {
       _log.severe('Showing the lookup of "$text" failed', e, s);
     } finally {
-      _openLookup = null;
-      if (mounted) _applyHighlights();
+      if (mounted) {
+        _looking = null;
+        _applyHighlights();
+        unawaited(
+          _markRecent(at, lookup).catchError((Object e, StackTrace st) {
+            _log.warning('Marking the recent word failed', e, st);
+          }),
+        );
+      }
     }
   }
 
@@ -489,6 +544,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _closing = true;
+    _recentTimer?.cancel();
     _applyBars(visible: true);
     _flush();
     _flushDisplay();
