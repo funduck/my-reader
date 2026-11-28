@@ -2,7 +2,7 @@
 
 **Статус:** открыт  
 **Тип:** новая функция (приложение и сервис)  
-**Связано с:** [B-009](B-009-deepl-phrases.md) (раздел «Потом»), [Architecture-service.md](../Architecture-service.md), [Data-sources.md](../Data-sources.md)
+**Связано с:** [B-009](B-009-deepl-phrases.md) (раздел «Потом»), [B-025](B-025-llm-word-in-context.md) (слово в контексте через LLM), [Architecture-service.md](../Architecture-service.md), [Data-sources.md](../Data-sources.md)
 
 ## Что хотим
 
