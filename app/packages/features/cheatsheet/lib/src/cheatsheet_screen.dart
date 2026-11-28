@@ -20,6 +20,10 @@ typedef WordTapCallback = void Function(
 final Logger _log = Logger('CheatSheetScreen');
 
 /// The levels offered for "above": a word of the top level has nothing above.
+/// Page counts offered for the piece; the same as in the settings (features
+/// do not import each other, so the list is repeated there).
+const List<int> _pageChoices = [1, 2, 3, 5, 10, 15, 20, 30];
+
 const List<CefrLevel> _pickableLevels = [
   CefrLevel.a2,
   CefrLevel.b1,
@@ -63,20 +67,28 @@ class CheatSheetScreen extends ConsumerWidget {
     final request = (bookId: bookId, from: from);
     final load = ref.watch(cheatSheetProvider(request));
     // Subscribed with the sheet, not after it, so the list is ready at once.
-    ref
-      ..watch(cheatSheetProfileProvider)
-      // Remembers the list on screen for the highlights in the text.
-      ..watch(cheatSheetSnapshotSaverProvider(request));
+    final profile = ref.watch(cheatSheetProfileProvider).value;
+    // Remembers the list on screen for the highlights in the text.
+    ref.watch(cheatSheetSnapshotSaverProvider(request));
+    // The title follows the profile: a new piece size shows while the sheet
+    // is being built again.
+    final scope = profile?.scope ?? load.value?.scope;
     return Scaffold(
-      appBar: AppBar(
-        title: Text(load.maybeWhen(data: _title, orElse: () => 'Разминка')),
-      ),
-      body: load.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, _) =>
-            const Center(child: Text('Не удалось подготовить разминку.')),
-        data: (data) =>
-            _Body(request: request, data: data, onWordTap: onWordTap),
+      appBar: AppBar(title: Text(scope == null ? 'Разминка' : _title(scope))),
+      body: Column(
+        children: [
+          // Above the sheet, not inside it: they stay while it is rebuilt.
+          if (profile != null) _Controls(profile: profile),
+          Expanded(
+            child: load.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (_, _) =>
+                  const Center(child: Text('Не удалось подготовить разминку.')),
+              data: (data) =>
+                  _Body(request: request, data: data, onWordTap: onWordTap),
+            ),
+          ),
+        ],
       ),
       bottomNavigationBar: SafeArea(
         child: Padding(
@@ -87,13 +99,13 @@ class CheatSheetScreen extends ConsumerWidget {
     );
   }
 
-  static String _title(CheatSheetLoad data) => switch (data.scope) {
+  static String _title(CheatSheetScope scope) => switch (scope) {
     CheatSheetPages(:final pages) => 'Следующие ~$pages стр.',
     CheatSheetChapter() => 'До конца главы',
   };
 }
 
-/// Level and limit pickers above the list, then the list itself.
+/// The list of the built sheet.
 class _Body extends ConsumerWidget {
   const new({
     required this.request,
@@ -107,27 +119,18 @@ class _Body extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final items = ref.watch(cheatSheetItemsProvider(request));
-    final profile = ref.watch(cheatSheetProfileProvider).value;
-    return Column(
-      children: [
-        if (profile != null) _Controls(profile: profile),
-        Expanded(
-          child: switch (items) {
-            AsyncData(:final value) => _Items(
-              request: request,
-              data: data,
-              items: value,
-              onWordTap: onWordTap,
-            ),
-            AsyncError() => const Center(
-              child: Text('Не удалось подготовить разминку.'),
-            ),
-            AsyncLoading() => const Center(child: CircularProgressIndicator()),
-          },
-        ),
-      ],
-    );
+    return switch (ref.watch(cheatSheetItemsProvider(request))) {
+      AsyncData(:final value) => _Items(
+        request: request,
+        data: data,
+        items: value,
+        onWordTap: onWordTap,
+      ),
+      AsyncError() => const Center(
+        child: Text('Не удалось подготовить разминку.'),
+      ),
+      AsyncLoading() => const Center(child: CircularProgressIndicator()),
+    };
   }
 }
 
@@ -192,8 +195,72 @@ class _Controls extends ConsumerWidget {
               _LimitField(limit: profile.cheatSheetLimit),
             ],
           ),
+          _ScopeControl(scope: profile.scope),
         ],
       ),
+    );
+  }
+}
+
+/// The piece of text the sheet covers: a number of pages or the rest of the
+/// chapter. The same value as "Cheat sheet piece" in the settings; a change
+/// builds the sheet again.
+class _ScopeControl extends ConsumerWidget {
+  const new({required this.scope});
+
+  final CheatSheetScope scope;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pages = switch (scope) {
+      CheatSheetPages(:final pages) => pages,
+      CheatSheetChapter() => null,
+    };
+    final choices = {..._pageChoices, ?pages}.toList()..sort();
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SegmentedButton<bool>(
+          key: const Key('cheatsheet-scope'),
+          showSelectedIcon: false,
+          segments: const [
+            ButtonSegment(value: true, label: Text('Страниц')),
+            ButtonSegment(value: false, label: Text('До конца главы')),
+          ],
+          selected: {pages != null},
+          onSelectionChanged: (s) => unawaited(
+            _updateProfile(
+              ref,
+              (p) => p.copyWith(
+                scope: s.first
+                    ? CheatSheetScope.defaultScope
+                    : const CheatSheetChapter(),
+              ),
+            ),
+          ),
+        ),
+        if (pages != null) ...[
+          const SizedBox(width: 8),
+          DropdownButton<int>(
+            key: const Key('cheatsheet-pages'),
+            value: pages,
+            items: [
+              for (final n in choices)
+                DropdownMenuItem(value: n, child: Text('$n')),
+            ],
+            onChanged: (n) {
+              if (n != null && n != pages) {
+                unawaited(
+                  _updateProfile(
+                    ref,
+                    (p) => p.copyWith(scope: CheatSheetPages(n)),
+                  ),
+                );
+              }
+            },
+          ),
+        ],
+      ],
     );
   }
 }

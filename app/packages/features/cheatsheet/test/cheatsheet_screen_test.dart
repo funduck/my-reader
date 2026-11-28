@@ -12,7 +12,8 @@ class _FakeGenerator implements CheatSheetGenerator {
   new(this.items);
 
   final List<CheatSheetItem> items;
-  final List<({String text, Locator from, Set<String> known})> calls = [];
+  final List<({String text, Locator from, Locator to, Set<String> known})>
+  calls = [];
 
   @override
   Future<CheatSheet> generate({
@@ -22,7 +23,7 @@ class _FakeGenerator implements CheatSheetGenerator {
     Set<String> knownTerms = const {},
     CancelToken? cancel,
   }) async {
-    calls.add((text: text, from: from, known: knownTerms));
+    calls.add((text: text, from: from, to: to, known: knownTerms));
     return CheatSheet(from: from, to: to, items: items);
   }
 }
@@ -196,7 +197,13 @@ void main() {
       const UserProfile(level: CefrLevel.b1, scope: CheatSheetChapter()),
     );
     await open(tester, from: at(0, 0));
-    expect(find.text('До конца главы'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(AppBar),
+        matching: find.text('До конца главы'),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('without a locator it starts from the book start', (
@@ -588,6 +595,71 @@ void main() {
       expect(shownWords(tester), ['w1', 'w2', 'w3', 'w5']);
       await enterLimit(tester, '2');
       expect(shownWords(tester), ['w1', 'w2']);
+    });
+  });
+
+  group('piece of text', () {
+    setUp(() {
+      generator = _FakeGenerator([word('w1', zipf: 5), word('w2', zipf: 4)]);
+    });
+
+    testWidgets('"До конца главы" saves the scope and builds the sheet again', (
+      tester,
+    ) async {
+      await open(tester, from: at(0, 0));
+      expect(generator.calls, hasLength(1));
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const Key('cheatsheet-scope')),
+          matching: find.text('До конца главы'),
+        ),
+      );
+      await settle(tester);
+      expect((await profiles.get()).scope, const CheatSheetChapter());
+      expect(generator.calls, hasLength(2));
+      expect(find.byKey(const Key('cheatsheet-pages')), findsNothing);
+      // The title and the list follow the new sheet.
+      expect(
+        find.descendant(
+          of: find.byType(AppBar),
+          matching: find.text('До конца главы'),
+        ),
+        findsOneWidget,
+      );
+      expect(shownWords(tester), ['w1', 'w2']);
+
+      await tester.tap(find.text('Страниц'));
+      await settle(tester);
+      expect((await profiles.get()).scope, CheatSheetScope.defaultScope);
+      expect(generator.calls, hasLength(3));
+    });
+
+    testWidgets('a page count saves the scope; the level does not rebuild', (
+      tester,
+    ) async {
+      await open(tester, from: at(0, 0));
+      expect(find.text('Следующие ~10 стр.'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('cheatsheet-pages')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('3').last);
+      await settle(tester);
+      expect((await profiles.get()).scope, const CheatSheetPages(3));
+      expect(find.text('Следующие ~3 стр.'), findsOneWidget);
+      expect(generator.calls, hasLength(2));
+      // A shorter piece ends earlier.
+      expect(
+        generator.calls.last.to.progression,
+        lessThanOrEqualTo(generator.calls.first.to.progression),
+      );
+
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const Key('cheatsheet-level')),
+          matching: find.text('A2'),
+        ),
+      );
+      await settle(tester);
+      expect(generator.calls, hasLength(2));
     });
   });
 

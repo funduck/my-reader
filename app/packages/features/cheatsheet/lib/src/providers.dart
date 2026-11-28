@@ -33,16 +33,17 @@ class CheatSheetLoad {
   final LookupMode mode;
 }
 
-/// Builds the cheat sheet of a [CheatSheetRequest] once: opens the book, runs
-/// the generator. Fails with [StateError] when the book is missing or
-/// unreadable.
+/// Builds the cheat sheet of a [CheatSheetRequest]: opens the book, runs the
+/// generator. Fails with [StateError] when the book is missing or unreadable.
 ///
-/// Does not watch the profile: the level, the limit and the "known" marks
+/// Of the profile it watches only the piece size (`UserProfile.scope`): a new
+/// size builds the sheet again. The level, the limit and the "known" marks
 /// change what is shown (`cheatSheetItemsProvider`), not the sheet.
 final FutureProviderFamily<CheatSheetLoad, CheatSheetRequest>
 cheatSheetProvider = FutureProvider.autoDispose
     .family<CheatSheetLoad, CheatSheetRequest>((ref, request) async {
       final profiles = ref.watch(profileRepositoryProvider);
+      await ref.watch(cheatSheetProfileProvider.selectAsync((p) => p.scope));
       final outcome = await OpenBook(
         adapters: ref.watch(bookFormatsProvider),
         books: ref.watch(bookRepositoryProvider),
