@@ -27,10 +27,6 @@ const Duration saveDebounce = Duration(seconds: 1);
 /// How long display settings must stay unchanged before they are saved.
 const Duration displaySaveDebounce = Duration(milliseconds: 300);
 
-/// How long the word that was just translated stays marked after its
-/// translation is closed (B-019).
-const Duration recentHighlightDuration = Duration(seconds: 10);
-
 /// Shows a book: the engine's view, the table of contents in a side drawer.
 ///
 /// The position is restored on open (from [locator] if given, else from the
@@ -137,7 +133,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   Locator? _looking;
 
   /// The word that was just translated (`recent`, T-114) and the timer that
-  /// takes the mark off after [recentHighlightDuration].
+  /// takes the mark off after [recentPulseDuration]: the engine pulses the
+  /// mark for that long (T-124) and draws nothing after it, so the timer only
+  /// tidies the highlights the screen holds.
   Locator? _recent;
   Timer? _recentTimer;
 
@@ -496,13 +494,13 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   }
 
   /// After the translation of [at] is closed, marks it as `recent` for
-  /// [recentHighlightDuration] if the profile has that highlight on.
+  /// [recentPulseDuration] if the profile has that highlight on.
   Future<void> _markRecent(Locator at, int lookup) async {
     final prefs = (await _profiles.get()).highlights;
     if (!mounted || lookup != _lookups) return;
     if (!(prefs.enabled && prefs.recent)) return;
     _recent = at;
-    _recentTimer = Timer(recentHighlightDuration, () {
+    _recentTimer = Timer(recentPulseDuration, () {
       _recent = null;
       _recentTimer = null;
       if (mounted) _applyHighlights();

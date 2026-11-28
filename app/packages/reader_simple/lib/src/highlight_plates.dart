@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:reader_api/reader_api.dart';
 
 import 'highlights.dart';
 import 'reader_style.dart';
@@ -26,16 +27,18 @@ abstract final class HighlightPlateShape {
 }
 
 /// A piece of a block that gets a plate: `[start, end)` offsets in the text
-/// of the block and the colour.
-typedef PlateRange = ({int start, int end, Color color});
+/// of the block, the colour, and whether the plate pulses (`recent`, T-124).
+typedef PlateRange = ({int start, int end, Color color, bool pulse});
 
 /// One plate: its `rect` in the coordinates of `RenderHighlightPlates`, the
-/// `color` and the `[start, end)` range it belongs to; a range that runs
-/// over several lines has a plate on each.
-typedef Plate = ({Rect rect, Color color, int start, int end});
+/// `color`, the `[start, end)` range it belongs to and the `opacity` it is
+/// painted with now (1 unless the plate pulses); a range that runs over
+/// several lines has a plate on each.
+typedef Plate = ({Rect rect, Color color, int start, int end, double opacity});
 
 /// The plates of [highlights] in [style]: where kinds overlap, the kind of
-/// the highest priority wins; kinds without a background give none.
+/// the highest priority wins; kinds without a background give none. The
+/// plates of `recent` pulse.
 List<PlateRange> plateRanges(
   List<BlockHighlight> highlights,
   ReaderStyle style,
@@ -44,7 +47,12 @@ List<PlateRange> plateRanges(
   return [
     for (final (:start, :end, :kind) in winningRanges(highlights))
       if (style.highlightOf(kind).background case final color?)
-        (start: start, end: end, color: color),
+        (
+          start: start,
+          end: end,
+          color: color,
+          pulse: kind == HighlightKind.recent,
+        ),
   ];
 }
 
@@ -55,32 +63,48 @@ List<PlateRange> plateRanges(
 /// the text is the same with and without them. A plate is the box of the
 /// range on one line, widened by [HighlightPlateShape]; a range on several
 /// lines has a plate on each line, and neighbouring ranges have their own.
+///
+/// Plates with `pulse` are painted with the opacity of [pulse] (T-124) and
+/// are not painted at all once it has completed; a change of [pulse] only
+/// repaints, it never rebuilds or lays out. Without [pulse] they are painted
+/// as the others.
 class HighlightPlates extends SingleChildRenderObjectWidget {
   /// Draws [ranges], offsets in the text of [child].
-  const new({required this.ranges, required super.child, super.key});
+  const new({
+    required this.ranges,
+    required super.child,
+    this.pulse,
+    super.key,
+  });
 
   /// What to draw; equal lists draw the same.
   final List<PlateRange> ranges;
 
+  /// The opacity of the plates that pulse; `null` — full.
+  final Animation<double>? pulse;
+
   @override
   RenderHighlightPlates createRenderObject(BuildContext context) =>
-      RenderHighlightPlates(ranges);
+      RenderHighlightPlates(ranges, pulse);
 
   @override
   void updateRenderObject(
     BuildContext context,
     RenderHighlightPlates renderObject,
   ) {
-    renderObject.ranges = ranges;
+    renderObject
+      ..ranges = ranges
+      ..pulse = pulse;
   }
 }
 
 /// The render object of [HighlightPlates].
 class RenderHighlightPlates extends RenderProxyBox {
-  /// Draws [ranges] behind the child.
-  new(this._ranges);
+  /// Draws [ranges] behind the child, the pulsing ones with [pulse].
+  new(this._ranges, this._pulse);
 
   List<PlateRange> _ranges;
+  Animation<double>? _pulse;
 
   /// What to draw.
   List<PlateRange> get ranges => _ranges;
@@ -90,16 +114,42 @@ class RenderHighlightPlates extends RenderProxyBox {
     markNeedsPaint();
   }
 
+  /// The opacity of the plates that pulse.
+  Animation<double>? get pulse => _pulse;
+  set pulse(Animation<double>? value) {
+    if (identical(value, _pulse)) return;
+    if (attached) _pulse?.removeListener(markNeedsPaint);
+    _pulse = value;
+    if (attached) value?.addListener(markNeedsPaint);
+    markNeedsPaint();
+  }
+
+  @override
+  void attach(PipelineOwner owner) {
+    super.attach(owner);
+    _pulse?.addListener(markNeedsPaint);
+  }
+
+  @override
+  void detach() {
+    _pulse?.removeListener(markNeedsPaint);
+    super.detach();
+  }
+
   /// The plates as they are laid out now, in the coordinates of this
-  /// object; empty before the first layout.
+  /// object; empty before the first layout. The plates that pulse are left
+  /// out once the pulse has completed.
   List<Plate> get plates {
     final editable = _findEditable(this);
     if (editable == null || !editable.hasSize || _ranges.isEmpty) {
       return const [];
     }
     final toThis = editable.getTransformTo(this);
+    final pulse = _pulse;
     final result = <Plate>[];
-    for (final (:start, :end, :color) in _ranges) {
+    for (final (:start, :end, :color, pulse: pulses) in _ranges) {
+      if (pulses && pulse != null && pulse.isCompleted) continue;
+      final opacity = pulses && pulse != null ? pulse.value : 1.0;
       final lines = <Rect>[];
       for (final box in editable.getBoxesForSelection(
         TextSelection(baseOffset: start, extentOffset: end),
@@ -120,6 +170,7 @@ class RenderHighlightPlates extends RenderProxyBox {
           color: color,
           start: start,
           end: end,
+          opacity: opacity,
         ));
       }
     }
@@ -169,12 +220,16 @@ class RenderHighlightPlates extends RenderProxyBox {
     if (_ranges.isNotEmpty) {
       final paint = Paint();
       for (final plate in plates) {
+        if (plate.opacity <= 0) continue;
         context.canvas.drawRRect(
           RRect.fromRectAndRadius(
             plate.rect.shift(offset),
             const Radius.circular(HighlightPlateShape.radius),
           ),
-          paint..color = plate.color,
+          paint
+            ..color = plate.opacity >= 1
+                ? plate.color
+                : plate.color.withValues(alpha: plate.color.a * plate.opacity),
         );
       }
     }

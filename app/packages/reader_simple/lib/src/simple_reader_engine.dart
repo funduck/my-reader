@@ -106,6 +106,7 @@ class SimpleReaderEngine implements ReaderEngine, TextInteractions {
   ChapterLemmas? _lemmas;
   ChapterHighlights? _resolved;
   int _generation = 0;
+  int _recentEpoch = 0;
   bool _disposed = false;
 
   /// The chapter on screen, `null` until [load] completes.
@@ -231,8 +232,33 @@ class SimpleReaderEngine implements ReaderEngine, TextInteractions {
   @override
   void highlight(ReaderHighlights highlights) {
     if (_disposed) return;
+    if (!_sameRecent(_highlights.value, highlights)) _recentEpoch++;
     _highlights.value = highlights;
   }
+
+  /// Counts the changes of the `recent` part of the highlights (T-124): the
+  /// view starts a pulse when it changes and something is [recentActive]. A
+  /// call that leaves `recent` as it was does not change it.
+  @internal
+  int get recentEpoch => _recentEpoch;
+
+  /// Whether the highlights now mark anything as `recent`.
+  @internal
+  bool get recentActive {
+    final h = _highlights.value;
+    return (h.ranges[HighlightKind.recent] ?? const []).isNotEmpty ||
+        (h.words[HighlightKind.recent] ?? const {}).isNotEmpty;
+  }
+
+  static bool _sameRecent(ReaderHighlights a, ReaderHighlights b) =>
+      listEquals(
+        a.ranges[HighlightKind.recent] ?? const [],
+        b.ranges[HighlightKind.recent] ?? const [],
+      ) &&
+      setEquals(
+        a.words[HighlightKind.recent] ?? const {},
+        b.words[HighlightKind.recent] ?? const {},
+      );
 
   @override
   Stream<ReaderEvent> get events => _events.stream;

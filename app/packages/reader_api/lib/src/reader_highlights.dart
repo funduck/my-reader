@@ -1,6 +1,14 @@
 import 'package:core/domain_books.dart';
 import 'package:flutter/foundation.dart';
 
+/// How long the engine pulses a `recent` highlight (T-124).
+///
+/// The engine animates [HighlightKind.recent] itself for this long from the
+/// moment the set of `recent` marks changes, and takes the mark off at the
+/// end. The caller drops `recent` from its highlights after the same time,
+/// so the two agree without the engine reporting the end.
+const Duration recentPulseDuration = Duration(milliseconds: 2500);
+
 /// What a highlighted piece of text means (B-019).
 ///
 /// The declaration order is the priority: where several kinds meet on one
@@ -9,7 +17,8 @@ enum HighlightKind {
   /// The word of the open translation and the place of a history link.
   focus,
 
-  /// The word that was just translated.
+  /// The word that was just translated: the engine pulses it for
+  /// [recentPulseDuration] and then draws nothing (T-124).
   recent,
 
   /// A word the reader has looked up before.
