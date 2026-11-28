@@ -1,6 +1,6 @@
 # B-023. Лейблы и кнопки выглядят по-разному
 
-**Статус:** открыт  
+**Статус:** в задаче [T-126](../tasks/T-126.md), веха M11  
 **Тип:** доработка (визуал)  
 **Связано с:** [B-010](B-010-lookup-sheet-layout.md), `features/common`, `features/lookup_sheet`, `features/cheatsheet`, `features/history`
 
