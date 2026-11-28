@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:core/application.dart';
 import 'package:core/domain_books.dart';
 import 'package:core/domain_lookup.dart';
+import 'package:core/ports.dart';
 import 'package:features_common/features_common.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -525,7 +526,7 @@ class _ItemTile extends ConsumerWidget {
           Flexible(child: Text(item.text, style: theme.textTheme.titleMedium)),
           if (item.level.isKnown) ...[
             const SizedBox(width: 8),
-            Text(item.level.name.toUpperCase()),
+            LevelBadge(level: WordLevel(item.level)),
           ],
           if (bars != null) ...[
             const SizedBox(width: 8),
@@ -550,10 +551,17 @@ class _ItemTile extends ConsumerWidget {
             ),
         ],
       ),
-      trailing: TextButton(
+      // A button, not a label: it acts on the row, so it has a border and
+      // a check mark.
+      trailing: OutlinedButton.icon(
         key: Key('cheatsheet-known-${item.text}'),
+        style: OutlinedButton.styleFrom(
+          visualDensity: VisualDensity.compact,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+        ),
         onPressed: () => _markKnown(context, ref),
-        child: const Text('Знаю'),
+        icon: const Icon(Icons.check, size: 18),
+        label: const Text('Знаю'),
       ),
     );
   }
@@ -562,8 +570,8 @@ class _ItemTile extends ConsumerWidget {
 /// The mark of a word the user translated before (T-121): a translate icon
 /// and the number of lookups as `×N`.
 ///
-/// The icon and the number carry the meaning without colour; a screen reader
-/// reads one label instead of the two pieces.
+/// An [InfoLabel]: the icon and the number carry the meaning without colour;
+/// a screen reader reads one phrase instead of the two pieces.
 class LookedUpMark extends StatelessWidget {
   /// Creates the mark for a word looked up [count] times (above 0).
   const new({required this.count, super.key});
@@ -574,23 +582,23 @@ class LookedUpMark extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Semantics(
-      label: 'переводил: $count',
-      excludeSemantics: true,
+    return InfoLabel(
+      semanticsLabel: 'переводил: $count',
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.translate, size: 16, color: theme.colorScheme.primary),
+          Icon(Icons.translate, size: 14, color: theme.colorScheme.primary),
           const SizedBox(width: 2),
-          Text('×$count', style: theme.textTheme.labelMedium),
+          Text('×$count'),
         ],
       ),
     );
   }
 }
 
-/// Word frequency as signal bars: [bars] of 5 are filled, 5 is a very common
-/// word. The bars grow in height, so the count reads without the colour.
+/// Word frequency as signal bars in an [InfoLabel]: [bars] of 5 are filled,
+/// 5 is a very common word. The bars grow in height, so the count reads
+/// without the colour.
 class FrequencyBars extends StatelessWidget {
   /// Creates the bars; [bars] is from 1 to 5.
   const new({required this.bars, super.key});
@@ -604,9 +612,8 @@ class FrequencyBars extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Semantics(
-      label: 'частотность $bars из $total',
-      excludeSemantics: true,
+    return InfoLabel(
+      semanticsLabel: 'частотность $bars из $total',
       child: Row(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,

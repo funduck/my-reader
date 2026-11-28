@@ -43,6 +43,7 @@ void main() {
     final store = FakeSecretStore();
     await pump(tester, store);
     expect(find.byKey(const Key('deepl-key-none')), findsOneWidget);
+    expect(find.widgetWithText(InfoLabel, 'No key saved'), findsOneWidget);
 
     await save(tester, '  $_key ');
 

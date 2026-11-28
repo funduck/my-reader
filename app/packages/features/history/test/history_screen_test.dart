@@ -201,7 +201,7 @@ void main() {
     expect(find.text('ball'), findsOneWidget);
     expect(find.text('sand'), findsOneWidget);
 
-    await tester.tap(find.widgetWithText(ChoiceChip, 'Dune'));
+    await tester.tap(find.widgetWithText(ToggleButton, 'Dune'));
     await tester.pumpAndSettle();
     expect(find.text('ball'), findsNothing);
     expect(find.text('sand'), findsOneWidget);
@@ -209,7 +209,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Sand in Emma.'), findsNothing);
 
-    await tester.tap(find.widgetWithText(ChoiceChip, 'All books'));
+    await tester.tap(find.widgetWithText(ToggleButton, 'All books'));
     await tester.pumpAndSettle();
     expect(find.text('ball'), findsOneWidget);
   });

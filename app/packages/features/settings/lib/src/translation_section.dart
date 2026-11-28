@@ -99,12 +99,22 @@ class _TranslationSectionState extends ConsumerState<TranslationSection> {
             style: TextStyle(color: theme.colorScheme.error),
           )
         else if (savedKey != null)
-          Text(
-            'Saved key: ${maskedKey(savedKey)}',
-            key: const Key('deepl-key-saved'),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: InfoLabel(
+              child: Text(
+                'Saved key: ${maskedKey(savedKey)}',
+                key: const Key('deepl-key-saved'),
+              ),
+            ),
           )
         else if (saved.hasValue)
-          const Text('No key saved', key: Key('deepl-key-none')),
+          const Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: InfoLabel(
+              child: Text('No key saved', key: Key('deepl-key-none')),
+            ),
+          ),
         const SizedBox(height: 8),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,

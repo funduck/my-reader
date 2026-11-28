@@ -177,12 +177,51 @@ void main() {
     expect(find.text('Fake Dictionary'), findsOneWidget);
   });
 
-  testWidgets('hides the level chip when the level is unknown', (tester) async {
+  testWidgets('hides the level label when the level is unknown', (
+    tester,
+  ) async {
     await _open(tester, () async => _answered(level: CefrLevel.unknown));
     await tester.pumpAndSettle();
 
     expect(find.text('1. lasting a very short time'), findsOneWidget);
-    expect(find.byType(Chip), findsNothing);
+    expect(find.byType(InfoLabel), findsNothing);
+  });
+
+  testWidgets('shows the level as the common label, not as a button', (
+    tester,
+  ) async {
+    await _open(tester, () async => _answered());
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(
+        of: find.byType(LevelBadge),
+        matching: find.byType(InfoLabel),
+      ),
+      findsOneWidget,
+    );
+    expect(find.widgetWithText(InfoLabel, 'C1'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(LevelBadge),
+        matching: find.byType(InkWell),
+      ),
+      findsNothing,
+    );
+  });
+
+  testWidgets('"Знаю" is the common toggle button', (tester) async {
+    await _open(tester, () async => _answered());
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(
+        of: find.byType(ToggleButton),
+        matching: find.text('Знаю'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.byType(FilterChip), findsNothing);
   });
 
   testWidgets('marks an estimated level with ≈', (tester) async {
@@ -270,7 +309,7 @@ void main() {
     Finder toggle() => find.byKey(const Key('lookup-known-toggle'));
 
     bool selected(WidgetTester tester) =>
-        tester.widget<FilterChip>(toggle()).selected;
+        tester.widget<ToggleButton>(toggle()).selected;
 
     testWidgets('marks the word known at once and unmarks it', (tester) async {
       await _open(tester, () async => _answered());

@@ -217,6 +217,26 @@ void main() {
       expect(find.text('Download'), findsOneWidget);
     });
 
+    testWidgets('a status is a label, the download is a button', (
+      tester,
+    ) async {
+      final packs = FakePackStore(offered: [_levels]);
+      await pump(tester, profile: FakeProfileRepository(), packs: packs);
+
+      expect(
+        find.widgetWithText(InfoLabel, 'Not installed · 1.0 MB'),
+        findsOneWidget,
+      );
+      expect(find.byType(FilledButton), findsWidgets);
+      expect(
+        find.descendant(
+          of: find.byType(InfoLabel),
+          matching: find.byType(InkWell),
+        ),
+        findsNothing,
+      );
+    });
+
     testWidgets('downloads a pack with progress', (tester) async {
       final packs = _SlowPackStore(offered: [_levels]);
       await pump(tester, profile: FakeProfileRepository(), packs: packs);

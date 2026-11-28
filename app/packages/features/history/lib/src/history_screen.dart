@@ -73,11 +73,11 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                   horizontal: 4,
                   vertical: 10,
                 ),
-                child: FilterChip(
+                child: ToggleButton(
                   key: const Key('history-known-filter'),
-                  label: const Text('Знаю'),
+                  label: 'Знаю',
                   selected: _knownOnly,
-                  onSelected: (on) => setState(() => _knownOnly = on),
+                  onChanged: (on) => setState(() => _knownOnly = on),
                 ),
               ),
               if (books.isNotEmpty) ...[
@@ -121,10 +121,10 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
 
   Widget _chip(String label, bool selected, VoidCallback onTap) => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
-    child: ChoiceChip(
-      label: Text(label),
+    child: ToggleButton(
+      label: label,
       selected: selected,
-      onSelected: (_) => onTap(),
+      onChanged: (_) => onTap(),
     ),
   );
 
@@ -180,11 +180,16 @@ class _TermTile extends ConsumerWidget {
       children: [
         if (term.lookupCount > 0) Text('×${term.lookupCount}'),
         if (known)
-          IconButton(
-            key: const Key('history-unmark-known'),
-            icon: const Icon(Icons.check_circle),
-            tooltip: 'Снять «Знаю»',
-            onPressed: () => _unmark(context, ref),
+          // On, with a check mark; pressing it takes the mark off.
+          Tooltip(
+            message: 'Снять «Знаю»',
+            excludeFromSemantics: true,
+            child: ToggleButton(
+              key: const Key('history-unmark-known'),
+              label: 'Знаю',
+              selected: true,
+              onChanged: (_) => _unmark(context, ref),
+            ),
           ),
       ],
     );
