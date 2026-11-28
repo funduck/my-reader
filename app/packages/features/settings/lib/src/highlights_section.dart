@@ -108,7 +108,9 @@ class HighlightsSection extends ConsumerWidget {
 /// Five frequency bars, the same as in the cheat sheet, that pick a threshold
 /// by a tap: the bars up to [bars] are filled.
 ///
-/// The bars grow in height, so the value reads without the colour.
+/// The bars grow in height, so the value reads without the colour. Unlike the
+/// frequency label of the cheat sheet it can be pressed, so the bars sit in an
+/// outlined frame and every bar answers a press with a ripple (T-126).
 class FrequencyThreshold extends StatelessWidget {
   /// Creates the picker; [bars] is from [minHighlightBars] to
   /// [maxHighlightBars].
@@ -123,44 +125,50 @@ class FrequencyThreshold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        for (var i = minHighlightBars; i <= maxHighlightBars; i++)
-          Semantics(
-            button: true,
-            selected: i == bars,
-            label: 'at least $i of $maxHighlightBars bars',
-            excludeSemantics: true,
-            onTap: () => onChanged(i),
-            child: GestureDetector(
-              key: Key('frequency-bar-$i'),
-              behavior: HitTestBehavior.opaque,
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(color: scheme.outline),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          for (var i = minHighlightBars; i <= maxHighlightBars; i++)
+            Semantics(
+              button: true,
+              selected: i == bars,
+              label: 'at least $i of $maxHighlightBars bars',
+              excludeSemantics: true,
               onTap: () => onChanged(i),
-              child: SizedBox(
-                width: 44,
-                height: 48,
-                child: Align(
-                  alignment: Alignment.bottomCenter,
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Container(
-                      width: 3,
-                      height: 3.0 + 2 * i,
-                      decoration: BoxDecoration(
-                        color: i <= bars
-                            ? scheme.primary
-                            : scheme.outlineVariant,
-                        borderRadius: BorderRadius.circular(1),
+              child: InkWell(
+                key: Key('frequency-bar-$i'),
+                borderRadius: BorderRadius.circular(8),
+                onTap: () => onChanged(i),
+                child: SizedBox(
+                  width: 44,
+                  height: 48,
+                  child: Align(
+                    alignment: Alignment.bottomCenter,
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Container(
+                        width: 3,
+                        height: 3.0 + 2 * i,
+                        decoration: BoxDecoration(
+                          color: i <= bars
+                              ? scheme.primary
+                              : scheme.outlineVariant,
+                          borderRadius: BorderRadius.circular(1),
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 }

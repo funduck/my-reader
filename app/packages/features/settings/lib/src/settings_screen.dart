@@ -349,7 +349,15 @@ class _PackTile extends StatelessWidget {
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text([_statusText, ?(size == null ? null : _mb(size))].join(' · ')),
+          // A status is a label, not a button: the button is the trailing one.
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: InfoLabel(
+              child: Text(
+                [_statusText, ?(size == null ? null : _mb(size))].join(' · '),
+              ),
+            ),
+          ),
           if (row.status == PackStatus.downloading)
             LinearProgressIndicator(value: row.progress),
           if (error != null)

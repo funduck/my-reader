@@ -793,6 +793,84 @@ void main() {
     });
   });
 
+  group('labels and buttons (T-126)', () {
+    setUp(() {
+      generator = _FakeGenerator([word('w1', zipf: 4.2), word('w2')]);
+    });
+
+    Finder inRow(String word, Finder matching) => find.descendant(
+      of: find.widgetWithText(ListTile, word),
+      matching: matching,
+    );
+
+    testWidgets('the level, the bars and the mark are common labels', (
+      tester,
+    ) async {
+      await terms.save(
+        const Term(
+          id: TermId('seen-w1'),
+          normalized: 'w1',
+          language: 'en',
+          lookupCount: 3,
+          eventIds: [],
+        ),
+      );
+      await open(tester, from: at(0, 0));
+
+      final mark = find.byKey(const Key('cheatsheet-looked-up-w1'));
+      expect(
+        inRow(
+          'w1',
+          find.descendant(
+            of: find.byType(LevelBadge),
+            matching: find.widgetWithText(InfoLabel, 'C1'),
+          ),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byType(FrequencyBars),
+          matching: find.byType(InfoLabel),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: mark, matching: find.byType(InfoLabel)),
+        findsOneWidget,
+      );
+      // A label cannot be pressed.
+      for (final label in [
+        find.byType(LevelBadge),
+        find.byType(FrequencyBars),
+        mark,
+      ]) {
+        expect(
+          find.descendant(of: label, matching: find.byType(InkWell)),
+          findsNothing,
+          reason: '$label',
+        );
+      }
+    });
+
+    testWidgets('"Знаю" is a bordered button with a check mark', (
+      tester,
+    ) async {
+      await open(tester, from: at(0, 0));
+
+      final button = find.byKey(const Key('cheatsheet-known-w1'));
+      expect(tester.widget(button), isA<OutlinedButton>());
+      expect(
+        find.descendant(of: button, matching: find.byIcon(Icons.check)),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: button, matching: find.text('Знаю')),
+        findsOneWidget,
+      );
+    });
+  });
+
   group('frequency bars', () {
     setUp(() {
       generator = _FakeGenerator([word('w1', zipf: 4.2), word('w2')]);

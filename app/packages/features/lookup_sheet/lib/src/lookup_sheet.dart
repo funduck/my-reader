@@ -9,7 +9,6 @@ import 'package:logging/logging.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'known_toggle.dart';
-import 'level_badge.dart';
 import 'lookup_providers.dart';
 import 'simple_html.dart';
 
@@ -285,7 +284,7 @@ class _ModeToggle extends StatelessWidget {
     return Tooltip(
       message: full,
       excludeFromSemantics: true,
-      child: OutlinedButton(
+      child: OutlinedButton.icon(
         key: const Key('lookup-mode-toggle'),
         style: OutlinedButton.styleFrom(
           visualDensity: VisualDensity.compact,
@@ -293,7 +292,9 @@ class _ModeToggle extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 8),
         ),
         onPressed: onPressed,
-        child: Semantics(
+        // The swap arrows say "press to switch"; the text says which side.
+        icon: const Icon(Icons.swap_horiz, size: 18),
+        label: Semantics(
           label: full,
           excludeSemantics: true,
           child: Text(short),

@@ -25,7 +25,7 @@ final StreamProviderFamily<TermStatus?, String> termStatusProvider =
       name: 'termStatusProvider',
     );
 
-/// The "Знаю" switch of the sheet header (T-098): marks the word known, a
+/// The "Знаю" toggle of the sheet header (T-098): marks the word known, a
 /// second tap makes it `learning` again.
 ///
 /// Works on the term the lookups of the word write to, so it can be used
@@ -44,12 +44,11 @@ class KnownToggle extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final key = termKey(ref.watch(textAnalyzerProvider), text);
     final known = ref.watch(termStatusProvider(key)).value == TermStatus.known;
-    return FilterChip(
+    return ToggleButton(
       key: const Key('lookup-known-toggle'),
-      label: const Text('Знаю'),
+      label: 'Знаю',
       selected: known,
-      visualDensity: VisualDensity.compact,
-      onSelected: (_) => unawaited(
+      onChanged: (_) => unawaited(
         ref
             .read(setTermStatusProvider)(
               key,

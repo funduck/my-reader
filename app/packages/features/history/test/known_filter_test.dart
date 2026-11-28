@@ -223,9 +223,36 @@ void main() {
     expect(find.text('spice'), findsOneWidget);
 
     // No lookup is in the book, so nothing is left.
-    await tester.tap(find.widgetWithText(ChoiceChip, 'Dune'));
+    await tester.tap(find.widgetWithText(ToggleButton, 'Dune'));
     await tester.pumpAndSettle();
     expect(find.text('spice'), findsNothing);
     expect(find.text('worm'), findsNothing);
+  });
+
+  testWidgets('the filter and the row mark are common toggle buttons', (
+    tester,
+  ) async {
+    await seed();
+    await pumpHistory(tester);
+
+    // Off: no check mark. On: the check mark appears.
+    expect(tester.widget<ToggleButton>(filter).selected, isFalse);
+    expect(
+      find.descendant(of: filter, matching: find.byIcon(Icons.check)),
+      findsNothing,
+    );
+    await tester.tap(filter);
+    await tester.pumpAndSettle();
+    expect(tester.widget<ToggleButton>(filter).selected, isTrue);
+    expect(
+      find.descendant(of: filter, matching: find.byIcon(Icons.check)),
+      findsOneWidget,
+    );
+
+    // The mark on a known row is the same toggle, switched on.
+    expect(tester.widget<ToggleButton>(unmark.first).selected, isTrue);
+    expect(find.byType(Chip), findsNothing);
+    expect(find.byType(FilterChip), findsNothing);
+    expect(find.byType(ChoiceChip), findsNothing);
   });
 }

@@ -96,6 +96,22 @@ void main() {
     expect(saved.minFrequencyBars, 1);
   });
 
+  testWidgets('the threshold is a control: framed, bars answer a press', (
+    tester,
+  ) async {
+    await pump(tester, FakeProfileRepository());
+
+    final picker = find.byType(FrequencyThreshold);
+    final frame = tester.widget<DecoratedBox>(
+      find.descendant(of: picker, matching: find.byType(DecoratedBox)).first,
+    );
+    expect((frame.decoration as BoxDecoration).border, isNotNull);
+    expect(
+      find.descendant(of: picker, matching: find.byType(InkWell)),
+      findsNWidgets(5),
+    );
+  });
+
   testWidgets('the threshold is read from the profile', (tester) async {
     final profile = FakeProfileRepository(
       const UserProfile(highlights: HighlightPrefs(minFrequencyBars: 3)),
