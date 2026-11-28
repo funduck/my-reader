@@ -18,8 +18,11 @@ final Logger _log = Logger('DifficultWords');
 /// - the candidates of a chapter come from [ChapterDifficultWords.candidates]
 ///   once, asynchronously; a change of chapter, or switching the highlight
 ///   off, cancels a calculation that is still running;
-/// - a new level, threshold or mark "known" only re-picks from the candidates
-///   ([ChapterDifficultWords.pick]), the text is not analysed again;
+/// - a new level, threshold, mark "known" or looked-up word (a term with a
+///   lookup count above 0, T-121) only re-picks from the candidates
+///   ([ChapterDifficultWords.pick]), the text is not analysed again: the
+///   candidates hold every lemma of the chapter, also those of an unknown
+///   level and proper names, so a word looked up just now is already there;
 /// - with the highlight off nothing is read: neither the use case nor the
 ///   terms, and [onChanged] gets an empty set.
 ///
@@ -57,7 +60,8 @@ final class DifficultWordsTracker {
   HighlightPrefs _prefs = const HighlightPrefs();
   CefrLevel _level = const UserProfile().level;
   Set<String>? _known;
-  StreamSubscription<List<Term>>? _knownSub;
+  Map<String, int> _lookedUp = const {};
+  StreamSubscription<List<Term>>? _termsSub;
   List<CheatSheetItem>? _candidates;
   ChapterRef? _candidatesOf;
   CancelToken? _running;
@@ -91,8 +95,8 @@ final class DifficultWordsTracker {
     _disposed = true;
     _running?.cancel();
     _running = null;
-    unawaited(_knownSub?.cancel());
-    _knownSub = null;
+    unawaited(_termsSub?.cancel());
+    _termsSub = null;
   }
 
   void _send(Set<String> words) {
@@ -106,13 +110,14 @@ final class DifficultWordsTracker {
     if (!_active) {
       _running?.cancel();
       _running = null;
-      unawaited(_knownSub?.cancel());
-      _knownSub = null;
+      unawaited(_termsSub?.cancel());
+      _termsSub = null;
       _known = null;
+      _lookedUp = const {};
       _send(const {});
       return;
     }
-    _watchKnown();
+    _watchTerms();
     final known = _known;
     if (known == null) return; // The first answer of the stream calls again.
     final chapter = _chapter!;
@@ -126,29 +131,36 @@ final class DifficultWordsTracker {
         level: _level,
         minBars: _prefs.minFrequencyBars,
         known: known,
+        lookedUp: _lookedUp,
       ),
     );
   }
 
-  void _watchKnown() {
-    if (_knownSub != null) return;
-    _knownSub = terms()
-        .watchAll(status: TermStatus.known)
-        .listen(
-          (list) {
-            _known = {
-              for (final t in list)
-                if (t.language == cheatSheetLanguage) t.normalized,
-            };
-            _update();
-          },
-          onError: (Object e, StackTrace s) {
-            _log.warning('Watching the known terms failed', e, s);
-            // Without marks the words are still highlighted.
-            _known ??= const {};
-            _update();
-          },
-        );
+  void _watchTerms() {
+    if (_termsSub != null) return;
+    _termsSub = terms().watchAll().listen(
+      (list) {
+        final known = <String>{};
+        final lookedUp = <String, int>{};
+        for (final t in list) {
+          if (t.language != cheatSheetLanguage) continue;
+          if (t.status == TermStatus.known) {
+            known.add(t.normalized);
+          } else if (t.lookupCount > 0) {
+            lookedUp[t.normalized] = t.lookupCount;
+          }
+        }
+        _known = known;
+        _lookedUp = lookedUp;
+        _update();
+      },
+      onError: (Object e, StackTrace s) {
+        _log.warning('Watching the terms failed', e, s);
+        // Without the terms the words are still highlighted by level.
+        _known ??= const {};
+        _update();
+      },
+    );
   }
 
   void _calculate(ChapterRef chapter) {

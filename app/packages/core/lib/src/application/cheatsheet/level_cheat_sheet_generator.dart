@@ -1,4 +1,5 @@
 import '../../domain/books/locator.dart';
+import '../../domain/lookup/cefr_level.dart';
 import '../../domain/lookup/cheat_sheet.dart';
 import '../../ports/cancel_token.dart';
 import '../../ports/cheat_sheet_generator.dart';
@@ -9,18 +10,20 @@ import 'short_quote.dart';
 /// Cheat sheet generator driven by CEFR levels (S-3, S-5).
 ///
 /// Steps: tokens of the text, each reduced to a lemma and given a level; keeps
-/// every lemma with a known level (so the screen can change the user's level
-/// and the limit without analysing the text again); drops lemmas in
-/// `knownTerms` and proper names; ranks the rest. No cut by level or count:
-/// see `selectCheatSheetItems`.
+/// every lemma (so the screen can change the user's level and the limit, or
+/// the user can look a word up, without analysing the text again); drops
+/// lemmas in `knownTerms`; ranks the rest. No cut by level or count, and no
+/// cut of unknown levels or proper names either (T-121: a word that was
+/// translated is difficult whatever it is): see `selectCheatSheetItems`.
 ///
 /// A lemma is taken for a proper name when it occurs with a capital letter
-/// not at the start of a sentence and never in lower case. Occurrences at the
-/// start of a sentence are ignored: there a capital proves nothing.
+/// not at the start of a sentence and never in lower case; the item says so
+/// in `isProperName`. Occurrences at the start of a sentence are ignored:
+/// there a capital proves nothing.
 ///
-/// Ranking: harder level first, then lower Zipf frequency (no Zipf counts as
-/// the rarest), then more occurrences in the text, then earlier first
-/// occurrence.
+/// Ranking: harder level first (an unknown level last), then lower Zipf
+/// frequency (no Zipf counts as the rarest), then more occurrences in the
+/// text, then earlier first occurrence.
 ///
 /// Each item carries the lemma as `text`, its level and Zipf frequency, and as
 /// `example` a `shortQuote` around the first word form in the text; the
@@ -70,9 +73,8 @@ final class LevelCheatSheetGenerator implements CheatSheetGenerator {
     cancel?.throwIfCancelled();
     final ranked = <_Ranked>[];
     for (final MapEntry(key: lemma, value: entry) in stats.entries) {
-      if (entry.isProperName || knownTerms.contains(lemma)) continue;
+      if (knownTerms.contains(lemma)) continue;
       final word = levels.levelOf(lemma);
-      if (!word.level.isKnown) continue;
       ranked.add(_Ranked(lemma, word, entry));
     }
     ranked.sort(_compare);
@@ -86,6 +88,7 @@ final class LevelCheatSheetGenerator implements CheatSheetGenerator {
             kind: CheatSheetItemKind.word,
             level: r.word.level,
             zipf: r.word.zipf,
+            isProperName: r.stats.isProperName,
             example: r.stats.sentence == null
                 ? null
                 : shortQuote(r.stats.sentence!, r.stats.form),
@@ -111,8 +114,11 @@ bool _isCapitalized(String word) {
   return first != first.toLowerCase();
 }
 
+/// Position of [level] in the ranking: an unknown level is below A1.
+int _rank(CefrLevel level) => level.isKnown ? level.index + 1 : 0;
+
 int _compare(_Ranked a, _Ranked b) {
-  final level = b.word.level.index - a.word.level.index;
+  final level = _rank(b.word.level) - _rank(a.word.level);
   if (level != 0) return level;
   final zipf = (a.word.zipf ?? 0).compareTo(b.word.zipf ?? 0);
   if (zipf != 0) return zipf;

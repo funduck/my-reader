@@ -663,6 +663,87 @@ void main() {
     });
   });
 
+  group('looked-up words', () {
+    Term seen(String text, {int lookups = 3}) => Term(
+      id: TermId('seen-$text'),
+      normalized: text,
+      language: 'en',
+      lookupCount: lookups,
+      eventIds: const [],
+    );
+
+    setUp(() {
+      // The profile level is b1: w1 (b1), w3 (no level) and w4 are not above
+      // it; w2 is.
+      generator = _FakeGenerator([
+        word('w1', level: CefrLevel.b1, zipf: 5),
+        word('w2', zipf: 4),
+        word('w3', level: CefrLevel.unknown),
+        word('w4', level: CefrLevel.a1, zipf: 3),
+      ]);
+    });
+
+    testWidgets('a translated word stays in the list with a ×N mark', (
+      tester,
+    ) async {
+      await terms.save(seen('w1'));
+      await terms.save(seen('w3', lookups: 1));
+      await open(tester, from: at(0, 0));
+
+      expect(shownWords(tester), ['w1', 'w2', 'w3']);
+      expect(find.byKey(const Key('cheatsheet-looked-up-w1')), findsOneWidget);
+      expect(find.text('×3'), findsOneWidget);
+      expect(find.text('×1'), findsOneWidget);
+      expect(find.byKey(const Key('cheatsheet-looked-up-w2')), findsNothing);
+      expect(find.byKey(const Key('cheatsheet-looked-up-w4')), findsNothing);
+      // Nothing known is passed to the generator: the history is not hidden.
+      expect(generator.calls.single.known, isEmpty);
+    });
+
+    testWidgets('the mark has a label and an icon, not only colour', (
+      tester,
+    ) async {
+      final semantics = tester.ensureSemantics();
+      await terms.save(seen('w1'));
+      await open(tester, from: at(0, 0));
+
+      expect(find.bySemanticsLabel(RegExp('переводил: 3')), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('cheatsheet-looked-up-w1')),
+          matching: find.byIcon(Icons.translate),
+        ),
+        findsOneWidget,
+      );
+      semantics.dispose();
+    });
+
+    testWidgets('a word marked known is not shown, translated or not', (
+      tester,
+    ) async {
+      await terms.save(seen('w1').copyWith(status: TermStatus.known));
+      await open(tester, from: at(0, 0));
+
+      expect(shownWords(tester), ['w2']);
+      expect(generator.calls.single.known, {'w1'});
+    });
+
+    testWidgets('"Знаю" removes a translated word', (tester) async {
+      await terms.save(seen('w1'));
+      await open(tester, from: at(0, 0));
+      expect(shownWords(tester), ['w1', 'w2']);
+
+      await tester.tap(find.byKey(const Key('cheatsheet-known-w1')));
+      await settle(tester);
+
+      expect(shownWords(tester), ['w2']);
+      final term = (await tester.runAsync(() => terms.find('w1', 'en')))!;
+      expect(term.status, TermStatus.known);
+      expect(term.lookupCount, 3);
+      expect(generator.calls, hasLength(1));
+    });
+  });
+
   group('frequency bars', () {
     setUp(() {
       generator = _FakeGenerator([word('w1', zipf: 4.2), word('w2')]);
