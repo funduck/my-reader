@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:core/domain_books.dart';
 import 'package:core/domain_lookup.dart';
 import 'package:core/ports.dart';
@@ -512,35 +514,33 @@ void main() {
     Future<CheatSheetSnapshot?> stored(WidgetTester tester) =>
         tester.runAsync(() => log.watch(id).first).then((s) => s);
 
-    testWidgets('the shown list is saved once, with the time of showing', (
+    /// Taps "Читать" and lets the write and the call of `onRead` finish.
+    Future<void> pressRead(WidgetTester tester) async {
+      final button = find.text('Читать');
+      await tester.scrollUntilVisible(
+        button,
+        200,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.tap(button);
+      await settle(tester);
+    }
+
+    testWidgets('opening and going back saves nothing', (tester) async {
+      await open(tester, from: at(0, 0));
+      expect(shownWords(tester), ['w1', 'w2', 'w3', 'w5']);
+      // A change of the list on screen writes nothing either.
+      await enterLimit(tester, '2');
+      await tester.tap(find.byKey(const Key('cheatsheet-known-w1')));
+      await settle(tester);
+      expect(log.saved, isEmpty);
+      expect(await stored(tester), isNull);
+      expect(reads, 0);
+    });
+
+    testWidgets('a new level and "Читать" save one snapshot of the list', (
       tester,
     ) async {
-      await open(tester, from: at(0, 0));
-      // The profile of the test: B1, limit 10; w4 is B1, not above it.
-      expect(shownWords(tester), ['w1', 'w2', 'w3', 'w5']);
-      expect(log.saved, [
-        snapshot(['w1', 'w2', 'w3', 'w5']),
-      ]);
-      expect(await stored(tester), log.saved.single);
-    });
-
-    testWidgets('a new limit saves the list that is shown now', (tester) async {
-      await open(tester, from: at(0, 0));
-      clock.advance(const Duration(minutes: 1));
-
-      await enterLimit(tester, '2');
-
-      expect(shownWords(tester), ['w1', 'w2']);
-      expect(log.saved, hasLength(2));
-      expect(
-        await stored(tester),
-        snapshot(['w1', 'w2'], at: DateTime.utc(2024, 3, 4, 5, 7)),
-      );
-      // The older snapshot is replaced, not kept beside the new one.
-      expect((await stored(tester))?.lemmas, ['w1', 'w2']);
-    });
-
-    testWidgets('a new level saves the list that is shown now', (tester) async {
       await open(tester, from: at(0, 0));
       await tester.tap(
         find.descendant(
@@ -549,52 +549,101 @@ void main() {
         ),
       );
       await settle(tester);
+      clock.advance(const Duration(minutes: 1));
+
+      await pressRead(tester);
+
       expect(shownWords(tester), ['w2', 'w5']);
-      expect((await stored(tester))?.lemmas, ['w2', 'w5']);
+      expect(log.saved, [
+        snapshot(['w2', 'w5'], at: DateTime.utc(2024, 3, 4, 5, 7)),
+      ]);
+      expect(await stored(tester), log.saved.single);
+      expect(reads, 1);
     });
 
-    testWidgets('"Знаю" and Undo follow the list on screen', (tester) async {
+    testWidgets('the limit and "Знаю" are in the snapshot', (tester) async {
       await open(tester, from: at(0, 0));
+      await enterLimit(tester, '2');
       await tester.tap(find.byKey(const Key('cheatsheet-known-w1')));
       await settle(tester);
-      expect((await stored(tester))?.lemmas, ['w2', 'w3', 'w5']);
 
-      await tester.pump(const Duration(seconds: 1));
-      await tester.tap(find.text('Undo'));
-      await settle(tester);
-      expect((await stored(tester))?.lemmas, ['w1', 'w2', 'w3', 'w5']);
-    });
+      await pressRead(tester);
 
-    testWidgets('a change that keeps the words writes nothing', (tester) async {
-      await open(tester, from: at(0, 0));
-      final before = log.saved.length;
-      // The profile emits again, the shown words are the same.
-      await profiles.save(
-        const UserProfile(level: CefrLevel.b1, serviceUrl: 'http://host:1'),
-      );
-      await settle(tester);
-      expect(log.saved, hasLength(before));
+      expect(log.saved.single.lemmas, ['w2', 'w3']);
     });
 
     testWidgets('an empty list is saved as an empty snapshot', (tester) async {
       generator = _FakeGenerator(const []);
       await open(tester, from: at(0, 0));
+      expect(log.saved, isEmpty);
+
+      await pressRead(tester);
+
       expect(log.saved, [snapshot([])]);
+      expect(reads, 1);
     });
 
-    testWidgets('an unbuilt sheet saves nothing', (tester) async {
+    testWidgets('an unbuilt sheet goes to the reader without a write', (
+      tester,
+    ) async {
       books = FakeBookRepository();
       await open(tester, from: at(0, 0));
       expect(find.text('Не удалось подготовить разминку.'), findsOneWidget);
+
+      await pressRead(tester);
+
       expect(log.saved, isEmpty);
+      expect(reads, 1);
     });
 
-    testWidgets('a failing log does not break the screen', (tester) async {
+    testWidgets('a failing log still calls onRead', (tester) async {
       log = _FailingLog();
       await open(tester, from: at(0, 0));
       expect(shownWords(tester), ['w1', 'w2', 'w3', 'w5']);
-      await enterLimit(tester, '2');
-      expect(shownWords(tester), ['w1', 'w2']);
+
+      await pressRead(tester);
+
+      expect(reads, 1);
+    });
+
+    testWidgets('onRead is called after the write', (tester) async {
+      final gate = Completer<void>();
+      log = _SlowLog(gate.future);
+      await open(tester, from: at(0, 0));
+
+      final button = find.text('Читать');
+      await tester.scrollUntilVisible(
+        button,
+        200,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.tap(button);
+      await settle(tester);
+      expect(reads, 0);
+
+      gate.complete();
+      await settle(tester);
+      expect(reads, 1);
+      expect(log.saved, hasLength(1));
+    });
+
+    testWidgets('"Читать" comes after the last row of the list', (
+      tester,
+    ) async {
+      await open(tester, from: at(0, 0));
+      final button = find.text('Читать');
+      // Not pinned to the screen: the last row is above it in the list.
+      await tester.scrollUntilVisible(
+        button,
+        200,
+        scrollable: find.byType(Scrollable).last,
+      );
+      expect(
+        tester.getTopLeft(button).dy,
+        greaterThan(
+          tester.getBottomLeft(find.byKey(const Key('cheatsheet-known-w5'))).dy,
+        ),
+      );
     });
   });
 
@@ -766,6 +815,18 @@ class _FailingLog extends FakeCheatSheetLog {
   @override
   Future<void> save(CheatSheetSnapshot snapshot) =>
       Future<void>.error(StateError('disk'));
+}
+
+class _SlowLog extends FakeCheatSheetLog {
+  new(this._gate);
+
+  final Future<void> _gate;
+
+  @override
+  Future<void> save(CheatSheetSnapshot snapshot) async {
+    await _gate;
+    await super.save(snapshot);
+  }
 }
 
 class _FailingTerms extends FakeTermRepository {

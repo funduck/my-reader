@@ -71,7 +71,7 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('the cheat sheet of the demo book lands in the log port', (
+  testWidgets('"Читать" puts the cheat sheet of the demo book in the log', (
     tester,
   ) async {
     await tester.pumpWidget(const DemoApp(initial: 'cheatsheet'));
@@ -79,6 +79,14 @@ void main() {
     final container = ProviderScope.containerOf(
       tester.element(find.byType(CheatSheetScreen)),
     );
+    final read = find.text('Читать');
+    await tester.scrollUntilVisible(
+      read,
+      200,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(read);
+    await settle(tester);
     final snapshot = await tester.runAsync(
       () => container.read(cheatSheetLogProvider).watch(demoBookId).first,
     );

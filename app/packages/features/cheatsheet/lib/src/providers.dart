@@ -172,52 +172,33 @@ class CheatSheetKnown extends Notifier<Set<String>> {
       hidden ? {...state, text} : ({...state}..remove(text));
 }
 
-/// Keeps the last shown list of a [CheatSheetRequest] in the `CheatSheetLog`
-/// (B-019): the words of the rows on screen, with the time of showing.
+/// Writes the list on screen to the `CheatSheetLog` (B-027): the words of the
+/// rows shown now, with the time of the call. The screen calls it when the
+/// user taps "Читать", and only then.
 ///
-/// Watch it from the screen. It saves when the list is first shown and again
-/// each time the shown words change (the level, the limit, "Знаю" and Undo),
-/// so the log always holds the list the user saw last. A change that leaves
-/// the words as they were (the profile emitting again) writes nothing; a list
-/// that is loading or failed writes nothing either. A failed write is logged
-/// and tried again at the next change.
-final ProviderFamily<void, CheatSheetRequest> cheatSheetSnapshotSaverProvider =
-    Provider.autoDispose.family<void, CheatSheetRequest>((ref, request) {
-      final log = Logger('CheatSheetSnapshotSaver');
-      List<String>? saved;
-
-      Future<void> save(List<String> lemmas) async {
-        try {
-          await ref
-              .read(cheatSheetLogProvider)
-              .save(
-                CheatSheetSnapshot(
-                  book: request.bookId,
-                  shownAt: ref.read(clockProvider).now().toUtc(),
-                  lemmas: lemmas,
-                ),
-              );
-        } on Object catch (error, stack) {
-          log.warning('Cannot save the shown cheat sheet', error, stack);
-          if (identical(saved, lemmas)) saved = null;
-        }
-      }
-
-      ref.listen(cheatSheetItemsProvider(request), (_, next) {
-        if (next is! AsyncData<List<CheatSheetItem>>) return;
-        final lemmas = [for (final item in next.value) item.text];
-        if (saved != null && _sameWords(saved!, lemmas)) return;
-        saved = lemmas;
-        unawaited(save(lemmas));
-      }, fireImmediately: true);
-    }, name: 'cheatSheetSnapshotSaverProvider');
-
-bool _sameWords(List<String> a, List<String> b) {
-  if (a.length != b.length) return false;
-  for (var i = 0; i < a.length; i++) {
-    if (a[i] != b[i]) return false;
+/// While the list is loading or failed nothing is written; an empty shown
+/// list is written as an empty snapshot. A failed write is logged and does not
+/// throw, so the caller goes on to the reader.
+Future<void> saveShownCheatSheet(
+  ProviderContainer container,
+  CheatSheetRequest request,
+) async {
+  final log = Logger('CheatSheetSnapshot');
+  final items = container.read(cheatSheetItemsProvider(request));
+  if (items is! AsyncData<List<CheatSheetItem>>) return;
+  try {
+    await container
+        .read(cheatSheetLogProvider)
+        .save(
+          CheatSheetSnapshot(
+            book: request.bookId,
+            shownAt: container.read(clockProvider).now().toUtc(),
+            lemmas: [for (final item in items.value) item.text],
+          ),
+        );
+  } on Object catch (error, stack) {
+    log.warning('Cannot save the shown cheat sheet', error, stack);
   }
-  return true;
 }
 
 /// The rows to show: the candidates of the sheet cut by the level and the
