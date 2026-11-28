@@ -38,7 +38,9 @@ const List<CefrLevel> _pickableLevels = [
 /// Above the list the user picks the level and how many words to show (both
 /// saved in the profile); "Знаю" hides a word and marks its term known.
 /// Tapping a word calls [onWordTap] (the app shows the lookup sheet, which
-/// writes the query to the history). [onRead] brings the user back to the
+/// writes the query to the history). The "Читать" button ends the list: it
+/// saves the shown list to the cheat-sheet log (only this way, B-027), waits
+/// for the write, then calls [onRead], which brings the user back to the
 /// book.
 class CheatSheetScreen extends ConsumerWidget {
   /// Creates the screen.
@@ -56,7 +58,7 @@ class CheatSheetScreen extends ConsumerWidget {
   /// Start of the piece; null for the saved position.
   final Locator? from;
 
-  /// Called by the "Читать" button.
+  /// Called by the "Читать" button, after the shown list is saved.
   final VoidCallback onRead;
 
   /// Called when a word is tapped; without it the rows are not tappable.
@@ -68,8 +70,6 @@ class CheatSheetScreen extends ConsumerWidget {
     final load = ref.watch(cheatSheetProvider(request));
     // Subscribed with the sheet, not after it, so the list is ready at once.
     final profile = ref.watch(cheatSheetProfileProvider).value;
-    // Remembers the list on screen for the highlights in the text.
-    ref.watch(cheatSheetSnapshotSaverProvider(request));
     // The title follows the profile: a new piece size shows while the sheet
     // is being built again.
     final scope = profile?.scope ?? load.value?.scope;
@@ -81,22 +81,40 @@ class CheatSheetScreen extends ConsumerWidget {
           if (profile != null) _Controls(profile: profile),
           Expanded(
             child: load.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (_, _) =>
-                  const Center(child: Text('Не удалось подготовить разминку.')),
-              data: (data) =>
-                  _Body(request: request, data: data, onWordTap: onWordTap),
+              loading: () => _ListWithRead(
+                onRead: () => _read(context, ref, request),
+                child: const Padding(
+                  padding: EdgeInsets.all(32),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+              ),
+              error: (_, _) => _ListWithRead(
+                onRead: () => _read(context, ref, request),
+                child: const _Message('Не удалось подготовить разминку.'),
+              ),
+              data: (data) => _Body(
+                request: request,
+                data: data,
+                onWordTap: onWordTap,
+                onRead: () => _read(context, ref, request),
+              ),
             ),
           ),
         ],
       ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: FilledButton(onPressed: onRead, child: const Text('Читать')),
-        ),
-      ),
     );
+  }
+
+  /// Remembers the list on screen (for the highlights in the text), then goes
+  /// to the reader. The write is awaited so the reader sees the new snapshot.
+  Future<void> _read(
+    BuildContext context,
+    WidgetRef ref,
+    CheatSheetRequest request,
+  ) async {
+    final container = ProviderScope.containerOf(context);
+    await saveShownCheatSheet(container, request);
+    if (context.mounted) onRead();
   }
 
   static String _title(CheatSheetScope scope) => switch (scope) {
@@ -111,11 +129,13 @@ class _Body extends ConsumerWidget {
     required this.request,
     required this.data,
     required this.onWordTap,
+    required this.onRead,
   });
 
   final CheatSheetRequest request;
   final CheatSheetLoad data;
   final WordTapCallback? onWordTap;
+  final VoidCallback onRead;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -125,11 +145,19 @@ class _Body extends ConsumerWidget {
         data: data,
         items: value,
         onWordTap: onWordTap,
+        onRead: onRead,
       ),
-      AsyncError() => const Center(
-        child: Text('Не удалось подготовить разминку.'),
+      AsyncError() => _ListWithRead(
+        onRead: onRead,
+        child: const _Message('Не удалось подготовить разминку.'),
       ),
-      AsyncLoading() => const Center(child: CircularProgressIndicator()),
+      AsyncLoading() => _ListWithRead(
+        onRead: onRead,
+        child: const Padding(
+          padding: EdgeInsets.all(32),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      ),
     };
   }
 }
@@ -352,23 +380,30 @@ class _Items extends StatelessWidget {
     required this.data,
     required this.items,
     required this.onWordTap,
+    required this.onRead,
   });
 
   final CheatSheetRequest request;
   final CheatSheetLoad data;
   final List<CheatSheetItem> items;
   final WordTapCallback? onWordTap;
+  final VoidCallback onRead;
 
   @override
   Widget build(BuildContext context) {
     final from = data.sheet?.from;
     final onWordTap = this.onWordTap;
     if (items.isEmpty) {
-      return const Center(child: Text('Незнакомых слов не нашлось.'));
+      return _ListWithRead(
+        onRead: onRead,
+        child: const _Message('Незнакомых слов не нашлось.'),
+      );
     }
     return ListView.builder(
-      itemCount: items.length,
+      // The last entry is the "Читать" button, after the last row.
+      itemCount: items.length + 1,
       itemBuilder: (context, i) {
+        if (i == items.length) return _ReadButton(onRead: onRead);
         final item = items[i];
         return _ItemTile(
           key: ValueKey(item.text),
@@ -388,6 +423,55 @@ class _Items extends StatelessWidget {
                 ),
         );
       },
+    );
+  }
+}
+
+/// A [child] (a message or a spinner) followed by the "Читать" button, for the
+/// states without rows: the button is there whatever the sheet holds.
+class _ListWithRead extends StatelessWidget {
+  const new({required this.child, required this.onRead});
+
+  final Widget child;
+  final VoidCallback onRead;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      children: [
+        child,
+        _ReadButton(onRead: onRead),
+      ],
+    );
+  }
+}
+
+class _Message extends StatelessWidget {
+  const new(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.all(32),
+    child: Center(child: Text(text)),
+  );
+}
+
+/// The end of the list: saves the shown list, then goes to the reader.
+class _ReadButton extends StatelessWidget {
+  const new({required this.onRead});
+
+  final VoidCallback onRead;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: FilledButton(onPressed: onRead, child: const Text('Читать')),
+      ),
     );
   }
 }
