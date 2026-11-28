@@ -16,16 +16,12 @@ abstract final class HighlightPlateShape {
   static const double radius = 4;
 
   /// How far a plate reaches past the letters on the left and the right.
-  static const double horizontalPadding = 2;
+  static const double horizontalPadding = 3;
 
-  /// How far a plate reaches past the text box above and below; negative
-  /// pulls it in.
-  ///
-  /// The box of a line is as tall as the line (`fontSize × lineHeight`), so
-  /// the boxes of two lines touch at any line height; pulling each plate in
-  /// by 1 px leaves a 2 px gap between plates of neighbouring lines, so they
-  /// never overlap.
-  static const double verticalPadding = -1;
+  /// How far a plate reaches past the font above and below; negative pulls
+  /// it in. A plate never leaves its line, so at a small line height it is
+  /// cut to leave 2 px between the plates of neighbouring lines.
+  static const double verticalPadding = 1;
 
   /// Height of the capitals as a share of the font size: the plate is
   /// centred halfway between the baseline and the top of the capitals. Most
@@ -182,7 +178,10 @@ class RenderHighlightPlates extends RenderProxyBox {
       }
       for (final line in lines) {
         result.add((
-          rect: _widen(MatrixUtils.transformRect(toThis, line)),
+          rect: _widen(
+            MatrixUtils.transformRect(toThis, line),
+            vertical: natural == null,
+          ),
           color: color,
           start: start,
           end: end,
@@ -198,8 +197,10 @@ class RenderHighlightPlates extends RenderProxyBox {
   /// capitals, so the space above and below the letters is the same.
   ///
   /// The bottom of [box] is the bottom of the line at any line height.
-  /// The plate stays inside its line (`fontSize × lineHeight`, ending at
-  /// the bottom of [box]), so plates of neighbouring lines never overlap.
+  /// The plate reaches [HighlightPlateShape.verticalPadding] past the font
+  /// but stays inside its line (`fontSize × lineHeight`, ending at the
+  /// bottom of [box]) with 1 px to spare on each side, so plates of
+  /// neighbouring lines never overlap.
   static Rect _centred(
     Rect box,
     ({_FontMetrics font, double lineHeight, TextLeadingDistribution leading})
@@ -208,8 +209,14 @@ class RenderHighlightPlates extends RenderProxyBox {
     final (:font, :lineHeight, leading: _) = metrics;
     final lineBottom = box.bottom;
     final lineTop = lineBottom - font.fontSize * lineHeight;
-    final half = math.min(font.height, lineBottom - lineTop) / 2;
     final line = lineBottom - lineTop;
+    final half = math.max(
+      0,
+      math.min(
+        font.height / 2 + HighlightPlateShape.verticalPadding,
+        line / 2 - 1,
+      ),
+    );
     final baseline = switch (metrics.leading) {
       // The extra height goes half above, half below the font.
       TextLeadingDistribution.even =>
@@ -327,18 +334,22 @@ class RenderHighlightPlates extends RenderProxyBox {
     return overlap > smaller / 2;
   }
 
-  static Rect _widen(Rect box) {
+  /// Widens [box] by the padding; with [vertical] `false` only to the
+  /// sides (`_centred` has done the height).
+  static Rect _widen(Rect box, {required bool vertical}) {
     const horizontal = HighlightPlateShape.horizontalPadding;
     // Never turn a very low box inside out.
-    final vertical = HighlightPlateShape.verticalPadding.clamp(
-      -box.height / 4,
-      double.infinity,
-    );
+    final up = vertical
+        ? HighlightPlateShape.verticalPadding.clamp(
+            -box.height / 4,
+            double.infinity,
+          )
+        : 0.0;
     return Rect.fromLTRB(
       box.left - horizontal,
-      box.top - vertical,
+      box.top - up,
       box.right + horizontal,
-      box.bottom + vertical,
+      box.bottom + up,
     );
   }
 

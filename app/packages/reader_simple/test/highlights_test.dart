@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:core/domain_books.dart';
 import 'package:core_testing/core_testing.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -296,7 +298,10 @@ void main() {
       final baseline =
           box.bottom - (fontSize * lineHeight - fontSize) / 2 - fontSize * 0.25;
       final centre = baseline - fontSize * HighlightPlateShape.capHeight / 2;
-      final half = fontSize / 2 + HighlightPlateShape.verticalPadding;
+      final half = math.min(
+        fontSize / 2 + HighlightPlateShape.verticalPadding,
+        fontSize * lineHeight / 2 - 1,
+      );
       return Rect.fromLTRB(
         box.left - HighlightPlateShape.horizontalPadding,
         centre - half,
@@ -338,7 +343,10 @@ void main() {
       final box = boxes(tester, 6, 10).single;
       expect(result.single.rect, rectMoreOrLessEquals(widened(box)));
       // The plate reaches past the letters, but not by much.
-      expect(result.single.rect.width, box.width + 4);
+      expect(
+        result.single.rect.width,
+        box.width + 2 * HighlightPlateShape.horizontalPadding,
+      );
     });
 
     testWidgets('two neighbouring words have two plates, apart', (
@@ -431,10 +439,11 @@ void main() {
           HighlightKind.lookedUp: {'beta'},
         }),
       );
-      // Where the plate is against the letters: its top and bottom measured
+      // Line heights where the plate is not cut by its line. Where the plate
+      // is against the letters: its top and bottom measured
       // from the baseline (even leading, as in `widened`).
       final placed = <(double, double)>[];
-      for (final lineHeight in [1.2, 1.5, 2.5]) {
+      for (final lineHeight in [1.5, 2.0, 2.5]) {
         h.engine.applySettings(ReaderSettings(lineHeight: lineHeight));
         await tester.pump();
         final box = boxes(tester, 6, 10).single;
@@ -497,10 +506,10 @@ void main() {
         return (plate.top - baseline, plate.bottom - baseline);
       }
 
-      final first = await place(1.2, TextLeadingDistribution.proportional);
+      final first = await place(1.5, TextLeadingDistribution.proportional);
       for (final (lineHeight, leading) in [
         (2.0, TextLeadingDistribution.proportional),
-        (1.2, TextLeadingDistribution.even),
+        (1.5, TextLeadingDistribution.even),
         (2.0, TextLeadingDistribution.even),
       ]) {
         final (top, bottom) = await place(lineHeight, leading);
