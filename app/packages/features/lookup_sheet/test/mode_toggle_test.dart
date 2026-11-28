@@ -164,6 +164,24 @@ void main() {
     expect(selection.calls, hasLength(2));
   });
 
+  testWidgets('«Знаю» is the rightmost button, as tall as the mode toggle', (
+    tester,
+  ) async {
+    await _open(tester, _Selection(), [
+      _Provider(_en, LookupMode.enEn),
+      _Provider(_ru, LookupMode.enRu),
+    ]);
+    final known = find.byKey(const Key('lookup-known-toggle'));
+    // The drawn button, without the room around it for the tap target.
+    Rect drawn(Finder button) => tester.getRect(
+      find.descendant(of: button, matching: find.byType(Material)).first,
+    );
+
+    expect(drawn(known).left, greaterThan(drawn(_toggle).right));
+    expect(drawn(known).height, compactButtonHeight);
+    expect(drawn(_toggle).height, compactButtonHeight);
+  });
+
   testWidgets('the other mode found nothing: the toggle is inactive', (
     tester,
   ) async {

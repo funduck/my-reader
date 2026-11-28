@@ -555,10 +555,7 @@ class _ItemTile extends ConsumerWidget {
       // a check mark.
       trailing: OutlinedButton.icon(
         key: Key('cheatsheet-known-${item.text}'),
-        style: OutlinedButton.styleFrom(
-          visualDensity: VisualDensity.compact,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-        ),
+        style: compactButtonStyle,
         onPressed: () => _markKnown(context, ref),
         icon: const Icon(Icons.check, size: 18),
         label: const Text('Знаю'),

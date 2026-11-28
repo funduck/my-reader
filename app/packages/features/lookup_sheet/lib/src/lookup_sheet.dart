@@ -175,8 +175,6 @@ class _LookupSheetState extends ConsumerState<LookupSheet> {
                 ),
               ),
               if (level != null) LevelBadge(level: level),
-              const SizedBox(width: 8),
-              KnownToggle(text: source.text),
               if (hasOther) ...[
                 const SizedBox(width: 8),
                 _ModeToggle(
@@ -190,6 +188,9 @@ class _LookupSheetState extends ConsumerState<LookupSheet> {
                         ),
                 ),
               ],
+              // «Знаю» is always the rightmost.
+              const SizedBox(width: 8),
+              KnownToggle(text: source.text),
             ],
           ),
           const SizedBox(height: 4),
@@ -286,11 +287,7 @@ class _ModeToggle extends StatelessWidget {
       excludeFromSemantics: true,
       child: OutlinedButton.icon(
         key: const Key('lookup-mode-toggle'),
-        style: OutlinedButton.styleFrom(
-          visualDensity: VisualDensity.compact,
-          minimumSize: const Size(44, 32),
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-        ),
+        style: compactButtonStyle,
         onPressed: onPressed,
         // The swap arrows say "press to switch"; the text says which side.
         icon: const Icon(Icons.swap_horiz, size: 18),

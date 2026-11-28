@@ -134,6 +134,26 @@ void main() {
       expect(changes, [true, false]);
     });
 
+    testWidgets('is as tall on and off, with or without an icon', (
+      tester,
+    ) async {
+      double drawn() => tester
+          .getSize(
+            find
+                .descendant(
+                  of: find.byKey(const Key('toggle')),
+                  matching: find.byType(Material),
+                )
+                .first,
+          )
+          .height;
+
+      await tester.pumpWidget(toggle(selected: false, onChanged: (_) {}));
+      expect(drawn(), compactButtonHeight);
+      await tester.pumpWidget(toggle(selected: true, onChanged: (_) {}));
+      expect(drawn(), compactButtonHeight);
+    });
+
     testWidgets('shows the state in an icon, not only in colour', (
       tester,
     ) async {

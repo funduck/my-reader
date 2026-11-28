@@ -35,12 +35,7 @@ class ToggleButton extends StatelessWidget {
       null => null,
       final change => () => change(!selected),
     };
-    const style = ButtonStyle(
-      visualDensity: VisualDensity.compact,
-      padding: WidgetStatePropertyAll(
-        EdgeInsetsDirectional.symmetric(horizontal: 12),
-      ),
-    );
+    const style = compactButtonStyle;
     final button = selected
         ? FilledButton.tonalIcon(
             onPressed: onPressed,
@@ -65,3 +60,24 @@ class ToggleButton extends StatelessWidget {
     );
   }
 }
+
+/// The one shape of the small buttons next to a word (the lookup sheet, the
+/// cheat sheet, history): the same height with or without an icon, so a row
+/// of them lines up. The tap target stays 48 px (`MaterialTapTargetSize`).
+///
+/// The density is fixed: a compact density (the desktop default) would take
+/// 8 px off [compactButtonHeight].
+const ButtonStyle compactButtonStyle = ButtonStyle(
+  visualDensity: VisualDensity.standard,
+  minimumSize: WidgetStatePropertyAll(Size(44, compactButtonHeight)),
+  maximumSize: WidgetStatePropertyAll(
+    Size(double.infinity, compactButtonHeight),
+  ),
+  padding: WidgetStatePropertyAll(
+    EdgeInsetsDirectional.symmetric(horizontal: 12),
+  ),
+  iconSize: WidgetStatePropertyAll(18),
+);
+
+/// Height of [compactButtonStyle] buttons, in logical pixels.
+const double compactButtonHeight = 32;
