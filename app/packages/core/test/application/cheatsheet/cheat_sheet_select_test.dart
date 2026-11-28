@@ -2,13 +2,20 @@ import 'package:core/application.dart';
 import 'package:core/domain_lookup.dart';
 import 'package:test/test.dart';
 
-CheatSheetItem _item(String text, CefrLevel level, [double? zipf]) =>
-    CheatSheetItem(
-      text: text,
-      kind: CheatSheetItemKind.word,
-      level: level,
-      zipf: zipf,
-    );
+CheatSheetItem _item(
+  String text,
+  CefrLevel level, [
+  double? zipf,
+  int lookups = 0,
+  bool name = false,
+]) => CheatSheetItem(
+  text: text,
+  kind: CheatSheetItemKind.word,
+  level: level,
+  zipf: zipf,
+  lookupCount: lookups,
+  isProperName: name,
+);
 
 List<String> _texts(List<CheatSheetItem> items) => [
   for (final i in items) i.text,
@@ -295,6 +302,80 @@ void main() {
     test('window is configurable', () {
       expect(shortQuote('a b c d e', 'c', window: 1), '… b c d …');
       expect(shortQuote('a b c d e', 'c', window: 2), 'a b c d e');
+    });
+  });
+
+  group('looked-up words (T-121)', () {
+    final items = [
+      _item('above', CefrLevel.c1, 4),
+      _item('below', CefrLevel.a1, 6, 2),
+      _item('rare', CefrLevel.a2, 1, 1),
+      _item('nolevel', CefrLevel.unknown, null, 3),
+      _item('london', CefrLevel.c1, 3, 1, true),
+      _item('plain', CefrLevel.a1, 6),
+      _item('name', CefrLevel.c1, 5, 0, true),
+      _item('seen', CefrLevel.c2, 2, 4),
+    ];
+
+    List<String> pick({
+      int? limit,
+      int minBars = 1,
+      Set<String> hidden = const {},
+    }) => _texts(
+      selectCheatSheetItems(
+        items,
+        above: CefrLevel.b2,
+        limit: limit,
+        minBars: minBars,
+        hidden: hidden,
+      ),
+    );
+
+    test('a looked-up word is picked below the level, below the threshold, '
+        'with an unknown level and as a proper name', () {
+      // Frequent first: below 6, above 4, london 3, seen 2, rare 1, no zipf.
+      expect(pick(), ['below', 'above', 'london', 'seen', 'rare', 'nolevel']);
+      expect(pick(minBars: 5), ['below', 'london', 'seen', 'rare', 'nolevel']);
+    });
+
+    test('a word that was not looked up still needs level and threshold', () {
+      final names = pick(minBars: 3);
+      expect(names, isNot(contains('plain')));
+      expect(names, isNot(contains('name')));
+    });
+
+    test('a word marked known is never picked', () {
+      expect(pick(hidden: {'below', 'nolevel', 'above'}), [
+        'london',
+        'seen',
+        'rare',
+      ]);
+    });
+
+    test('the limit cuts the joint list by frequency, no quota', () {
+      expect(pick(limit: 3), ['below', 'above', 'london']);
+      expect(pick(limit: 1), ['below']);
+    });
+
+    test('an expression is not made difficult by lookups', () {
+      const phrase = CheatSheetItem(
+        text: 'give up',
+        kind: CheatSheetItemKind.expression,
+        level: CefrLevel.a1,
+        lookupCount: 5,
+      );
+      expect(isDifficult(phrase, above: CefrLevel.b2), isFalse);
+    });
+
+    test('isDifficult: the proper-name flag only blocks the level rule', () {
+      expect(
+        isDifficult(_item('x', CefrLevel.c2, 3, 0, true), above: CefrLevel.a1),
+        isFalse,
+      );
+      expect(
+        isDifficult(_item('x', CefrLevel.c2, 3, 1, true), above: CefrLevel.a1),
+        isTrue,
+      );
     });
   });
 }

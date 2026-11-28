@@ -1,5 +1,6 @@
 import '../../domain/books/locator.dart';
 import '../../domain/lookup/cheat_sheet.dart';
+import '../../domain/lookup/term_status.dart';
 import '../../ports/book_format_adapter.dart';
 import '../../ports/cancel_token.dart';
 import '../../ports/cheat_sheet_generator.dart';
@@ -10,10 +11,11 @@ import 'text_range.dart';
 /// Builds the cheat sheet for the piece of the book after a position (S-1).
 ///
 /// Reads the profile (level and piece size), picks the piece with
-/// [selectCheatSheetRange], collects the lemmas the user already looked up
-/// (every term of the history, whatever its status) and hands all that to the
-/// [CheatSheetGenerator]. Definitions are not fetched here: the screen asks
-/// the lookup providers when it shows an item.
+/// [selectCheatSheetRange], hands the lemmas marked known to the
+/// [CheatSheetGenerator] (they are left out) and puts the number of lookups
+/// on the words the user translated (`CheatSheetItem.lookupCount`, T-121):
+/// those stay in the sheet, whatever their level. Definitions are not fetched
+/// here: the screen asks the lookup providers when it shows an item.
 final class BuildCheatSheet {
   /// Creates the use case.
   const new({
@@ -28,7 +30,7 @@ final class BuildCheatSheet {
   /// Source of the level and the piece size.
   final ProfileRepository profiles;
 
-  /// Source of the lemmas looked up before.
+  /// Source of the lemmas looked up and marked known before.
   final TermRepository terms;
 
   /// Builds the sheet for [book] from [from].
@@ -49,17 +51,37 @@ final class BuildCheatSheet {
     );
     if (range == null) return null;
     cancel?.throwIfCancelled();
-    final known = await terms.watchAll().first;
+    final history = await terms.watchAll().first;
     cancel?.throwIfCancelled();
-    return await generator.generate(
+    final known = <String>{};
+    final lookups = <String, int>{};
+    for (final t in history) {
+      if (t.language != cheatSheetLanguage) continue;
+      if (t.status == TermStatus.known) {
+        known.add(t.normalized);
+      } else if (t.lookupCount > 0) {
+        lookups[t.normalized] = t.lookupCount;
+      }
+    }
+    final sheet = await generator.generate(
       text: range.text,
       from: range.start,
       to: range.end,
-      knownTerms: {
-        for (final t in known)
-          if (t.language == cheatSheetLanguage) t.normalized,
-      },
+      knownTerms: known,
       cancel: cancel,
+    );
+    if (lookups.isEmpty) return sheet;
+    return CheatSheet(
+      from: sheet.from,
+      to: sheet.to,
+      items: [
+        for (final item in sheet.items)
+          if (item.kind == CheatSheetItemKind.word &&
+              lookups[item.text] != null)
+            item.copyWith(lookupCount: lookups[item.text])
+          else
+            item,
+      ],
     );
   }
 }

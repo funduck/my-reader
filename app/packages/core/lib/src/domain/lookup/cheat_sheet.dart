@@ -34,6 +34,8 @@ final class CheatSheetItem {
     this.translation,
     this.example,
     this.zipf,
+    this.lookupCount = 0,
+    this.isProperName = false,
   });
 
   /// The word or expression.
@@ -54,6 +56,28 @@ final class CheatSheetItem {
   /// Zipf frequency of the lemma (higher is more frequent), if known.
   final double? zipf;
 
+  /// How many times the user looked the word up (the `Term.lookupCount`);
+  /// 0 — never. A word with a positive count is difficult whatever its level
+  /// and frequency (T-121), unless the user marked it known.
+  final int lookupCount;
+
+  /// Whether the text shows a proper name (a capital letter inside a
+  /// sentence and never in lower case). Such a word is difficult only by a
+  /// positive [lookupCount].
+  final bool isProperName;
+
+  /// Copy with [lookupCount] replaced.
+  CheatSheetItem copyWith({int? lookupCount}) => CheatSheetItem(
+    text: text,
+    kind: kind,
+    level: level,
+    translation: translation,
+    example: example,
+    zipf: zipf,
+    lookupCount: lookupCount ?? this.lookupCount,
+    isProperName: isProperName,
+  );
+
   @override
   bool operator ==(Object other) =>
       other is CheatSheetItem &&
@@ -62,11 +86,21 @@ final class CheatSheetItem {
       other.level == level &&
       other.translation == translation &&
       other.example == example &&
-      other.zipf == zipf;
+      other.zipf == zipf &&
+      other.lookupCount == lookupCount &&
+      other.isProperName == isProperName;
 
   @override
-  int get hashCode =>
-      Object.hash(text, kind, level, translation, example, zipf);
+  int get hashCode => Object.hash(
+    text,
+    kind,
+    level,
+    translation,
+    example,
+    zipf,
+    lookupCount,
+    isProperName,
+  );
 }
 
 /// Cheat sheet for a text range.

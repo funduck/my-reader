@@ -256,6 +256,70 @@ void main() {
       );
     });
 
+    test('looked-up words are picked whatever their level or name', () async {
+      setUpLevels({
+        'easy': _w(CefrLevel.a1, 6),
+        'hard': _w(CefrLevel.c1, 3),
+        'london': _w(CefrLevel.c1, 3),
+      });
+      const book = _Book(['He saw London. Easy hard mystery easy.']);
+      final candidates = await words.candidates(book, _bookId, _ref(0));
+
+      // Nothing is dropped from the candidates: the level-less word and the
+      // proper name are there, the name flagged.
+      expect(candidates.map((i) => i.text).toSet(), {
+        'he',
+        'saw',
+        'london',
+        'easy',
+        'hard',
+        'mystery',
+      });
+      expect(candidates.where((i) => i.isProperName).map((i) => i.text), [
+        'london',
+      ]);
+
+      Set<String> pick(
+        Map<String, int> lookedUp, {
+        Set<String> known = const {},
+      }) => words.pick(
+        candidates,
+        level: CefrLevel.b2,
+        minBars: 4,
+        known: known,
+        lookedUp: lookedUp,
+      );
+
+      expect(pick({}), isEmpty);
+      expect(pick({'easy': 1, 'mystery': 2, 'london': 1}), {
+        'easy',
+        'mystery',
+        'london',
+      });
+      // A lemma that is not in the chapter changes nothing; a zero count
+      // is not a lookup.
+      expect(pick({'absent': 3, 'easy': 0}), isEmpty);
+      // Known wins over a lookup.
+      expect(pick({'easy': 1, 'mystery': 2}, known: {'easy'}), {'mystery'});
+      // The level rule keeps working next to the lookups.
+      expect(pick({'easy': 1}, known: {}).contains('hard'), isFalse);
+      expect(generator.calls, hasLength(1));
+    });
+
+    test('call takes the looked-up words too', () async {
+      setUpLevels({'easy': _w(CefrLevel.a1, 6), 'hard': _w(CefrLevel.c1, 3)});
+      expect(
+        await words(
+          const _Book(['Easy hard.']),
+          _bookId,
+          _ref(0),
+          level: CefrLevel.b2,
+          lookedUp: {'easy': 2},
+        ),
+        {'easy', 'hard'},
+      );
+    });
+
     test('a chapter of 15 000 words is done in under a second', () async {
       final levels = <String, WordLevel>{};
       final buffer = StringBuffer();

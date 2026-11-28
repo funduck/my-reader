@@ -15,9 +15,11 @@ import 'text_range.dart';
 /// The text of the chapter is the one the cheat sheet would analyse
 /// ([selectCheatSheetRange] with [CheatSheetChapter]); the same
 /// [CheatSheetGenerator] gives the candidates. Choosing is the rule of
-/// [isDifficult]: a level strictly above the reader's, `zipfBars >= minBars`
-/// and not marked known. The generator is asked about no known terms, so a
-/// word looked up before still counts (only the mark "known" hides it).
+/// [isDifficult]: a level strictly above the reader's with `zipfBars >=
+/// minBars`, or a word looked up before (T-121), unless marked known. The
+/// generator is asked about no known terms and drops nothing (unknown levels
+/// and proper names come flagged), so a word that is looked up later is
+/// already among the candidates.
 ///
 /// The slow part is [candidates]; [pick] is cheap, so a screen that keeps the
 /// candidates of the chapter calls only [pick] when the level, the threshold
@@ -29,8 +31,8 @@ final class ChapterDifficultWords {
   /// Finds the candidate words of a text.
   final CheatSheetGenerator generator;
 
-  /// All candidates of [chapter]: every lemma with a known level, as the
-  /// generator returns them (proper names left out).
+  /// All candidates of [chapter]: every lemma, as the generator returns them
+  /// (unknown levels and proper names included, flagged).
   ///
   /// Returns an empty list when the chapter is not in `book.spine` or has no
   /// text. Throws [CancelledException] if [cancel] fires.
@@ -58,17 +60,27 @@ final class ChapterDifficultWords {
   }
 
   /// The lemmas among [candidates] that are difficult for [level]: words
-  /// strictly above it, with at least [minBars] frequency bars, whose lemma
-  /// is not in [known]. Only single words are taken.
+  /// strictly above it, with at least [minBars] frequency bars, and the words
+  /// in [lookedUp] (lemma to the number of lookups, only those above 0 count),
+  /// whatever their level, frequency or proper-name flag. A lemma in [known]
+  /// is never taken. Only single words are taken. Cheap: no text analysis.
   Set<String> pick(
     List<CheatSheetItem> candidates, {
     required CefrLevel level,
     int minBars = 1,
     Set<String> known = const {},
+    Map<String, int> lookedUp = const {},
   }) => {
     for (final item in candidates)
       if (item.kind == CheatSheetItemKind.word &&
-          isDifficult(item, above: level, minBars: minBars, hidden: known))
+          isDifficult(
+            lookedUp[item.text] == null
+                ? item
+                : item.copyWith(lookupCount: lookedUp[item.text]),
+            above: level,
+            minBars: minBars,
+            hidden: known,
+          ))
         item.text,
   };
 
@@ -80,11 +92,13 @@ final class ChapterDifficultWords {
     required CefrLevel level,
     int minBars = 1,
     Set<String> known = const {},
+    Map<String, int> lookedUp = const {},
     CancelToken? cancel,
   }) async => pick(
     await candidates(book, bookId, chapter, cancel: cancel),
     level: level,
     minBars: minBars,
     known: known,
+    lookedUp: lookedUp,
   );
 }

@@ -447,6 +447,13 @@ class _ItemTile extends ConsumerWidget {
             const SizedBox(width: 8),
             FrequencyBars(bars: bars),
           ],
+          if (item.lookupCount > 0) ...[
+            const SizedBox(width: 8),
+            LookedUpMark(
+              key: Key('cheatsheet-looked-up-${item.text}'),
+              count: item.lookupCount,
+            ),
+          ],
         ],
       ),
       subtitle: Column(
@@ -463,6 +470,36 @@ class _ItemTile extends ConsumerWidget {
         key: Key('cheatsheet-known-${item.text}'),
         onPressed: () => _markKnown(context, ref),
         child: const Text('Знаю'),
+      ),
+    );
+  }
+}
+
+/// The mark of a word the user translated before (T-121): a translate icon
+/// and the number of lookups as `×N`.
+///
+/// The icon and the number carry the meaning without colour; a screen reader
+/// reads one label instead of the two pieces.
+class LookedUpMark extends StatelessWidget {
+  /// Creates the mark for a word looked up [count] times (above 0).
+  const new({required this.count, super.key});
+
+  /// How many times the word was looked up.
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Semantics(
+      label: 'переводил: $count',
+      excludeSemantics: true,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.translate, size: 16, color: theme.colorScheme.primary),
+          const SizedBox(width: 2),
+          Text('×$count', style: theme.textTheme.labelMedium),
+        ],
       ),
     );
   }

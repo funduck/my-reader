@@ -67,7 +67,8 @@ class _FakeEngine implements ReaderEngine {
 }
 
 /// A generator that finds the same candidates in every chapter: a word each
-/// of A2, C1 and C2, with frequencies. Records the texts it was given.
+/// of A2, C1 and C2, with frequencies, one without a level and one proper
+/// name. Records the texts it was given.
 class _FakeGenerator implements CheatSheetGenerator {
   final List<String> texts = [];
 
@@ -94,6 +95,14 @@ class _FakeGenerator implements CheatSheetGenerator {
         item('apple', CefrLevel.a2, 6),
         item('cargo', CefrLevel.c1, 5),
         item('dusk', CefrLevel.c2, 2),
+        const CheatSheetItem(text: 'mystery', kind: CheatSheetItemKind.word),
+        const CheatSheetItem(
+          text: 'london',
+          kind: CheatSheetItemKind.word,
+          level: CefrLevel.c1,
+          zipf: 3,
+          isProperName: true,
+        ),
         if (text == 'Two.') item('ember', CefrLevel.c1, 4),
       ],
     );
@@ -1174,6 +1183,92 @@ void main() {
       );
       await tester.pump();
       expect(difficult(engine), {'dusk'});
+      expect(generator.texts, ['One.']);
+      await close(tester);
+    });
+
+    Term seen(String word, {int lookups = 1, String language = 'en'}) => Term(
+      id: TermId('t-$language-$word'),
+      normalized: word,
+      language: language,
+      lookupCount: lookups,
+      eventIds: const [],
+    );
+
+    macTest('a looked-up word joins the set whatever its level or name', (
+      tester,
+    ) async {
+      await profiles.save(const UserProfile(highlights: on));
+      await open(tester);
+      final engine = engines.single;
+      expect(difficult(engine), {'cargo', 'dusk'});
+
+      // Below the level, without a level, a proper name: each comes in as
+      // soon as the term is saved, without analysing the chapter again.
+      await terms.save(seen('apple'));
+      await tester.pump();
+      expect(difficult(engine), {'cargo', 'dusk', 'apple'});
+      await terms.save(seen('mystery', lookups: 2));
+      await terms.save(seen('london'));
+      await tester.pump();
+      expect(difficult(engine), {
+        'cargo',
+        'dusk',
+        'apple',
+        'mystery',
+        'london',
+      });
+      expect(generator.texts, ['One.']);
+      await close(tester);
+    });
+
+    macTest('a translated word is picked on opening, not only later', (
+      tester,
+    ) async {
+      await terms.save(seen('apple'));
+      await terms.save(seen('mystery'));
+      await profiles.save(const UserProfile(highlights: on));
+      await open(tester);
+      expect(difficult(engines.single), {'cargo', 'dusk', 'apple', 'mystery'});
+      await close(tester);
+    });
+
+    macTest('known wins over a lookup; no lookups and other languages do '
+        'not count', (tester) async {
+      await profiles.save(const UserProfile(highlights: on));
+      await open(tester);
+      final engine = engines.single;
+
+      await terms.save(seen('apple', lookups: 0));
+      await terms.save(seen('mystery', language: 'ru'));
+      await tester.pump();
+      expect(difficult(engine), {'cargo', 'dusk'});
+
+      await terms.save(seen('apple'));
+      await terms.save(seen('dusk').copyWith(status: TermStatus.known));
+      await tester.pump();
+      expect(difficult(engine), {'cargo', 'apple'});
+      expect(generator.texts, ['One.']);
+      await close(tester);
+    });
+
+    macTest('a translated word stays while the level and threshold change', (
+      tester,
+    ) async {
+      await terms.save(seen('apple'));
+      await profiles.save(const UserProfile(highlights: on));
+      await open(tester);
+      final engine = engines.single;
+
+      await profiles.save(
+        const UserProfile(
+          level: CefrLevel.c1,
+          highlights: HighlightPrefs(difficult: true, minFrequencyBars: 5),
+        ),
+      );
+      await tester.pump();
+      // dusk is above c1 but has 2 bars; apple is translated: no threshold.
+      expect(difficult(engine), {'apple'});
       expect(generator.texts, ['One.']);
       await close(tester);
     });

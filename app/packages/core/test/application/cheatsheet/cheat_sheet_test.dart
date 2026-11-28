@@ -102,12 +102,18 @@ class _Terms implements TermRepository {
   Future<void> save(Term term) async {}
 }
 
-Term _term(String normalized, {String language = 'en'}) => Term(
+Term _term(
+  String normalized, {
+  String language = 'en',
+  TermStatus status = TermStatus.learning,
+  int lookups = 1,
+}) => Term(
   id: TermId('t-$language-$normalized'),
   normalized: normalized,
   language: language,
-  lookupCount: 1,
+  lookupCount: lookups,
   eventIds: const [],
+  status: status,
 );
 
 class _Book implements OpenedBook {
@@ -157,7 +163,7 @@ class _RecordingGenerator implements CheatSheetGenerator {
 
 void main() {
   group('LevelCheatSheetGenerator', () {
-    test('keeps every word with a known level, hardest first', () async {
+    test('keeps every word, hardest first', () async {
       final items = await _run('cat ephemeral sun ubiquitous window arcane', {
         'cat': _w(CefrLevel.a1),
         'sun': _w(CefrLevel.b1),
@@ -178,9 +184,10 @@ void main() {
       expect(items.first.kind, CheatSheetItemKind.word);
     });
 
-    test('drops words with unknown level', () async {
+    test('keeps words with an unknown level, after the known ones', () async {
       final items = await _run('mystery hard', {'hard': _w(CefrLevel.c1)});
-      expect(items.map((i) => i.text), ['hard']);
+      expect(items.map((i) => i.text), ['hard', 'mystery']);
+      expect(items.last.level, CefrLevel.unknown);
     });
 
     test('levels are looked up by lemma and forms are merged', () async {
@@ -189,7 +196,8 @@ void main() {
         {'run': _w(CefrLevel.c1)},
         lemmas: {'ran': 'run', 'running': 'run'},
       );
-      expect(items.map((i) => i.text), ['run']);
+      expect(items.firstWhere((i) => i.text == 'run').level, CefrLevel.c1);
+      expect(items.where((i) => i.text == 'run'), hasLength(1));
     });
 
     test('drops words from knownTerms', () async {
@@ -199,7 +207,7 @@ void main() {
     });
 
     test(
-      'drops proper names: capital not at the start of a sentence',
+      'flags proper names: capital not at the start of a sentence',
       () async {
         final levels = {
           'london': _w(CefrLevel.c1),
@@ -217,13 +225,13 @@ void main() {
         // brown: also lower case: common word.
         // quixotic: first occurrence at the start of a quote is not a name
         //   anyway, and it appears in lower case.
-        // tuesday: only at the start of a sentence: not proven a name, kept.
-        expect(items.map((i) => i.text).toSet(), {
-          'brown',
-          'quixotic',
-          'tuesday',
-          'arcade',
-        });
+        // tuesday: only at the start of a sentence: not proven a name.
+        final names = {
+          for (final i in items)
+            if (i.isProperName) i.text,
+        };
+        expect(names, {'london', 'mr'});
+        expect(items.map((i) => i.text), contains('london'));
       },
     );
 
@@ -232,7 +240,7 @@ void main() {
       final items = await _run('He left. "Zephyr" blew.', {
         'zephyr': _w(CefrLevel.c1),
       });
-      expect(items.map((i) => i.text), ['zephyr']);
+      expect(items.firstWhere((i) => i.text == 'zephyr').isProperName, isFalse);
     });
 
     test('ranks by level, then lower Zipf, then count, then first '
@@ -273,8 +281,9 @@ void main() {
         'Nothing here.  An\nephemeral thing. Another ephemeral one.',
         {'ephemeral': _w(CefrLevel.c1)},
       );
-      expect(items.single.example, 'An ephemeral thing.');
-      expect(items.single.translation, isNull);
+      final item = items.firstWhere((i) => i.text == 'ephemeral');
+      expect(item.example, 'An ephemeral thing.');
+      expect(item.translation, isNull);
     });
 
     test(
@@ -287,7 +296,7 @@ void main() {
           lemmas: {'ran': 'run'},
         );
         expect(
-          items.single.example,
+          items.firstWhere((i) => i.text == 'run').example,
           '… two three four five six seven eight ran nine ten eleven twelve '
           'thirteen fourteen fifteen …',
         );
@@ -317,7 +326,7 @@ void main() {
   });
 
   group('BuildCheatSheet', () {
-    test('passes the piece and looked-up lemmas to the '
+    test('passes the piece and the known lemmas to the '
         'generator', () async {
       final generator = _RecordingGenerator();
       final build = BuildCheatSheet(
@@ -326,9 +335,9 @@ void main() {
           const UserProfile(level: CefrLevel.c1, scope: CheatSheetChapter()),
         ),
         terms: _Terms([
-          _term('alpha'),
+          _term('alpha', status: TermStatus.known),
           _term('beta'),
-          _term('gamma', language: 'ru'),
+          _term('gamma', language: 'ru', status: TermStatus.known),
         ]),
       );
       final sheet = await build(
@@ -337,7 +346,7 @@ void main() {
       );
       expect(sheet, isNotNull);
       expect(generator.text, 'First one.\n\nSecond one.');
-      expect(generator.knownTerms, {'alpha', 'beta'});
+      expect(generator.knownTerms, {'alpha'});
       expect(generator.from!.chapter, _ch0);
       expect(generator.from!.progression, 0);
       expect(generator.to!.progression, 1);
@@ -372,7 +381,7 @@ void main() {
       expect(generator.text, isNull);
     });
 
-    test('end to end: all levels, history and names', () async {
+    test('end to end: looked-up words stay, known ones go', () async {
       final build = BuildCheatSheet(
         generator: LevelCheatSheetGenerator(
           analyzer: const _Analyzer(),
@@ -385,19 +394,38 @@ void main() {
           }),
         ),
         profiles: _Profiles(const UserProfile()),
-        terms: _Terms([_term('arcane')]),
+        terms: _Terms([
+          _term('arcane', lookups: 3),
+          _term('ubiquitous', status: TermStatus.known),
+          _term('london', lookups: 2),
+          _term('mystery'),
+          _term('ephemeral', lookups: 0),
+        ]),
       );
       final sheet = await build(
         const _Book([
-          'The cat saw London. Ephemeral, ubiquitous arcane magic.',
+          'The cat saw London. Ephemeral, ubiquitous arcane magic. A mystery.',
         ]),
         from: _from,
       );
-      expect(sheet!.items.map((i) => i.text), [
-        'ephemeral',
-        'ubiquitous',
-        'cat',
-      ]);
+      final counts = {for (final i in sheet!.items) i.text: i.lookupCount};
+      // ubiquitous is known: gone. arcane, london (a proper name) and
+      // mystery (no level) were looked up: kept with their counts.
+      expect(counts, {
+        'ephemeral': 0,
+        'arcane': 3,
+        'london': 2,
+        'mystery': 1,
+        'the': 0,
+        'saw': 0,
+        'magic': 0,
+        'a': 0,
+        'cat': 0,
+      });
+      final london = sheet.items.firstWhere((i) => i.text == 'london');
+      expect(london.isProperName, isTrue);
+      final mystery = sheet.items.firstWhere((i) => i.text == 'mystery');
+      expect(mystery.level, CefrLevel.unknown);
     });
   });
 }

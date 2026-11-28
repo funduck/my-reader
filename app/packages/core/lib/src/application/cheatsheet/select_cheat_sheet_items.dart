@@ -4,13 +4,15 @@ import 'cheat_sheet_config.dart';
 
 /// Picks the items to show from all candidates of a cheat sheet.
 ///
-/// Keeps items strictly harder than [above] (an unknown level is never
-/// harder), drops those whose text is in [hidden], orders them from frequent
+/// Keeps the items that [isDifficult] accepts: strictly harder than [above]
+/// (an unknown level is never harder) or looked up before, never those whose
+/// text is in [hidden]. Orders them from frequent
 /// to rare ([CheatSheetItem.zipf] descending, items without it last; equal
 /// ones keep the order of [items]) and takes the first [limit]; a null [limit]
 /// takes all. With [minBars] above 1 only items with
 /// `zipfBars(zipf) >= minBars` stay; those without a Zipf frequency are
-/// dropped.
+/// dropped. Looked-up words skip the level and the threshold (T-121) and take
+/// part in the same order and limit: no quota of their own.
 List<CheatSheetItem> selectCheatSheetItems(
   List<CheatSheetItem> items, {
   required CefrLevel above,
@@ -52,19 +54,26 @@ int? zipfBars(double? zipf) {
   return 1;
 }
 
-/// Whether [item] counts as difficult: its level is strictly above [above],
-/// its text is not in [hidden] and it has at least [minBars] frequency bars
-/// (an item without a Zipf frequency fails when [minBars] is above 1).
+/// Whether [item] counts as difficult (T-121). Two ways in:
 ///
-/// The same rule as the cheat sheet applies, without the limit.
+/// - the word was looked up (`kind == word` and `lookupCount > 0`): always,
+///   whatever its level, frequency or proper-name flag;
+/// - its level is strictly above [above], it is not a proper name and it has
+///   at least [minBars] frequency bars (an item without a Zipf frequency
+///   fails when [minBars] is above 1).
+///
+/// A text in [hidden] (the words marked known) is never difficult. The same
+/// rule as the cheat sheet applies, without the limit.
 bool isDifficult(
   CheatSheetItem item, {
   required CefrLevel above,
   int minBars = 1,
   Set<String> hidden = const {},
 }) {
-  if (!item.level.isHarderThan(above) || hidden.contains(item.text)) {
-    return false;
+  if (hidden.contains(item.text)) return false;
+  if (item.kind == CheatSheetItemKind.word && item.lookupCount > 0) {
+    return true;
   }
+  if (item.isProperName || !item.level.isHarderThan(above)) return false;
   return minBars <= 1 || (zipfBars(item.zipf) ?? 0) >= minBars;
 }
