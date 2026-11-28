@@ -38,12 +38,6 @@ abstract final class Routes {
   static String cheatsheetFor(String bookId) => '/cheatsheet/$bookId';
 }
 
-/// `extra` of the cheat sheet route that launch restored (B-030).
-///
-/// There is no reader under a restored cheat sheet, so "Читать" replaces the
-/// sheet with the reader instead of popping to the library.
-const Object restoredCheatSheet = 'restored-cheat-sheet';
-
 /// Builds the app router, starting at [initialLocation].
 GoRouter createRouter({String initialLocation = Routes.library}) {
   return GoRouter(
@@ -109,13 +103,10 @@ GoRouter createRouter({String initialLocation = Routes.library}) {
               ),
             ),
             onRead: () {
-              final reader = Routes.readerAt(bookId.value);
-              if (state.extra == restoredCheatSheet) {
-                context.pushReplacement(reader);
-              } else if (context.canPop()) {
+              if (context.canPop()) {
                 context.pop();
               } else {
-                context.go(reader);
+                context.go(Routes.readerAt(bookId.value));
               }
             },
           );

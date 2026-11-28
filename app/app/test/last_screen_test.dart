@@ -217,9 +217,8 @@ void main() {
     expect(library, findsOneWidget);
   });
 
-  desktopTest('cheat sheet: restart opens it, back goes to the library', (
-    tester,
-  ) async {
+  desktopTest('cheat sheet: restart opens it over the book, back goes to '
+      'the book, then to the library', (tester) async {
     await launch(tester);
     unawaited(routerOf(tester).push<void>(Routes.cheatsheetFor('b1')));
     await settle(tester);
@@ -231,6 +230,9 @@ void main() {
     expect(find.text('Читать'), findsOneWidget);
     expect(await device.lastScreen(), sheet1);
 
+    await back(tester);
+    expect(appBar('Dune'), findsOneWidget);
+    expect(await device.lastScreen(), reader1);
     await back(tester);
     expect(library, findsOneWidget);
   });

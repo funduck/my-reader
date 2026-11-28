@@ -106,12 +106,15 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('restore_cheatsheet opens the sheet over the library', (
+  testWidgets('restore_cheatsheet opens the sheet over the book', (
     tester,
   ) async {
     await tester.pumpWidget(const DemoApp(initial: 'restore_cheatsheet'));
     await settle(tester);
     expect(find.text('mischievous'), findsOneWidget);
+    await tester.binding.handlePopRoute();
+    await settle(tester);
+    expect(text('Old Tobias lit the lantern'), findsWidgets);
     await tester.binding.handlePopRoute();
     await settle(tester);
     expect(find.widgetWithText(AppBar, 'Library'), findsOneWidget);

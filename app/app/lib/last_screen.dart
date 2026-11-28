@@ -142,21 +142,24 @@ final FutureProvider<void> launchProvider = FutureProvider<void>((ref) async {
 });
 
 /// Pushes [screen] over the library once the router has shown the library:
-/// a push before that has nothing under it.
+/// a push before that has nothing under it. A cheat sheet goes over the
+/// reader of its book, as when it was opened: back and "Читать" lead to the
+/// book, and back again to the library.
 Future<void> _restore(GoRouter router, LastScreen screen) async {
   _log.info('Restoring $screen');
   await _waitFor(
     router,
     () => router.routerDelegate.currentConfiguration.isNotEmpty,
   );
-  unawaited(
-    router.push<void>(
-      locationOf(screen),
-      extra: screen.kind == LastScreenKind.cheatsheet
-          ? restoredCheatSheet
-          : null,
-    ),
-  );
+  final reader = LastScreen(kind: LastScreenKind.reader, book: screen.book);
+  await _pushAndWait(router, reader);
+  if (screen.kind == LastScreenKind.cheatsheet) {
+    await _pushAndWait(router, screen);
+  }
+}
+
+Future<void> _pushAndWait(GoRouter router, LastScreen screen) async {
+  unawaited(router.push<void>(locationOf(screen)));
   await _waitFor(
     router,
     () =>
