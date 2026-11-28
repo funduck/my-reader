@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:material_ui/material_ui.dart';
@@ -24,7 +26,16 @@ abstract final class HighlightPlateShape {
   /// by 1 px leaves a 2 px gap between plates of neighbouring lines, so they
   /// never overlap.
   static const double verticalPadding = -1;
+
+  /// Height of the capitals as a share of the font size: the plate is
+  /// centred halfway between the baseline and the top of the capitals. Most
+  /// text fonts are close to 0.7.
+  static const double capHeight = 0.7;
 }
+
+/// Height (ascent plus descent) and descent of a font without the line
+/// height and its size, all in logical pixels.
+typedef _FontMetrics = ({double height, double descent, double fontSize});
 
 /// A piece of a block that gets a plate: `[start, end)` offsets in the text
 /// of the block, the colour, and whether the plate pulses (`recent`, T-124).
@@ -151,11 +162,16 @@ class RenderHighlightPlates extends RenderProxyBox {
       if (pulses && pulse != null && pulse.isCompleted) continue;
       final opacity = pulses && pulse != null ? pulse.value : 1.0;
       final lines = <Rect>[];
+      final natural = _naturalHeight(editable, start);
       for (final box in editable.getBoxesForSelection(
         TextSelection(baseOffset: start, extentOffset: end),
       )) {
-        final rect = box.toRect();
+        var rect = box.toRect();
         if (rect.isEmpty) continue;
+        // The box reaches from the top of the font to the bottom of the
+        // line, which grows with the line height: the plate would hang below
+        // the letters. Centre it on the letters instead.
+        if (natural != null) rect = _centred(rect, natural);
         // Boxes of one line (runs of other fonts, directions) are one plate.
         final i = lines.indexWhere((line) => _sameLine(line, rect));
         if (i < 0) {
@@ -175,6 +191,117 @@ class RenderHighlightPlates extends RenderProxyBox {
       }
     }
     return result;
+  }
+
+  /// A plate of the font's own height (ascent plus descent, without the
+  /// line height) centred halfway between the baseline and the top of the
+  /// capitals, so the space above and below the letters is the same.
+  ///
+  /// The bottom of [box] is the bottom of the line at any line height.
+  /// The plate stays inside its line (`fontSize × lineHeight`, ending at
+  /// the bottom of [box]), so plates of neighbouring lines never overlap.
+  static Rect _centred(
+    Rect box,
+    ({_FontMetrics font, double lineHeight, TextLeadingDistribution leading})
+    metrics,
+  ) {
+    final (:font, :lineHeight, leading: _) = metrics;
+    final lineBottom = box.bottom;
+    final lineTop = lineBottom - font.fontSize * lineHeight;
+    final half = math.min(font.height, lineBottom - lineTop) / 2;
+    final line = lineBottom - lineTop;
+    final baseline = switch (metrics.leading) {
+      // The extra height goes half above, half below the font.
+      TextLeadingDistribution.even =>
+        lineTop + (line - font.height) / 2 + font.height - font.descent,
+      // The line is shared in the proportion of the ascent to the descent.
+      TextLeadingDistribution.proportional =>
+        lineBottom - line * font.descent / font.height,
+    };
+    final centre =
+        (baseline - font.fontSize * HighlightPlateShape.capHeight / 2).clamp(
+          lineTop + half,
+          lineBottom - half,
+        );
+    return Rect.fromLTRB(box.left, centre - half, box.right, centre + half);
+  }
+
+  /// Metrics of the font at [offset] without the line height
+  /// (`TextStyle.height`). `null` when the text has no style there or no
+  /// line height is set: then the box already fits the letters.
+  static ({
+    _FontMetrics font,
+    double lineHeight,
+    TextLeadingDistribution leading,
+  })?
+  _naturalHeight(RenderEditable editable, int offset) {
+    final text = editable.text;
+    if (text == null) return null;
+    final style = _styleAt(text, offset);
+    if (style == null || style.height == null) return null;
+    final probe = TextStyle(
+      fontFamily: style.fontFamily,
+      fontFamilyFallback: style.fontFamilyFallback,
+      fontSize: style.fontSize,
+      fontWeight: style.fontWeight,
+      fontStyle: style.fontStyle,
+      fontFeatures: style.fontFeatures,
+      fontVariations: style.fontVariations,
+      locale: style.locale,
+    );
+    final lineHeight = style.height!;
+    final leading =
+        style.leadingDistribution ?? TextLeadingDistribution.proportional;
+    final key = (probe, editable.textScaler);
+    final cached = _naturalHeights[key];
+    if (cached != null) {
+      return (font: cached, lineHeight: lineHeight, leading: leading);
+    }
+    final painter = TextPainter(
+      text: TextSpan(text: 'H', style: probe),
+      textDirection: TextDirection.ltr,
+      textScaler: editable.textScaler,
+    )..layout();
+    final line = painter.computeLineMetrics().first;
+    final metrics = (
+      height: line.ascent + line.descent,
+      descent: line.descent,
+      fontSize: editable.textScaler.scale(style.fontSize ?? 14),
+    );
+    painter.dispose();
+    if (_naturalHeights.length >= 32) _naturalHeights.clear();
+    _naturalHeights[key] = metrics;
+    return (font: metrics, lineHeight: lineHeight, leading: leading);
+  }
+
+  static final _naturalHeights = <(TextStyle, TextScaler), _FontMetrics>{};
+
+  /// The style of the text at [offset] in [root], merged down the tree.
+  static TextStyle? _styleAt(InlineSpan root, int offset) {
+    var position = 0;
+    TextStyle? found;
+    bool visit(InlineSpan span, TextStyle? inherited) {
+      final style = inherited == null
+          ? span.style
+          : inherited.merge(span.style);
+      if (span is! TextSpan) {
+        position += 1;
+        return true;
+      }
+      final length = span.text?.length ?? 0;
+      if (offset >= position && offset < position + length) {
+        found = style;
+        return false;
+      }
+      position += length;
+      for (final child in span.children ?? const <InlineSpan>[]) {
+        if (!visit(child, style)) return false;
+      }
+      return true;
+    }
+
+    visit(root, null);
+    return found;
   }
 
   static RenderEditable? _findEditable(RenderObject root) {

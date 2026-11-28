@@ -286,12 +286,24 @@ void main() {
       ];
     }
 
-    Rect widened(Rect box) => Rect.fromLTRB(
-      box.left - HighlightPlateShape.horizontalPadding,
-      box.top - HighlightPlateShape.verticalPadding,
-      box.right + HighlightPlateShape.horizontalPadding,
-      box.bottom + HighlightPlateShape.verticalPadding,
-    );
+    // The plate of a line box: as wide as the box plus the padding, as tall
+    // as the font (the test font: ascent 0.75 em, descent 0.25 em) and centred
+    // halfway between the baseline and the top of the capitals. The bottom
+    // of the box is the bottom of the line; the Material theme shares the
+    // extra line height evenly above and below the font. Defaults: font
+    // size 18, line height 1.5.
+    Rect widened(Rect box, {double fontSize = 18, double lineHeight = 1.5}) {
+      final baseline =
+          box.bottom - (fontSize * lineHeight - fontSize) / 2 - fontSize * 0.25;
+      final centre = baseline - fontSize * HighlightPlateShape.capHeight / 2;
+      final half = fontSize / 2 + HighlightPlateShape.verticalPadding;
+      return Rect.fromLTRB(
+        box.left - HighlightPlateShape.horizontalPadding,
+        centre - half,
+        box.right + HighlightPlateShape.horizontalPadding,
+        centre + half,
+      );
+    }
 
     // A view 200 px wide: 168 px of text, nine letters of the test font.
     void narrow(WidgetTester tester) {
@@ -408,6 +420,93 @@ void main() {
 
       expect(tester.getSize(selectable), size);
       expect(lines(), before);
+    });
+
+    testWidgets('the line height does not move the plate off the letters', (
+      tester,
+    ) async {
+      final h = await openOne(tester, 'alpha beta gamma');
+      h.engine.highlight(
+        _words({
+          HighlightKind.lookedUp: {'beta'},
+        }),
+      );
+      // Where the plate is against the letters: its top and bottom measured
+      // from the baseline (even leading, as in `widened`).
+      final placed = <(double, double)>[];
+      for (final lineHeight in [1.2, 1.5, 2.5]) {
+        h.engine.applySettings(ReaderSettings(lineHeight: lineHeight));
+        await tester.pump();
+        final box = boxes(tester, 6, 10).single;
+        final plate = plates(tester).single.rect;
+        final baseline = box.bottom - (box.height - 18) / 2 - 18 * 0.25;
+        placed.add((plate.top - baseline, plate.bottom - baseline));
+      }
+      for (final (top, bottom) in placed.skip(1)) {
+        expect(top, moreOrLessEquals(placed.first.$1, epsilon: 0.01));
+        expect(bottom, moreOrLessEquals(placed.first.$2, epsilon: 0.01));
+      }
+    });
+
+    testWidgets('the plate sits on the baseline the same way for both '
+        'leading distributions', (tester) async {
+      // Where the plate is against the real baseline of the first line.
+      Future<(double, double)> place(
+        double lineHeight,
+        TextLeadingDistribution leading,
+      ) async {
+        await tester.pumpWidget(
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: HighlightPlates(
+                ranges: const [
+                  (start: 0, end: 5, color: Color(0xFF000000), pulse: false),
+                ],
+                child: SelectableText(
+                  'alpha beta',
+                  style: TextStyle(
+                    fontSize: 20,
+                    height: lineHeight,
+                    leadingDistribution: leading,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        final editable = tester
+            .state<EditableTextState>(find.byType(EditableText))
+            .renderEditable;
+        final baseline = editable
+            .localToGlobal(
+              Offset(
+                0,
+                editable.computeDistanceToActualBaseline(
+                  TextBaseline.alphabetic,
+                ),
+              ),
+            )
+            .dy;
+        final plate = tester
+            .renderObject<RenderHighlightPlates>(find.byType(HighlightPlates))
+            .plates
+            .single
+            .rect;
+        return (plate.top - baseline, plate.bottom - baseline);
+      }
+
+      final first = await place(1.2, TextLeadingDistribution.proportional);
+      for (final (lineHeight, leading) in [
+        (2.0, TextLeadingDistribution.proportional),
+        (1.2, TextLeadingDistribution.even),
+        (2.0, TextLeadingDistribution.even),
+      ]) {
+        final (top, bottom) = await place(lineHeight, leading);
+        expect(top, moreOrLessEquals(first.$1, epsilon: 0.01));
+        expect(bottom, moreOrLessEquals(first.$2, epsilon: 0.01));
+      }
     });
 
     for (final lineHeight in [1.0, 1.5, 2.5]) {
