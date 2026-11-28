@@ -87,6 +87,36 @@ void main() {
     await unmount(tester);
   });
 
+  testWidgets('reader_pulse: the word pulses at the start, then it is gone', (
+    tester,
+  ) async {
+    // The plates of the reader are a private widget of `reader_simple`: look
+    // at what is painted under the text.
+    final plates = find.byWidgetPredicate(
+      (w) => w.runtimeType.toString() == 'HighlightPlates',
+    );
+    bool drawn() => plates.evaluate().any((e) => _paintsPlate(e.renderObject!));
+
+    await tester.pumpWidget(const DemoApp(initial: 'reader_pulse'));
+    // The book loads outside the fake-async zone; look at every frame until
+    // the plate shows (the pulse starts with the list).
+    var seen = false;
+    for (var i = 0; i < 60 && !seen; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 10)),
+      );
+      await tester.pump(const Duration(milliseconds: 50));
+      seen = drawn();
+    }
+    expect(seen, isTrue);
+
+    // 2.5 s after the first frame it is over.
+    await tester.pump(const Duration(seconds: 3));
+    expect(drawn(), isFalse);
+    expect(tester.takeException(), isNull);
+    await unmount(tester);
+  });
+
   testWidgets('without a scenario the list is shown; a tap opens one', (
     tester,
   ) async {
@@ -98,4 +128,14 @@ void main() {
     expect(text('Old Tobias lit the lantern'), findsWidgets);
     await unmount(tester);
   });
+}
+
+/// Whether [render] paints a rounded rectangle.
+bool _paintsPlate(RenderObject render) {
+  try {
+    expect(render, paints..rrect());
+    return true;
+  } on TestFailure {
+    return false;
+  }
 }

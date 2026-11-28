@@ -114,9 +114,16 @@ final List<DemoScenario> demoScenarios = [
   ),
   DemoScenario(
     id: 'reader_highlights',
-    title: 'Reader, every kind of highlight (T-113)',
+    title:
+        'Reader, every kind of highlight (T-113; the recent one pulses once)',
     location: _reader,
     highlights: demoAllHighlights,
+  ),
+  DemoScenario(
+    id: 'reader_pulse',
+    title: 'Reader, the pulse of a just translated word (T-124)',
+    location: _reader,
+    highlights: demoPulseHighlights,
   ),
   DemoScenario(
     id: 'cheatsheet',
@@ -159,5 +166,14 @@ final ReaderHighlights demoAllHighlights = ReaderHighlights(
     HighlightKind.lookedUp: {'reluctant'},
     HighlightKind.cheatSheet: {'lantern', 'harbour'},
     HighlightKind.difficult: {'lantern', 'mischievous', 'threshold', 'weary'},
+  },
+);
+
+/// One just translated word, "dusty": it pulses for 2.5 s when the reader
+/// opens and then leaves (T-124). To see it again, open the scenario again or
+/// translate a word.
+final ReaderHighlights demoPulseHighlights = ReaderHighlights(
+  ranges: {
+    HighlightKind.recent: [demoLocator('dusty')],
   },
 );

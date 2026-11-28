@@ -1006,7 +1006,7 @@ void main() {
       await tester.pump();
     }
 
-    macTest('is marked after the lookup closes and for 10 seconds only', (
+    macTest('is marked after the lookup closes and for 2.5 seconds only', (
       tester,
     ) async {
       await open(tester);
@@ -1017,11 +1017,47 @@ void main() {
       expect(recent(engine), [at(1, 0.25)]);
       expect(engine.highlights.last, isEmpty);
 
-      await tester.pump(recentHighlightDuration - const Duration(seconds: 1));
+      await tester.pump(recentPulseDuration - const Duration(seconds: 1));
       expect(recent(engine), [at(1, 0.25)]);
       await tester.pump(const Duration(seconds: 1));
       expect(engine.allHighlights.last, ReaderHighlights.none);
+
+      // The old 10 seconds are gone: nothing changes later.
+      final calls = engine.allHighlights.length;
+      await tester.pump(const Duration(seconds: 15));
+      expect(engine.allHighlights, hasLength(calls));
       await close(tester);
+    });
+
+    macTest('the engine is given the mark once for the whole pulse', (
+      tester,
+    ) async {
+      await open(tester);
+      final engine = engines.single;
+      await select(tester, engine, at(1, 0.25));
+      await closeLookup(tester);
+      final calls = engine.allHighlights.length;
+      await tester.pump(const Duration(milliseconds: 1500));
+      await tester.pump(const Duration(milliseconds: 900));
+      expect(engine.allHighlights, hasLength(calls));
+      expect(recent(engine), [at(1, 0.25)]);
+      await close(tester);
+    });
+
+    macTest('closing the screen during the pulse leaves no timer', (
+      tester,
+    ) async {
+      await open(tester);
+      final engine = engines.single;
+      await select(tester, engine, at(1, 0.25));
+      await closeLookup(tester);
+      expect(recent(engine), [at(1, 0.25)]);
+      // `close` unmounts the screen with the 2.5 s timer pending; a timer left
+      // behind fails the test, and the engine must not be called after it.
+      final calls = engine.allHighlights.length;
+      await close(tester);
+      await tester.pump(const Duration(seconds: 5));
+      expect(engine.allHighlights, hasLength(calls));
     });
 
     macTest('a new lookup takes the previous mark off at once', (tester) async {
@@ -1029,7 +1065,7 @@ void main() {
       final engine = engines.single;
       await select(tester, engine, at(1, 0.25));
       await closeLookup(tester);
-      await tester.pump(const Duration(seconds: 3));
+      await tester.pump(const Duration(seconds: 1));
       expect(recent(engine), [at(1, 0.25)]);
 
       await select(tester, engine, at(1, 0.5));
@@ -1038,11 +1074,11 @@ void main() {
       await closeLookup(tester);
       expect(recent(engine), [at(1, 0.5)]);
 
-      // The first mark's timer is gone: only 10 s after the second lookup
+      // The first mark's timer is gone: only 2.5 s after the second lookup
       // the mark leaves.
-      await tester.pump(const Duration(seconds: 8));
+      await tester.pump(const Duration(milliseconds: 1500));
       expect(recent(engine), [at(1, 0.5)]);
-      await tester.pump(const Duration(seconds: 2));
+      await tester.pump(const Duration(seconds: 1));
       expect(engine.allHighlights.last, ReaderHighlights.none);
       await close(tester);
     });

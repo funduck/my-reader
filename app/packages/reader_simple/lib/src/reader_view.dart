@@ -4,9 +4,11 @@ import 'package:core/domain_books.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:reader_api/reader_api.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import 'block_view.dart';
+import 'highlight_pulse.dart';
 import 'highlights.dart';
 import 'position.dart';
 import 'reader_style.dart';
@@ -60,6 +62,8 @@ class ReaderView extends StatelessWidget {
                 chapter: chapter,
                 style: style,
                 highlights: engine.highlightsIn(chapter),
+                recentEpoch: engine.recentEpoch,
+                recentActive: engine.recentActive,
               ),
             if (settings.dim > 0)
               IgnorePointer(
@@ -120,6 +124,8 @@ class _ChapterList extends StatefulWidget {
     required this.chapter,
     required this.style,
     required this.highlights,
+    required this.recentEpoch,
+    required this.recentActive,
     super.key,
   });
 
@@ -128,11 +134,18 @@ class _ChapterList extends StatefulWidget {
   final ReaderStyle style;
   final ChapterHighlights highlights;
 
+  /// Changes whenever the `recent` highlights change (T-124); a new value
+  /// restarts the pulse, or stops it when nothing is [recentActive].
+  final int recentEpoch;
+  final bool recentActive;
+
   @override
   State<_ChapterList> createState() => _ChapterListState();
 }
 
-class _ChapterListState extends State<_ChapterList> implements ViewportBridge {
+class _ChapterListState extends State<_ChapterList>
+    with SingleTickerProviderStateMixin
+    implements ViewportBridge {
   final _scroll = ItemScrollController();
   final ItemPositionsListener _positions = ItemPositionsListener.create();
   final GlobalKey _listKey = GlobalKey();
@@ -144,9 +157,21 @@ class _ChapterListState extends State<_ChapterList> implements ViewportBridge {
   _items = {};
   late final VoidCallback _detach;
 
+  // The pulse of `recent` plates (T-124): one clock for the chapter, so a
+  // frame of it repaints plates and rebuilds no block.
+  late final AnimationController _pulseClock = AnimationController(
+    vsync: this,
+    duration: recentPulseDuration,
+    // The pulse is the system setting's business (`RecentPulse`), not the
+    // controller's: it must run in real time, flatter but not skipped.
+    animationBehavior: AnimationBehavior.preserve,
+  );
+  late final RecentPulse _pulse = RecentPulse(_pulseClock);
+
   @override
   void initState() {
     super.initState();
+    if (widget.recentActive) _pulseClock.forward(from: 0);
     _detach = widget.engine.attachView(this);
     _positions.itemPositions.addListener(widget.engine.positionTouched);
     if (widget.chapter.startOffset > 0) {
@@ -155,9 +180,21 @@ class _ChapterListState extends State<_ChapterList> implements ViewportBridge {
   }
 
   @override
+  void didUpdateWidget(_ChapterList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.recentEpoch == widget.recentEpoch) return;
+    if (widget.recentActive) {
+      _pulseClock.forward(from: 0);
+    } else {
+      _pulseClock.value = 1;
+    }
+  }
+
+  @override
   void dispose() {
     _positions.itemPositions.removeListener(widget.engine.positionTouched);
     _detach();
+    _pulseClock.dispose();
     super.dispose();
   }
 
@@ -232,6 +269,7 @@ class _ChapterListState extends State<_ChapterList> implements ViewportBridge {
     final chapter = widget.chapter;
     final style = widget.style;
     final engine = widget.engine;
+    _pulse.reduceMotion = MediaQuery.disableAnimationsOf(context);
     final blocks = chapter.document.blocks;
     final index = chapter.ref?.index ?? 0;
     final hasPrevious = index > 0;
@@ -315,6 +353,7 @@ class _ChapterListState extends State<_ChapterList> implements ViewportBridge {
           loadResource: engine.loadResource,
           interactions: engine,
           highlights: highlights,
+          pulse: _pulse,
         ),
       ),
     );

@@ -113,6 +113,7 @@ class BlockView extends StatelessWidget {
     required this.loadResource,
     required this.interactions,
     this.highlights = const [],
+    this.pulse,
     super.key,
   });
 
@@ -133,6 +134,9 @@ class BlockView extends StatelessWidget {
 
   /// Ranges of `blockText(block)` drawn in the style of their kind.
   final List<BlockHighlight> highlights;
+
+  /// The opacity of the `recent` plates (T-124); `null` — full.
+  final Animation<double>? pulse;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -237,6 +241,7 @@ class BlockView extends StatelessWidget {
       inlines: inlines,
       readerStyle: style,
       highlights: local,
+      pulse: pulse,
       style: textStyle,
       align: align,
       interactions: interactions,
@@ -269,6 +274,7 @@ class _InteractiveText extends StatefulWidget {
     required this.inlines,
     required this.readerStyle,
     required this.highlights,
+    required this.pulse,
     required this.style,
     required this.align,
     required this.interactions,
@@ -280,6 +286,7 @@ class _InteractiveText extends StatefulWidget {
 
   /// Highlight ranges in `target.text`.
   final List<BlockHighlight> highlights;
+  final Animation<double>? pulse;
   final TextStyle style;
   final TextAlign align;
   final TextInteractions interactions;
@@ -485,17 +492,21 @@ class _InteractiveTextState extends State<_InteractiveText> {
       child: _KeepScroll(
         child: HighlightPlates(
           ranges: plateRanges(widget.highlights, widget.readerStyle),
-          child: SelectableText.rich(
-            inlineSpan(
-              widget.inlines,
-              widget.readerStyle,
-              highlights: widget.highlights,
+          pulse: widget.pulse,
+          // The pulse repaints the plates only: the text keeps its layer.
+          child: RepaintBoundary(
+            child: SelectableText.rich(
+              inlineSpan(
+                widget.inlines,
+                widget.readerStyle,
+                highlights: widget.highlights,
+              ),
+              style: widget.style,
+              textAlign: widget.align,
+              focusNode: _focus,
+              onSelectionChanged: _onSelectionChanged,
+              contextMenuBuilder: _menu,
             ),
-            style: widget.style,
-            textAlign: widget.align,
-            focusNode: _focus,
-            onSelectionChanged: _onSelectionChanged,
-            contextMenuBuilder: _menu,
           ),
         ),
       ),
