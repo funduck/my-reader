@@ -7,6 +7,7 @@ import 'package:flutter/rendering.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:reader_api/reader_api.dart';
 
+import 'highlight_plates.dart';
 import 'highlights.dart';
 import 'interactions.dart';
 import 'position.dart';
@@ -17,8 +18,9 @@ typedef ResourceLoader = Future<Uint8List> Function(String href);
 
 /// Builds the span for [inlines]: italic, bold and link runs nest.
 ///
-/// [highlights] are ranges in the text of [inlines] drawn in the style of
-/// their kind; where ranges overlap, the kind declared first wins.
+/// [highlights] are ranges in the text of [inlines]; where they overlap, the
+/// kind declared first wins. Only the underline of a kind is drawn here, as
+/// text style: the backgrounds are plates behind the text ([HighlightPlates]).
 TextSpan inlineSpan(
   List<Inline> inlines,
   ReaderStyle style, {
@@ -63,9 +65,11 @@ class _SpanBuilder {
     _at = to;
     final cuts = <int>{0, text.length};
     var touched = false;
-    for (final (:start, :end, kind: _) in highlights) {
+    for (final (:start, :end, :kind) in highlights) {
       if (end <= from || start >= to) continue;
-      touched = true;
+      // Backgrounds are plates and need no cut; but where an underline is
+      // drawn, the kind that wins must be found for every piece.
+      if (style.highlightOf(kind).underline != null) touched = true;
       cuts
         ..add((start - from).clamp(0, text.length))
         ..add((end - from).clamp(0, text.length));
@@ -479,17 +483,20 @@ class _InteractiveTextState extends State<_InteractiveText> {
     child: IgnorePointer(
       ignoring: _gated,
       child: _KeepScroll(
-        child: SelectableText.rich(
-          inlineSpan(
-            widget.inlines,
-            widget.readerStyle,
-            highlights: widget.highlights,
+        child: HighlightPlates(
+          ranges: plateRanges(widget.highlights, widget.readerStyle),
+          child: SelectableText.rich(
+            inlineSpan(
+              widget.inlines,
+              widget.readerStyle,
+              highlights: widget.highlights,
+            ),
+            style: widget.style,
+            textAlign: widget.align,
+            focusNode: _focus,
+            onSelectionChanged: _onSelectionChanged,
+            contextMenuBuilder: _menu,
           ),
-          style: widget.style,
-          textAlign: widget.align,
-          focusNode: _focus,
-          onSelectionChanged: _onSelectionChanged,
-          contextMenuBuilder: _menu,
         ),
       ),
     ),

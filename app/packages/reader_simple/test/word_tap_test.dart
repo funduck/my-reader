@@ -12,6 +12,7 @@ import 'package:reader_simple/src/interactions.dart';
 import 'package:reader_simple/src/reader_view.dart' show ReaderView;
 
 import 'fake_text_analyzer.dart';
+import 'plate_marks.dart';
 
 const _bookId = BookId('book-1');
 
@@ -112,17 +113,11 @@ Future<void> _hold(WidgetTester tester, Offset at) async {
   await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 10));
 }
 
-/// The spans of the paragraph that contains [inParagraph] drawn with a
-/// background.
-List<TextSpan> _marked(WidgetTester tester, String inParagraph) {
-  final span = tester.widget<SelectableText>(_paragraph(inParagraph)).textSpan!;
-  final result = <TextSpan>[];
-  span.visitChildren((s) {
-    if (s is TextSpan && s.style?.backgroundColor != null) result.add(s);
-    return true;
-  });
-  return result;
-}
+/// The texts marked with a plate in the paragraph that contains
+/// [inParagraph].
+List<String> _marked(WidgetTester tester, String inParagraph) => [
+  for (final (text, _) in marksOf(tester, _paragraph(inParagraph))) text,
+];
 
 ReaderHighlights _focus(List<Locator> places) =>
     ReaderHighlights(ranges: {HighlightKind.focus: places});
@@ -1258,7 +1253,7 @@ void main() {
   });
 
   group('highlight', () {
-    testWidgets('a Locator from an event is drawn with a background', (
+    testWidgets('a Locator from an event is drawn with a plate', (
       tester,
     ) async {
       final h = await _openText(tester, _fox, translate: true);
@@ -1268,7 +1263,7 @@ void main() {
       h.engine.highlight(_focus([at]));
       await tester.pump();
 
-      expect([for (final s in _marked(tester, 'quick')) s.text], ['brown']);
+      expect(_marked(tester, 'quick'), ['brown']);
       expect(
         tester
             .widget<SelectableText>(_paragraph('quick'))
@@ -1304,17 +1299,14 @@ void main() {
 
       h.engine.highlight(_focus([at('in heavy wor', 3)]));
       await tester.pump();
-      expect(
-        [for (final s in _marked(tester, 'plain')) s.text],
-        ['in ', 'heavy wor'],
-      );
+      expect(_marked(tester, 'plain'), ['in heavy wor']);
+      // The bold run in the middle does not cut the plate: one plate on the
+      // line.
+      expect(platesOf(tester, _paragraph('plain')), hasLength(1));
 
       h.engine.highlight(_focus([at('words after', 12)]));
       await tester.pump();
-      expect(
-        [for (final s in _marked(tester, 'plain')) s.text],
-        ['words', ' after'],
-      );
+      expect(_marked(tester, 'plain'), ['words after']);
 
       h.engine.highlight(ReaderHighlights.none);
       await tester.pump();

@@ -1,22 +1,26 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:reader_api/reader_api.dart';
 
-/// How text of one [HighlightKind] is drawn: a background, an underline or
-/// both; a `null` colour draws nothing of that sort.
+/// How text of one [HighlightKind] is drawn: a background plate, an underline
+/// or both; a `null` colour draws nothing of that sort.
+///
+/// The background is a rounded plate painted behind the text (T-123,
+/// `highlight_plates.dart`); the underline is a text decoration.
 @immutable
 final class HighlightStyle {
   /// Creates a style; a style with neither colour draws nothing.
   const new({this.background, this.underline});
 
-  /// Background colour behind the text.
+  /// Colour of the plate behind the text.
   final Color? background;
 
   /// Colour of a line under the text.
   final Color? underline;
 
-  /// The text style that draws this highlight.
+  /// The text style that draws this highlight in the text itself: the
+  /// underline only. The background is not a text style: a `backgroundColor`
+  /// is a square box tight to the letters.
   TextStyle get textStyle => TextStyle(
-    backgroundColor: background,
     decoration: underline == null ? null : TextDecoration.underline,
     decorationColor: underline,
   );
