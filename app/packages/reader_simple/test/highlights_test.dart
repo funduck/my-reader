@@ -5,9 +5,11 @@ import 'package:material_ui/material_ui.dart';
 import 'package:reader_api/reader_api.dart';
 import 'package:reader_simple/reader_simple.dart';
 import 'package:reader_simple/src/block_view.dart';
+import 'package:reader_simple/src/highlight_plates.dart';
 import 'package:reader_simple/src/reader_style.dart';
 
 import 'fake_text_analyzer.dart';
+import 'plate_marks.dart';
 
 const _bookId = BookId('book-1');
 
@@ -58,32 +60,6 @@ Future<_Harness> _open(WidgetTester tester, List<String> paragraphs) async {
   return _Harness(engine, analyzer);
 }
 
-/// Every marked piece of the text on screen: its text and background.
-List<(String, Color)> _marks(WidgetTester tester) {
-  final result = <(String, Color)>[];
-  for (final widget in tester.widgetList<SelectableText>(
-    find.byType(SelectableText),
-  )) {
-    // Touching marked pieces of one colour are one mark.
-    (String, Color)? open;
-    widget.textSpan!.visitChildren((span) {
-      final color = span is TextSpan ? span.style?.backgroundColor : null;
-      if (color == null) {
-        if (open != null) result.add(open!);
-        open = null;
-      } else if (open != null && open!.$2 == color) {
-        open = (open!.$1 + (span as TextSpan).text!, color);
-      } else {
-        if (open != null) result.add(open!);
-        open = ((span as TextSpan).text!, color);
-      }
-      return true;
-    });
-    if (open != null) result.add(open!);
-  }
-  return result;
-}
-
 Locator _at(
   _Harness h,
   String chapterText,
@@ -125,7 +101,7 @@ void main() {
       await tester.pump();
 
       final blue = h.color(HighlightKind.lookedUp)!;
-      expect(_marks(tester), [
+      expect(allMarks(tester), [
         ('runs', blue),
         ('ran', blue),
         ('Running', blue),
@@ -145,7 +121,7 @@ void main() {
       final recent = h.color(HighlightKind.recent)!;
       final difficult = h.color(HighlightKind.difficult)!;
       expect(recent, isNot(difficult));
-      expect(_marks(tester), [
+      expect(allMarks(tester), [
         ('fast', difficult),
         ('fun', difficult),
         ('dog', recent),
@@ -160,7 +136,7 @@ void main() {
         }),
       );
       await tester.pump();
-      expect(_marks(tester).map((m) => m.$1), ['to']);
+      expect(allMarks(tester).map((m) => m.$1), ['to']);
     });
 
     testWidgets('on a word of two kinds the earlier kind is drawn', (
@@ -176,7 +152,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(_marks(tester), [
+      expect(allMarks(tester), [
         ('runs', h.color(HighlightKind.cheatSheet)),
         ('fast', h.color(HighlightKind.lookedUp)),
         ('ran', h.color(HighlightKind.cheatSheet)),
@@ -203,7 +179,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(_marks(tester), [
+      expect(allMarks(tester), [
         ('runs fast', h.color(HighlightKind.focus)),
         ('ran ', h.color(HighlightKind.difficult)),
         ('home', h.color(HighlightKind.recent)),
@@ -244,7 +220,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(_marks(tester), [
+      expect(allMarks(tester), [
         ('Nothing', h.color(HighlightKind.recent)),
         ('dog', h.color(HighlightKind.focus)),
       ]);
@@ -271,11 +247,11 @@ void main() {
         ),
       );
       await tester.pump();
-      expect(_marks(tester), isNotEmpty);
+      expect(allMarks(tester), isNotEmpty);
 
       h.engine.highlight(ReaderHighlights.none);
       await tester.pump();
-      expect(_marks(tester), isEmpty);
+      expect(allMarks(tester), isEmpty);
     });
 
     testWidgets('an underline style draws a line and keeps the text', (
@@ -286,6 +262,198 @@ void main() {
       expect(style.textStyle.decorationColor, const Color(0xFFFF0000));
       expect(style.textStyle.backgroundColor, isNull);
       expect(const HighlightStyle().textStyle.decoration, isNull);
+    });
+  });
+
+  group('plates', () {
+    const radius = Radius.circular(HighlightPlateShape.radius);
+
+    // The box of the text [start, end) of the one paragraph on screen, as the
+    // paragraph lays it out, in the coordinates of the plates, one per line.
+    List<Rect> boxes(WidgetTester tester, int start, int end) {
+      final editable = tester
+          .state<EditableTextState>(find.byType(EditableText))
+          .renderEditable;
+      final plates = tester.renderObject<RenderHighlightPlates>(
+        find.byType(HighlightPlates),
+      );
+      final toPlates = editable.getTransformTo(plates);
+      return [
+        for (final box in editable.getBoxesForSelection(
+          TextSelection(baseOffset: start, extentOffset: end),
+        ))
+          MatrixUtils.transformRect(toPlates, box.toRect()),
+      ];
+    }
+
+    Rect widened(Rect box) => Rect.fromLTRB(
+      box.left - HighlightPlateShape.horizontalPadding,
+      box.top - HighlightPlateShape.verticalPadding,
+      box.right + HighlightPlateShape.horizontalPadding,
+      box.bottom + HighlightPlateShape.verticalPadding,
+    );
+
+    // A view 200 px wide: 168 px of text, nine letters of the test font.
+    void narrow(WidgetTester tester) {
+      tester.view
+        ..physicalSize = const Size(200, 800)
+        ..devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+    }
+
+    Future<_Harness> openOne(WidgetTester tester, String text) {
+      narrow(tester);
+      return _open(tester, [text]);
+    }
+
+    List<Plate> plates(WidgetTester tester) =>
+        platesOf(tester, find.byType(SelectableText));
+
+    testWidgets('the plate of a word is its box plus the padding', (
+      tester,
+    ) async {
+      final h = await openOne(tester, 'alpha beta gamma');
+      h.engine.highlight(
+        _words({
+          HighlightKind.lookedUp: {'beta'},
+        }),
+      );
+      await tester.pump();
+
+      final result = plates(tester);
+      expect(result, hasLength(1));
+      expect(result.single.color, h.color(HighlightKind.lookedUp));
+      final box = boxes(tester, 6, 10).single;
+      expect(result.single.rect, rectMoreOrLessEquals(widened(box)));
+      // The plate reaches past the letters, but not by much.
+      expect(result.single.rect.width, box.width + 4);
+    });
+
+    testWidgets('two neighbouring words have two plates, apart', (
+      tester,
+    ) async {
+      final h = await openOne(tester, 'aa bb cc');
+      h.engine.highlight(
+        _words({
+          HighlightKind.lookedUp: {'aa', 'bb'},
+        }),
+      );
+      await tester.pump();
+
+      final result = plates(tester);
+      expect(result, hasLength(2));
+      expect(result[0].rect.right, lessThan(result[1].rect.left));
+      expect(
+        result[0].rect,
+        rectMoreOrLessEquals(widened(boxes(tester, 0, 2).single)),
+      );
+      expect(
+        result[1].rect,
+        rectMoreOrLessEquals(widened(boxes(tester, 3, 5).single)),
+      );
+    });
+
+    testWidgets('a phrase over a line break has a plate on each line', (
+      tester,
+    ) async {
+      final h = await openOne(tester, 'aaaa bbbb cccc dddd');
+      const text = 'aaaa bbbb cccc dddd';
+      h.engine.highlight(
+        ReaderHighlights(
+          ranges: {
+            HighlightKind.focus: [_at(h, text, 'bbbb cccc')],
+          },
+        ),
+      );
+      await tester.pump();
+
+      final result = plates(tester);
+      final expected = boxes(tester, 5, 14);
+      expect(expected, hasLength(2));
+      expect(result, hasLength(2));
+      expect(result[0].rect, rectMoreOrLessEquals(widened(expected[0])));
+      expect(result[1].rect, rectMoreOrLessEquals(widened(expected[1])));
+      expect(result[0].rect.bottom, lessThan(result[1].rect.top));
+      expect(marksOf(tester, find.byType(SelectableText)), [
+        ('bbbb cccc', h.color(HighlightKind.focus)),
+      ]);
+    });
+
+    testWidgets('the text lays out the same with and without plates', (
+      tester,
+    ) async {
+      final h = await openOne(tester, 'aaaa bbbb cccc dddd eeee ffff');
+      final selectable = find.byType(SelectableText);
+      EditableTextState state() =>
+          tester.state<EditableTextState>(find.byType(EditableText));
+      List<Rect> lines() => [
+        for (final box in state().renderEditable.getBoxesForSelection(
+          const TextSelection(baseOffset: 0, extentOffset: 29),
+        ))
+          box.toRect(),
+      ];
+
+      final size = tester.getSize(selectable);
+      final before = lines();
+      expect(before.length, greaterThan(2));
+
+      h.engine.highlight(
+        _words({
+          HighlightKind.difficult: {'bbbb', 'cccc', 'eeee'},
+          HighlightKind.focus: {'dddd'},
+        }),
+      );
+      await tester.pump();
+      expect(plates(tester), isNotEmpty);
+
+      expect(tester.getSize(selectable), size);
+      expect(lines(), before);
+    });
+
+    for (final lineHeight in [1.0, 1.5, 2.5]) {
+      testWidgets('plates of two lines do not overlap at line height '
+          '$lineHeight', (tester) async {
+        final h = await openOne(tester, 'aaaa bbbb cccc dddd eeee ffff');
+        h.engine.applySettings(ReaderSettings(lineHeight: lineHeight));
+        await tester.pump();
+        h.engine.highlight(
+          ReaderHighlights(
+            ranges: {
+              HighlightKind.focus: [
+                _at(h, 'aaaa bbbb cccc dddd eeee ffff', 'bbbb cccc dddd eeee'),
+              ],
+            },
+          ),
+        );
+        await tester.pump();
+
+        final result = plates(tester);
+        expect(result.length, greaterThanOrEqualTo(3));
+        for (var i = 0; i + 1 < result.length; i++) {
+          expect(result[i].rect.bottom, lessThan(result[i + 1].rect.top));
+        }
+      });
+    }
+
+    testWidgets('a plate is painted rounded, under the text', (tester) async {
+      final h = await openOne(tester, 'alpha beta gamma');
+      h.engine.highlight(
+        _words({
+          HighlightKind.lookedUp: {'beta'},
+        }),
+      );
+      await tester.pump();
+
+      final plate = plates(tester).single;
+      expect(
+        tester.renderObject(find.byType(HighlightPlates)),
+        paints
+          ..rrect(
+            rrect: RRect.fromRectAndRadius(plate.rect, radius),
+            color: plate.color,
+          )
+          ..paragraph(),
+      );
     });
   });
 
@@ -437,7 +605,7 @@ void main() {
       expect(watch.elapsedMilliseconds, lessThan(50));
       // Only the two paragraphs with marked words on screen changed.
       expect(blocks, [0, 1]);
-      expect(_marks(tester).length, 60);
+      expect(allMarks(tester).length, 60);
     });
   });
 }

@@ -7,6 +7,45 @@ import 'position.dart';
 /// A marked piece of a block: `[start, end)` offsets in the block text.
 typedef BlockHighlight = ({int start, int end, HighlightKind kind});
 
+/// What is drawn over each piece of a block: `[start, end)` offsets of the
+/// pieces in order, none overlapping, and the kind that wins on each.
+///
+/// The text is cut at the boundaries of all [highlights]; a piece takes the
+/// kind with the smallest index of those that cover it (the priority of
+/// [HighlightKind]). Neighbouring pieces of one kind are one piece, so a
+/// phrase marked by two overlapping ranges of one kind is a single piece,
+/// while words with a space between them stay apart.
+List<BlockHighlight> winningRanges(List<BlockHighlight> highlights) {
+  if (highlights.isEmpty) return const [];
+  final cuts = <int>{
+    for (final h in highlights)
+      if (h.start < h.end) ...[h.start, h.end],
+  }.toList()..sort();
+  final result = <BlockHighlight>[];
+  for (var i = 0; i + 1 < cuts.length; i++) {
+    final (from, to) = (cuts[i], cuts[i + 1]);
+    HighlightKind? best;
+    for (final h in highlights) {
+      if (h.start <= from && to <= h.end) {
+        if (best == null || h.kind.index < best.index) best = h.kind;
+      }
+    }
+    if (best == null) continue;
+    if (result.isNotEmpty &&
+        result.last.end == from &&
+        result.last.kind == best) {
+      result[result.length - 1] = (
+        start: result.last.start,
+        end: to,
+        kind: best,
+      );
+    } else {
+      result.add((start: from, end: to, kind: best));
+    }
+  }
+  return result;
+}
+
 /// The words of the blocks of one chapter with their lemmas.
 ///
 /// A block is tokenized and lemmatized the first time it is asked for, and
