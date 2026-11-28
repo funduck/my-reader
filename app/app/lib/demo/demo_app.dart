@@ -117,14 +117,22 @@ class _AfterFirstFrameState extends ConsumerState<_AfterFirstFrame> {
   @override
   void initState() {
     super.initState();
-    final action = widget.action;
-    if (action == null) return;
+    if (widget.action != null) _afterFrame();
+  }
+
+  /// Waits for the app navigator: the router is built only after launch has
+  /// read the last screen, so it may take a few frames.
+  void _afterFrame() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final router = ref.read(routerProvider);
       final navigator = router.routerDelegate.navigatorKey.currentContext;
-      if (navigator == null) return;
-      unawaited(action(navigator));
+      if (navigator == null) {
+        _afterFrame();
+        WidgetsBinding.instance.scheduleFrame();
+        return;
+      }
+      unawaited(widget.action!(navigator));
     });
   }
 

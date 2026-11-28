@@ -3,6 +3,7 @@ import 'package:features_settings/features_settings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import 'last_screen.dart';
 import 'router.dart';
 import 'theme.dart';
 
@@ -27,6 +28,17 @@ class MyReaderApp extends ConsumerWidget {
         null => ThemeMode.system,
       },
       routerConfig: ref.watch(routerProvider),
+      // The library below is hidden while launch opens the last screen over
+      // it (B-030), so a restored book does not flash the library first.
+      builder: (context, child) => Stack(
+        alignment: Alignment.topLeft,
+        fit: StackFit.expand,
+        children: [
+          ?child,
+          if (ref.watch(launchProvider).isLoading)
+            ColoredBox(color: Theme.of(context).scaffoldBackgroundColor),
+        ],
+      ),
     );
   }
 }

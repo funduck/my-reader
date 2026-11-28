@@ -6,6 +6,7 @@ import '../lookup/lookup_mode.dart';
 import 'cheat_sheet_scope.dart';
 import 'display_prefs.dart';
 import 'highlight_prefs.dart';
+import 'last_screen.dart';
 
 /// Cheat sheet limit of a new profile.
 const defaultCheatSheetLimit = 10;
@@ -40,6 +41,7 @@ final class UserProfile {
     this.serviceUrl,
     this.display = const DisplayPrefs(),
     this.highlights = const HighlightPrefs(),
+    this.lastScreen,
   });
 
   /// Reads a profile; missing or invalid fields take defaults.
@@ -61,6 +63,7 @@ final class UserProfile {
       serviceUrl: url is String && url.isNotEmpty ? url : null,
       display: DisplayPrefs.fromJson(json['display']),
       highlights: HighlightPrefs.fromJson(json['highlights']),
+      lastScreen: LastScreen.fromJson(json['lastScreen']),
     );
   }
 
@@ -89,8 +92,11 @@ final class UserProfile {
   /// Which text highlights are on and the frequency threshold.
   final HighlightPrefs highlights;
 
-  /// Copy with some fields replaced. [serviceUrl] takes a function so that
-  /// `() => null` can clear it.
+  /// The reader or cheat sheet to reopen at launch; `null` — the library.
+  final LastScreen? lastScreen;
+
+  /// Copy with some fields replaced. [serviceUrl] and [lastScreen] take a
+  /// function so that `() => null` can clear them.
   UserProfile copyWith({
     LookupMode? mode,
     CefrLevel? level,
@@ -100,6 +106,7 @@ final class UserProfile {
     String? Function()? serviceUrl,
     DisplayPrefs? display,
     HighlightPrefs? highlights,
+    LastScreen? Function()? lastScreen,
   }) => UserProfile(
     mode: mode ?? this.mode,
     level: level ?? this.level,
@@ -109,6 +116,7 @@ final class UserProfile {
     serviceUrl: serviceUrl != null ? serviceUrl() : this.serviceUrl,
     display: display ?? this.display,
     highlights: highlights ?? this.highlights,
+    lastScreen: lastScreen != null ? lastScreen() : this.lastScreen,
   );
 
   /// JSON form.
@@ -121,6 +129,7 @@ final class UserProfile {
     'serviceUrl': serviceUrl,
     'display': display.toJson(),
     'highlights': highlights.toJson(),
+    'lastScreen': lastScreen?.toJson(),
   };
 
   @override
@@ -133,6 +142,7 @@ final class UserProfile {
         other.serviceUrl != serviceUrl ||
         other.display != display ||
         other.highlights != highlights ||
+        other.lastScreen != lastScreen ||
         other.providerOrder.length != providerOrder.length) {
       return false;
     }
@@ -151,6 +161,7 @@ final class UserProfile {
     serviceUrl,
     display,
     highlights,
+    lastScreen,
     Object.hashAll(providerOrder),
   );
 }
