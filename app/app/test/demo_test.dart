@@ -87,6 +87,29 @@ void main() {
     await unmount(tester);
   });
 
+  testWidgets('restore_reader opens the book over the library', (tester) async {
+    await tester.pumpWidget(const DemoApp(initial: 'restore_reader'));
+    await settle(tester);
+    expect(text('Old Tobias lit the lantern'), findsWidgets);
+    expect(find.widgetWithText(AppBar, 'Library'), findsNothing);
+    await tester.binding.handlePopRoute();
+    await settle(tester);
+    expect(find.widgetWithText(AppBar, 'Library'), findsOneWidget);
+    await unmount(tester);
+  });
+
+  testWidgets('restore_cheatsheet opens the sheet over the library', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const DemoApp(initial: 'restore_cheatsheet'));
+    await settle(tester);
+    expect(find.text('mischievous'), findsOneWidget);
+    await tester.binding.handlePopRoute();
+    await settle(tester);
+    expect(find.widgetWithText(AppBar, 'Library'), findsOneWidget);
+    await unmount(tester);
+  });
+
   testWidgets('without a scenario the list is shown; a tap opens one', (
     tester,
   ) async {

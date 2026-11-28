@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:core/domain_books.dart' show BookId;
 import 'package:core/domain_lookup.dart';
 import 'package:test/test.dart';
 
@@ -118,6 +119,49 @@ void main() {
       expect(back.highlights, custom);
       expect(back, profile);
       expect(const UserProfile() == profile, isFalse);
+    });
+
+    test('lastScreen: default, round-trip, old JSON without it', () {
+      expect(const UserProfile().lastScreen, isNull);
+      expect(UserProfile.fromJson(const {'level': 'c1'}).lastScreen, isNull);
+
+      for (final kind in LastScreenKind.values) {
+        final screen = LastScreen(kind: kind, book: const BookId('b1'));
+        final profile = const UserProfile().copyWith(lastScreen: () => screen);
+        final back = UserProfile.fromJson(_roundTrip(profile.toJson()));
+        expect(back.lastScreen, screen);
+        expect(back, profile);
+        expect(back == const UserProfile(), isFalse);
+      }
+    });
+
+    test('lastScreen: copyWith keeps it, `() => null` clears it', () {
+      const screen = LastScreen(
+        kind: LastScreenKind.reader,
+        book: BookId('b1'),
+      );
+      final profile = const UserProfile().copyWith(lastScreen: () => screen);
+      expect(profile.copyWith(level: CefrLevel.c1).lastScreen, screen);
+      expect(profile.copyWith(lastScreen: () => null).lastScreen, isNull);
+    });
+
+    test('lastScreen: a record that does not parse reads as none', () {
+      for (final bad in <Object?>[
+        'reader',
+        7,
+        <String, Object?>{},
+        {'kind': 'reader'},
+        {'book': 'b1'},
+        {'kind': 'history', 'book': 'b1'},
+        {'kind': 'reader', 'book': ''},
+        {'kind': 'reader', 'book': 3},
+      ]) {
+        expect(
+          UserProfile.fromJson({'lastScreen': bad}).lastScreen,
+          isNull,
+          reason: '$bad',
+        );
+      }
     });
 
     test('highlights: bars are clamped, bad fields take defaults', () {

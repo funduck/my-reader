@@ -124,6 +124,22 @@ final List<DemoScenario> demoScenarios = [
     location: Routes.cheatsheetFor(demoBookId.value),
   ),
   const DemoScenario(
+    id: 'restore_reader',
+    title: 'After a restart: the reader over the library (T-125)',
+    location: Routes.library,
+    profile: UserProfile(
+      lastScreen: LastScreen(kind: LastScreenKind.reader, book: demoBookId),
+    ),
+  ),
+  const DemoScenario(
+    id: 'restore_cheatsheet',
+    title: 'After a restart: the cheat sheet over the library (T-125)',
+    location: Routes.library,
+    profile: UserProfile(
+      lastScreen: LastScreen(kind: LastScreenKind.cheatsheet, book: demoBookId),
+    ),
+  ),
+  const DemoScenario(
     id: 'settings',
     title: 'Settings',
     location: Routes.settings,

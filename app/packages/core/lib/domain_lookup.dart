@@ -19,4 +19,5 @@ export 'src/domain/lookup/term_status.dart';
 export 'src/domain/profile/cheat_sheet_scope.dart';
 export 'src/domain/profile/display_prefs.dart';
 export 'src/domain/profile/highlight_prefs.dart';
+export 'src/domain/profile/last_screen.dart';
 export 'src/domain/profile/user_profile.dart';
